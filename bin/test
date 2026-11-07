@@ -1,5 +1,8 @@
 #!/usr/bin/env ruby
 $: << File.expand_path("../test", __dir__)
 
+# With no arguments, run everything, browser tests included.
+ARGV.replace(Dir[File.expand_path("../test/{tensaku,system}", __dir__)]) if ARGV.empty?
+
 require "bundler/setup"
 require "rails/plugin/test"

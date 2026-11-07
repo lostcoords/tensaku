@@ -1,0 +1,335 @@
+// Tensaku's overlay. Injected by the middleware in development; reads the stamps producers wrote into
+// the page and talks to the endpoints under /__tensaku.
+
+import { api, meta } from "./api"
+import { contextOf, documentRect, editKind, isUi, MARKDOWN, nearestStamp, sourceElement, STAMP, stampOf, tagLabel, translationOf, visibleText, copiesOf } from "./dom"
+import { closeEditor, edit, isEditing, undo, undoFor } from "./editor"
+import { watch as watchMarkers } from "./markers"
+import { drawPins, elementsInArea, load as loadNotes, noteForm, onCount, sidebarOpen, targetsFor, toggleSidebar } from "./notes"
+import { onRefresh } from "./refresh"
+import { box, copy, div, fixed, h, layer, mount, panel, storage, store, toast } from "./ui"
+
+declare global {
+  interface Window { __tensaku?: boolean }
+}
+
+type Mode = "off" | "inspect" | "edit"
+let mode: Mode = "off"
+let hoverBoxes: HTMLElement[] = []
+let editBoxes: HTMLElement[] = []
+let menu: HTMLElement | null = null
+let drag: { x: number; y: number; area: HTMLElement | null } | null = null
+let suppressClick = false
+
+// Corner button and toolbar ---------------------------------------------------------------------
+
+const count = h("span", { className: "count", hidden: true })
+const corner = h("button", { className: "corner", type: "button", title: "Tensaku", "aria-label": "Tensaku", "aria-expanded": "false" }, "添", count)
+const buttons = {
+  inspect: h("button", { type: "button", "aria-pressed": "false", title: "Select an element or drag an area" }, "Select"),
+  edit: h("button", { type: "button", "aria-pressed": "false", title: "Show and edit every editable text" }, "Edit"),
+  notes: h("button", { type: "button", "aria-pressed": "false" }, "Notes"),
+}
+const toolbar = div("toolbar", buttons.inspect, buttons.edit, buttons.notes)
+toolbar.hidden = true
+const dock = div("dock", toolbar, corner)
+fixed.append(dock)
+
+function placeDock() {
+  const position = storage<{ right: number; bottom: number }>("dock", { right: 16, bottom: 16 })
+  dock.style.right = `${Math.min(Math.max(position.right, 4), innerWidth - 44)}px`
+  dock.style.bottom = `${Math.min(Math.max(position.bottom, 4), innerHeight - 44)}px`
+}
+
+let dragged = false
+corner.addEventListener("pointerdown", (event) => {
+  const start = { x: event.clientX, y: event.clientY, right: parseFloat(dock.style.right), bottom: parseFloat(dock.style.bottom) }
+  dragged = false
+  corner.setPointerCapture(event.pointerId)
+  const move = (e: PointerEvent) => {
+    const dx = e.clientX - start.x
+    const dy = e.clientY - start.y
+    if (!dragged && Math.hypot(dx, dy) < 4) return
+    dragged = true
+    corner.style.cursor = "grabbing"
+    dock.style.right = `${start.right - dx}px`
+    dock.style.bottom = `${start.bottom - dy}px`
+  }
+  const up = () => {
+    corner.removeEventListener("pointermove", move)
+    corner.removeEventListener("pointerup", up)
+    corner.style.cursor = ""
+    if (dragged) store("dock", { right: parseFloat(dock.style.right), bottom: parseFloat(dock.style.bottom) })
+  }
+  corner.addEventListener("pointermove", move)
+  corner.addEventListener("pointerup", up)
+})
+corner.addEventListener("click", () => {
+  if (dragged) return
+  toolbar.hidden = !toolbar.hidden
+  corner.setAttribute("aria-expanded", String(!toolbar.hidden))
+  if (toolbar.hidden) setMode("off")
+})
+buttons.inspect.addEventListener("click", () => setMode(mode === "inspect" ? "off" : "inspect"))
+buttons.edit.addEventListener("click", () => setMode(mode === "edit" ? "off" : "edit"))
+buttons.notes.addEventListener("click", () => { toggleSidebar(); syncButtons() })
+
+onCount((n) => {
+  count.hidden = n === 0
+  count.textContent = String(n)
+  buttons.notes.textContent = n ? `Notes (${n})` : "Notes"
+})
+
+function syncButtons() {
+  buttons.inspect.setAttribute("aria-pressed", String(mode === "inspect"))
+  buttons.edit.setAttribute("aria-pressed", String(mode === "edit"))
+  buttons.notes.setAttribute("aria-pressed", String(sidebarOpen()))
+  corner.classList.toggle("active", mode !== "off")
+}
+
+function setMode(next: Mode) {
+  mode = next
+  if (next !== "off") { toolbar.hidden = false; corner.setAttribute("aria-expanded", "true") }
+  clearHover()
+  closeMenu()
+  drawEditBoxes()
+  document.documentElement.style.cursor = next === "inspect" ? "crosshair" : ""
+  syncButtons()
+}
+
+// Highlights ------------------------------------------------------------------------------------
+
+function clearHover() {
+  hoverBoxes.forEach((b) => b.remove())
+  hoverBoxes = []
+}
+
+function label(element: Element) {
+  const stamp = stampOf(element) ?? nearestStamp(element)
+  const md = element.getAttribute(MARKDOWN)
+  const key = translationOf(element)
+  const where = key ? `${key.locale}.${key.key}` : md ? md.split(/:(?=\d+:\d+-)/)[0] + ":" + md.split(/:(?=\d+:\d+-)/)[1].split(":")[0] : stamp ? `${stamp.file}:${stamp.line}` : ""
+  return `${tagLabel(element)}  ${where}`
+}
+
+function highlight(element: Element) {
+  clearHover()
+  hoverBoxes = box(documentRect(element), mode === "edit" ? "hover-edit" : "", label(element))
+}
+
+function editableElements(): Element[] {
+  const elements = new Set<Element>()
+  document.body.querySelectorAll(`[${STAMP}], [${MARKDOWN}], *`).forEach((element) => {
+    if (isUi(element) || !(element as HTMLElement).offsetParent && getComputedStyle(element).position !== "fixed") return
+    if (editKind(element)) elements.add(element)
+  })
+  return Array.from(elements)
+}
+
+function drawEditBoxes() {
+  editBoxes.forEach((b) => b.remove())
+  editBoxes = []
+  if (mode !== "edit") return
+  for (const element of editableElements()) editBoxes.push(...box(documentRect(element), "edit"))
+}
+
+// Menu after a click in inspect mode ----------------------------------------------------------------
+
+function closeMenu() {
+  menu?.remove()
+  menu = null
+}
+
+function reference(element: Element): string {
+  const stamp = nearestStamp(element)
+  const lines = [`${meta().method} ${location.pathname}${location.search} → ${stamp ? `${stamp.file}:${stamp.line}:${stamp.column}` : "(no source stamp)"}`]
+  const text = visibleText(element, 200)
+  lines.push(`<${tagLabel(element)}>${text ? ` "${text}"` : ""}`)
+  const key = translationOf(element)
+  if (key) lines.push(`Translation: ${key.locale}.${key.key}`)
+  const md = element.closest(`[${MARKDOWN}]`)?.getAttribute(MARKDOWN)
+  if (md) lines.push(`Markdown: ${md}`)
+  const context = contextOf(element)
+  if (context.partials.length > 1) lines.push(`Partials: ${context.partials.join(" < ")}`)
+  if (context.controller) lines.push(`Stimulus: ${context.controller}`)
+  if (context.frame) lines.push(`Turbo Frame: #${context.frame}`)
+  const copies = copiesOf(element)
+  if (copies > 1) lines.push(`Rendered ${copies} times on this page (loop or repeated partial)`)
+  return lines.join("\n")
+}
+
+function openMenu(element: Element, selectedText?: string) {
+  closeMenu()
+  const rect = documentRect(element)
+  const kind = editKind(element)
+  const item = (text: string, action: () => void, shortcut?: string) =>
+    h("button", { type: "button", onclick: () => { closeMenu(); action() } }, text, shortcut ? h("kbd", {}, shortcut) : null)
+  const undoable = undoFor(element)
+  menu = panel(rect, "menu",
+    h("h3", {}, label(element)),
+    item("Copy reference", async () => { await copy(reference(element)); toast("Copied reference") }, "C"),
+    item(selectedText ? "Note on selected text" : "Add note", () => noteForm(rect, targetsFor(element, selectedText)), "N"),
+    kind ? item(kind === "attributes" ? "Edit attributes" : "Edit text", () => edit(element, kind), "E") : null,
+    kind && kind !== "attributes" && editKind(element) !== "attributes" && hasAttributes(element) ? item("Edit attributes", () => edit(element, "attributes")) : null,
+    undoable ? item(undoable.label, () => undo(element), "U") : null)
+  menu.dataset.tensakuMenu = ""
+  menu.addEventListener("keydown", (event) => event.stopPropagation())
+  ;(menu.querySelector("button") as HTMLElement | null)?.focus()
+  menuKeys = (event: KeyboardEvent) => {
+    if (!menu) return
+    const actions: Record<string, number> = { c: 0, n: 1, e: 2, u: 3 }
+    const index = actions[event.key.toLowerCase()]
+    if (index === undefined || event.metaKey || event.ctrlKey || event.altKey) return
+    const all = Array.from(menu.querySelectorAll("button"))
+    const match = all.find((button) => button.querySelector("kbd")?.textContent === event.key.toUpperCase())
+    if (match) { event.preventDefault(); match.click() }
+  }
+  api("POST", "/selection", { url: location.pathname, targets: targetsFor(element, selectedText), text: visibleText(element, 300) }).catch(() => {})
+}
+let menuKeys: ((event: KeyboardEvent) => void) | null = null
+
+function hasAttributes(element: Element) {
+  return ["alt", "title", "placeholder", "aria-label"].some((name) => element.hasAttribute(name))
+}
+
+// Page events -----------------------------------------------------------------------------------
+
+function pageTarget(event: Event): Element | null {
+  const target = event.composedPath()[0] as Node
+  if (isUi(target as Element) || (target instanceof Node && isUi(target.parentElement))) return null
+  return sourceElement(target)
+}
+
+document.addEventListener("mousemove", (event) => {
+  if (drag) return updateDrag(event)
+  if (mode === "off" || menu || isEditing()) return
+  const element = pageTarget(event)
+  if (!element) return clearHover()
+  if (mode === "edit" && !editKind(element)) return clearHover()
+  highlight(element)
+}, true)
+
+document.addEventListener("mousedown", (event) => {
+  if (mode !== "inspect" || event.button !== 0 || isUi(event.target as Element) || menu || isEditing()) return
+  drag = { x: event.pageX, y: event.pageY, area: null }
+}, true)
+
+function updateDrag(event: MouseEvent) {
+  if (!drag) return
+  const width = Math.abs(event.pageX - drag.x)
+  const height = Math.abs(event.pageY - drag.y)
+  if (!drag.area && Math.hypot(width, height) < 8) return
+  if (!drag.area) { clearHover(); drag.area = div("area"); layer.append(drag.area) }
+  Object.assign(drag.area.style, { left: `${Math.min(event.pageX, drag.x)}px`, top: `${Math.min(event.pageY, drag.y)}px`, width: `${width}px`, height: `${height}px` })
+  event.preventDefault()
+}
+
+document.addEventListener("mouseup", (event) => {
+  if (!drag) return
+  const area = drag.area
+  const start = drag
+  drag = null
+  if (!area) return
+  suppressClick = true
+  const rect = new DOMRect(Math.min(event.pageX, start.x), Math.min(event.pageY, start.y), Math.abs(event.pageX - start.x), Math.abs(event.pageY - start.y))
+  const elements = elementsInArea(rect)
+  const highlights = elements.flatMap((element) => box(documentRect(element), "selected"))
+  const targets = elements.flatMap((element) => targetsFor(element).slice(0, 1))
+  noteForm(rect, targets, { rect: { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) } }, () => {
+    area.remove()
+    highlights.forEach((b) => b.remove())
+  })
+  api("POST", "/selection", { url: location.pathname, targets, text: "" }).catch(() => {})
+}, true)
+
+document.addEventListener("click", (event) => {
+  if (suppressClick) { suppressClick = false; event.preventDefault(); event.stopPropagation(); return }
+  if (isUi(event.target as Element)) return
+  const element = pageTarget(event)
+
+  // Alt/Option-click edits right away, in any mode.
+  if (event.altKey && element) {
+    const kind = editKind(element)
+    if (!kind) return
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    closeMenu()
+    edit(element, kind)
+    return
+  }
+  if (mode === "off") { if (menu) closeMenu(); return }
+  event.preventDefault()
+  event.stopImmediatePropagation()
+  if (menu || isEditing()) { closeMenu(); return }
+  if (!element) return
+
+  if (mode === "edit") {
+    const kind = editKind(element)
+    if (kind) edit(element, kind)
+    return
+  }
+  const selection = getSelection()?.toString().trim()
+  openMenu(element, selection && element.contains(getSelection()!.anchorNode) ? selection : undefined)
+}, true)
+
+function matchesShortcut(event: KeyboardEvent) {
+  const parts = meta().shortcut.split("+")
+  const code = parts.pop()!
+  const want = new Set(parts.map((p) => p.toLowerCase()))
+  return event.code === code && event.altKey === want.has("alt") && event.shiftKey === want.has("shift") &&
+    event.ctrlKey === want.has("ctrl") && event.metaKey === (want.has("meta") || want.has("cmd"))
+}
+
+document.addEventListener("keydown", (event) => {
+  if (matchesShortcut(event)) {
+    event.preventDefault()
+    setMode(mode === "off" ? "inspect" : "off")
+    return
+  }
+  if (menu && menuKeys) menuKeys(event)
+  if (event.key === "Escape") {
+    if (menu) { closeMenu(); return }
+    if (isEditing()) return
+    if (mode !== "off") setMode("off")
+  }
+}, true)
+
+// Keeping pins and boxes in place ---------------------------------------------------------------
+
+let redraw = 0
+function scheduleRedraw() {
+  cancelAnimationFrame(redraw)
+  redraw = requestAnimationFrame(() => { drawPins(); drawEditBoxes() })
+}
+addEventListener("resize", () => { placeDock(); scheduleRedraw() })
+
+let path = location.pathname
+function pageChanged() {
+  closeMenu()
+  closeEditor()
+  clearHover()
+  if (location.pathname !== path) { path = location.pathname }
+  loadNotes()
+  scheduleRedraw()
+}
+document.addEventListener("turbo:load", pageChanged)
+document.addEventListener("turbo:frame-load", scheduleRedraw)
+addEventListener("popstate", pageChanged)
+onRefresh(() => { scheduleRedraw(); loadNotes() })
+// Layout shifts (images loading, content changing) move elements; pins follow every second.
+setInterval(() => { if (location.pathname !== path) pageChanged(); else drawPins() }, 1000)
+
+// Boot ------------------------------------------------------------------------------------------
+
+function boot() {
+  if (window.__tensaku) return
+  window.__tensaku = true
+  watchMarkers()
+  mount()
+  placeDock()
+  loadNotes()
+  // Turbo replaces <body>, not <html>; put the overlay back if something removed it.
+  new MutationObserver(() => mount()).observe(document.documentElement, { childList: true })
+}
+
+boot()

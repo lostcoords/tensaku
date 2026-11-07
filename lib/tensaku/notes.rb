@@ -140,6 +140,7 @@ module Tensaku
       target = { "kind" => kind, "text" => raw["text"]&.to_s&.truncate(500), "tag" => raw["tag"]&.to_s }
 
       if raw["stamp"].present?
+        target["stamp"] = raw["stamp"].to_s
         path, line, column = Source::Template.parse_stamp(raw["stamp"])
         target["file"] = path
         target["range"] = "#{line}:#{column}"
@@ -160,6 +161,7 @@ module Tensaku
       end
 
       if kind == "markdown" && raw["md"].present?
+        target["md"] = raw["md"].to_s
         target["file"], target["range"] = raw["md"].to_s.split(/:(?=\d+:\d+-)/, 2)
       end
 

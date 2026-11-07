@@ -18,4 +18,8 @@ Rails.application.configure do
   config.action_view.annotate_rendered_view_with_filenames = true
   config.action_controller.raise_on_missing_callback_actions = true
   config.hosts.clear
+
+  # The test suite runs this app in development (where Tensaku is on). Tests wrapped in the executor
+  # would hold the load interlock that the view reloader needs after Tensaku writes a template.
+  config.active_support.executor_around_test_case = false
 end
