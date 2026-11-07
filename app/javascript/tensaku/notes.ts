@@ -41,6 +41,19 @@ export const onCount = (listener: (count: number) => void) => countListeners.pus
 export const currentNotes = () => notes
 
 export function targetsFor(element: Element, selectedText?: string): Target[] {
+  const block = element.closest(`[${MARKDOWN}]`)
+  const stamped = element.closest(`[${STAMP}]`)
+  // A Markdown block inside the nearest stamped element (Kiln renders pages into a layout) points at
+  // the source more precisely than that element, so it replaces it.
+  if (block && (!stamped || stamped.contains(block))) {
+    return [{
+      kind: "markdown",
+      md: block.getAttribute(MARKDOWN) ?? undefined,
+      text: selectedText || visibleText(element, 300),
+      tag: tagLabel(element),
+      context: contextOf(element),
+    }]
+  }
   const stamp = nearestStamp(element)
   const base: Target = {
     kind: selectedText ? "text" : "element",

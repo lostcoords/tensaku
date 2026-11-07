@@ -389,6 +389,12 @@ watcher, and a production build next to a booting dev server can leave it servin
 asset manifest, so builds run on demand or in CI. A controller that inherits `ActionController::Base`
 directly only looks for its own layout, which looked like missing stamps at first.
 
+From using it on the docs: ReActionView 0.6.1 turns its debug mode on by default in development, and
+its dev tools then wait for Herb's dev server (which only runs with `slots`) and warn that nothing
+listens on port 8592. Tensaku doesn't need debug mode, so the generator now writes
+`debug_mode = false`. A note on a Kiln paragraph also pointed at the stamped `<article>` around it,
+and its pin sat on the article; a Markdown block inside the nearest stamped element now replaces it.
+
 - [ ] davafons.com on Rails + Kiln.
 - [ ] lostcoords-ui docs.
 - [ ] wariwari (server-rendered, no Kiln).
