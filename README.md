@@ -183,6 +183,9 @@ bin/rails server                          # edit the docs from the page
 RAILS_ENV=production bin/rails kiln:build # static site in docs/dist
 ```
 
+With [Parcela](https://parcela.run), `parcela up --detach` runs the docs server, the Tailwind watcher and
+a preview of the static build, at https://tensaku.localhost and https://preview-tensaku.localhost.
+
 It needs a checkout of [Kiln](https://github.com/davafons/kiln) next to this repository until Kiln
 0.1.1 is released.
 

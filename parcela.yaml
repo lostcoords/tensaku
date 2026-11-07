@@ -1,0 +1,28 @@
+version: 1
+project: tensaku
+
+services:
+  # The docs app in development, with Tensaku's overlay on every page.
+  web:
+    working_dir: docs
+    command: bin/rails server -p $PORT -b 127.0.0.1
+    # kiln:build precompiles into public/assets for a moment; a dev server booting then serves that manifest.
+    depends_on: [preview]
+    http:
+      healthcheck: /
+  css:
+    working_dir: docs
+    command: bin/rails tailwindcss:watch[always]
+  # The static docs/dist export as a static host serves it. Rebuilds docs/dist on start.
+  preview:
+    working_dir: docs
+    command: RAILS_ENV=production BIND=127.0.0.1 bin/rails kiln:build kiln:serve
+    http:
+      subdomain: preview
+      healthcheck: /
+
+hooks:
+  setup:
+    command: cd docs && (bundle check || bundle install)
+  prestart:
+    command: cd docs && bin/rails tailwindcss:build
