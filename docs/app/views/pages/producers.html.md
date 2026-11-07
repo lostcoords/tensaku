@@ -1,6 +1,6 @@
 # Attributes and producers
 
-The overlay only reads attributes, so it doesn't care what rendered the page.
+The overlay reads only these attributes, so any renderer that sets them works with it.
 
 | Attribute | Set by | Meaning |
 |---|---|---|
@@ -9,6 +9,7 @@ The overlay only reads attributes, so it doesn't care what rendered the page.
 | `data-tensaku-group` | The app | Widens the highlight and the edit target to this element |
 | `data-tensaku-md="path:line:col-line:col"` | A Markdown producer | The block's Markdown source range, byte columns, end inclusive |
 | `data-tensaku-permanent` | The app | The morph after a save leaves this element alone |
+| `data-tensaku-request` on `<meta name="tensaku">` | Tensaku | The request method, so the overlay knows whether it can fetch the page again |
 
 ## Translation markers
 
