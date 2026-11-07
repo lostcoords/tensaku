@@ -383,8 +383,10 @@ Findings (2026-11-07): the docs app is Rails 8.1 with lostcoords-ui 0.8.2 for th
 content layer for the pages, which are `.html.md` views. In development Herb stamps the layout and
 Kiln marks every Markdown block, and the Alt-click, edit, Enter flow writes the paragraph back with
 only that line changed. `RAILS_ENV=production bin/rails kiln:build` writes `docs/dist/` with no Herb
-or Tensaku markup. Kiln is a path gem (`../../kiln`), because its content layer is in the unreleased
-0.1.1, so the docs aren't built on CI yet. A controller that inherits `ActionController::Base`
+or Tensaku markup. It uses Kiln 0.1.1 from RubyGems, and CI builds
+the docs on every push. Parcela runs only the dev server and the Tailwind watcher: Kiln has no
+watcher, and a production build next to a booting dev server can leave it serving the production
+asset manifest, so builds run on demand or in CI. A controller that inherits `ActionController::Base`
 directly only looks for its own layout, which looked like missing stamps at first.
 
 - [ ] davafons.com on Rails + Kiln.
@@ -441,7 +443,7 @@ directly only looks for its own layout, which looked like missing stamps at firs
 - **Tests:** Minitest and Capybara with Cuprite. Features first, tests for the splicing and main flows.
 - **Home:** public repo at github.com/davafons/tensaku, MIT.
 - **Upstream:** build independently, talk to the Herb maintainers after 0.1.
-- **Kiln:** done in Kiln (unreleased, 0.1.1): the build fails on `data-herb-*`/`data-tensaku-*`, and the
+- **Kiln:** done in Kiln 0.1.1: the build fails on `data-herb-*`/`data-tensaku-*`, and the
   content layer moved to commonmarker and emits `data-tensaku-md` in development when Tensaku is loaded.
   David accepted the Markdown HTML changes.
 

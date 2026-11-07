@@ -46,3 +46,22 @@ jobs:
           name: screenshots
           path: test/dummy/tmp/screenshots
           if-no-files-found: ignore
+
+  docs:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: docs
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+        with:
+          ruby-version: "4.0"
+          bundler-cache: true
+          working-directory: docs
+      - name: Build the docs site (Kiln checks links, anchors and leftover dev markup)
+        run: bin/rails kiln:build
+        env:
+          RAILS_ENV: production

@@ -14,8 +14,7 @@ gem "puma"
 
 gem "lostcoords-ui", "~> 0.8.2"
 
-# Kiln's content layer and its data-tensaku-md source positions are unreleased (0.1.1).
-gem "kiln", path: "../../kiln"
+gem "kiln", "~> 0.1.1"
 gem "commonmarker", "~> 2.9"
 gem "rouge"
 

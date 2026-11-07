@@ -183,11 +183,10 @@ bin/rails server                          # edit the docs from the page
 RAILS_ENV=production bin/rails kiln:build # static site in docs/dist
 ```
 
-With [Parcela](https://parcela.run), `parcela up --detach` runs the docs server, the Tailwind watcher and
-a preview of the static build, at https://tensaku.localhost and https://preview-tensaku.localhost.
+With [Parcela](https://parcela.run), `parcela up --detach` runs the docs server and the Tailwind watcher at
+https://tensaku.localhost.
 
-It needs a checkout of [Kiln](https://github.com/davafons/kiln) next to this repository until Kiln
-0.1.1 is released.
+CI builds the docs with `kiln:build` on every push.
 
 The test suite runs `test/dummy` in the development environment, since that's the only place Tensaku
 switches on. Browser tests write to the dummy app's files and restore them afterwards.
