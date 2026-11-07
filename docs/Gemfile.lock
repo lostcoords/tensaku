@@ -2,10 +2,10 @@ PATH
   remote: ..
   specs:
     tensaku (0.0.1)
-      actionpack (>= 8.1)
-      herb (>= 0.11.2)
-      railties (>= 8.1)
-      reactionview (>= 0.6.1)
+      actionpack (>= 8.1, < 8.2)
+      herb (~> 0.11.2)
+      railties (>= 8.1, < 8.2)
+      reactionview (~> 0.6.1)
 
 GEM
   remote: https://rubygems.org/

@@ -24,8 +24,10 @@ Gem::Specification.new do |spec|
     Dir["lib/**/*", "app/assets/tensaku.js", "skills/**/*", "LICENSE", "README.md", "CHANGELOG.md"]
   end
 
-  spec.add_dependency "railties", ">= 8.1"
-  spec.add_dependency "actionpack", ">= 8.1"
-  spec.add_dependency "herb", ">= 0.11.2"
-  spec.add_dependency "reactionview", ">= 0.6.1"
+  # Herb and ReActionView are before 1.0 and Tensaku loads one of Herb's internal files, so each new
+  # minor version needs a check before it's allowed. Rails 8.2 needs a look too (see PLAN.md).
+  spec.add_dependency "railties", ">= 8.1", "< 8.2"
+  spec.add_dependency "actionpack", ">= 8.1", "< 8.2"
+  spec.add_dependency "herb", "~> 0.11.2"
+  spec.add_dependency "reactionview", "~> 0.6.1"
 end

@@ -10,6 +10,8 @@ class Tensaku::ProductionTest < Tensaku::TestCase
     puts ActionView::Template.registered_template_handler(:erb).class.name
     puts defined?(ReActionView) ? "reactionview" : "no-reactionview"
     puts Rails.application.middleware.map(&:name).grep(/Tensaku|Herb/).join(",").then { it.empty? ? "no-middleware" : it }
+    puts defined?(Herb) ? "herb" : "no-herb"
+    puts I18n.backend.singleton_class.ancestors.map(&:to_s).grep(/Tensaku/).empty? ? "plain-i18n" : "tensaku-i18n"
     puts response.body.scan(/data-(?:herb|tensaku)-[\\w-]+|tensaku\\.js/).uniq.join(",").then { it.empty? ? "no-markup" : it }
   RUBY
 
@@ -18,10 +20,12 @@ class Tensaku::ProductionTest < Tensaku::TestCase
       out, err, status = Open3.capture3({ "RAILS_ENV" => env }, "ruby", "-e", SCRIPT, chdir: File.expand_path("../..", __dir__))
       assert status.success?, err
 
-      handler, reactionview, middleware, markup = out.lines(chomp: true).last(4)
+      handler, reactionview, middleware, herb, i18n, markup = out.lines(chomp: true).last(6)
       assert_equal "ActionView::Template::Handlers::ERB", handler
       assert_equal "no-reactionview", reactionview
       assert_equal "no-middleware", middleware
+      assert_equal "no-herb", herb
+      assert_equal "plain-i18n", i18n
       assert_equal "no-markup", markup
     end
   end

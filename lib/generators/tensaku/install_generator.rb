@@ -1,5 +1,6 @@
 require "rails/generators"
 require "json"
+require "bundler"
 
 module Tensaku
   module Generators
@@ -18,8 +19,11 @@ module Tensaku
         gemfile = File.join(destination_root, "Gemfile")
         return unless File.exist?(gemfile)
 
-        if development_only?(File.read(gemfile))
-          say_status :ok, "tensaku is in the development group", :green
+        groups = tensaku_groups(gemfile)
+        if groups.nil?
+          say_status :skip, "Couldn't read the Gemfile to check tensaku's group. Keep it in the development group.", :yellow
+        elsif (groups & %i[default production]).empty?
+          say_status :ok, "tensaku is in the #{groups.join(" and ")} group#{"s" if groups.size > 1}", :green
         else
           say_status :warning, "Put tensaku in the development group of your Gemfile, so production keeps " \
             "rendering with Erubi and never loads it:\n\n  group :development do\n    gem \"tensaku\"\n  end\n", :yellow
@@ -54,17 +58,25 @@ module Tensaku
 
       def mcp_json
         path = File.join(destination_root, ".mcp.json")
-        config = File.exist?(path) ? JSON.parse(File.read(path)) : {}
+        raw = File.exist?(path) ? File.read(path) : ""
+        config = raw.strip.empty? ? {} : JSON.parse(raw)
+        unless config.is_a?(Hash)
+          say_status :error, ".mcp.json isn't a JSON object. Add the tensaku server to it by hand.", :red
+          return
+        end
+
         servers = (config["mcpServers"] ||= {})
-        entry = { "type" => "http", "url" => "http://localhost:#{options[:port]}/__tensaku/mcp" }
+        entry = { "type" => "http", "url" => "http://localhost:#{options[:port]}#{Tensaku.config.mount_path}/mcp" }
         if servers["tensaku"] == entry
           say_status :identical, ".mcp.json", :blue
           return
         end
 
         servers["tensaku"] = entry
-        File.write(path, JSON.pretty_generate(config) + "\n")
+        create_file ".mcp.json", JSON.pretty_generate(config) + "\n", force: true, verbose: false
         say_status :update, ".mcp.json (tensaku: #{entry["url"]})", :green
+      rescue JSON::ParserError => error
+        say_status :error, ".mcp.json isn't valid JSON (#{error.message.lines.first.strip}). Fix it, or add the tensaku server by hand.", :red
       end
 
       def gitignore
@@ -86,19 +98,14 @@ module Tensaku
 
       private
 
-      def development_only?(gemfile)
-        lines = gemfile.lines
-        index = lines.index { it.match?(/^\s*gem\s+["']tensaku["']/) }
-        return false unless index
-        return true if lines[index].match?(/group:\s*(:development|\[\s*:development\s*\])/)
-
-        inside = false
-        lines.each_with_index do |current, number|
-          inside = true if current.match?(/^\s*group\s+:development\s+do/)
-          return true if inside && number == index
-          inside = false if inside && current.match?(/^\s*end\b/)
-        end
-        false
+      # The groups tensaku is listed in, read the way Bundler reads the Gemfile, or nil when it isn't
+      # listed or the Gemfile can't be evaluated here.
+      def tensaku_groups(gemfile)
+        dsl = Bundler::Dsl.new
+        Dir.chdir(destination_root) { dsl.eval_gemfile(gemfile) }
+        dsl.dependencies.find { it.name == "tensaku" }&.groups&.map(&:to_sym)
+      rescue StandardError, ScriptError
+        nil
       end
     end
   end

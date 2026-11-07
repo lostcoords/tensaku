@@ -33,4 +33,27 @@ class Tensaku::InstallGeneratorTest < Rails::Generators::TestCase
     assert_match "Put tensaku in the development group", output
     assert_file ".gitignore", "/tmp/*\n"
   end
+
+  test "reads the Gemfile group the way Bundler does" do
+    File.write(File.join(destination_root, "Gemfile"), %(source "https://rubygems.org"\ngroup(:development) do\n  if true\n    gem "puma"\n  end\n  gem "tensaku"\nend\n))
+
+    assert_match "tensaku is in the development group", run_generator
+  end
+
+  test "an invalid .mcp.json is reported and left alone" do
+    File.write(File.join(destination_root, ".mcp.json"), "{ nope")
+
+    assert_match ".mcp.json isn't valid JSON", run_generator
+    assert_file ".mcp.json", "{ nope"
+  end
+
+  test "an empty .mcp.json gets the tensaku server, and --pretend writes nothing" do
+    File.write(File.join(destination_root, ".mcp.json"), "")
+
+    run_generator [ "--pretend" ]
+    assert_file ".mcp.json", ""
+
+    run_generator
+    assert_file ".mcp.json", /__tensaku\/mcp/
+  end
 end
