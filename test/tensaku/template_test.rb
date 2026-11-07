@@ -149,4 +149,14 @@ class Tensaku::TemplateTest < Tensaku::TestCase
     assert_equal 0o640, path.stat.mode & 0o777
     assert_equal [ "a.html.erb" ], path.dirname.children.map { it.basename.to_s }
   end
+
+  test "an edit in a CRLF template keeps the rest of the file unchanged" do
+    write_view("crlf.html.erb", "<section>\r\n  <p title=\"A\r\nB\">Hello</p>\r\n</section>\r\n")
+    template = Tensaku::Source::Template.new("app/views/pages/crlf.html.erb")
+    piece = template.describe(2, 3)[:pieces].first
+
+    template.edit_text(2, 3, [ { start: piece[:start], end: piece[:end], original: piece[:raw], text: "Hi" } ])
+
+    assert_equal "<section>\r\n  <p title=\"A\r\nB\">Hi</p>\r\n</section>\r\n", tmp_root.join("app/views/pages/crlf.html.erb").read
+  end
 end

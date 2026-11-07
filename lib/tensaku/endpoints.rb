@@ -16,15 +16,6 @@ module Tensaku
       "missing"
     end
 
-    # What the overlay last selected, for the MCP `current_selection` tool. One person, one browser.
-    def self.selection
-      @selection
-    end
-
-    def self.selection=(value)
-      @selection = value
-    end
-
     def call(env)
       request = Rack::Request.new(env)
       path = request.path_info.delete_prefix(Tensaku.config.mount_path)
@@ -44,8 +35,12 @@ module Tensaku
       json({ error: error.message, stale: true }, 409)
     rescue Notes::NotFound => error
       json({ error: error.message }, 404)
-    rescue Error, JSON::ParserError => error
+    rescue Error, JSON::ParserError, ArgumentError, TypeError => error
       json({ error: error.message }, 422)
+    rescue StandardError => error
+      # Tensaku sits in front of Rails' exception pages, so it logs and answers for itself.
+      Rails.logger.error("[Tensaku] #{error.class}: #{error.message}\n#{Array(error.backtrace).first(10).join("\n")}")
+      json({ error: "Tensaku hit an error: #{error.class}: #{error.message}. The server log has the details." }, 500)
     end
 
     private
@@ -62,21 +57,24 @@ module Tensaku
         raise Error, "Too many stamps (#{stamps.size}); the limit is #{EDITABLE_LIMIT}" if stamps.size > EDITABLE_LIMIT
         json(editable: Source::Template.editable(stamps))
       in [ "POST", "/text" ]
-        template, line, column = Source::Template.from_stamp(params["stamp"])
-        edits = Array(params["edits"]).map { it.to_h.symbolize_keys }
-        written(template.edit_text(line, column, edits), :template)
+        edits = Array(params["edits"]).map { object!(it, "An edit").symbolize_keys }
+        written(:template) do
+          template, line, column = Source::Template.from_stamp(params["stamp"])
+          template.edit_text(line, column, edits)
+        end
       in [ "POST", "/attribute" ]
-        template, line, column = Source::Template.from_stamp(params["stamp"])
-        written(template.edit_attribute(line, column, params["name"].to_s, params.to_h.symbolize_keys), :template)
+        written(:template) do
+          template, line, column = Source::Template.from_stamp(params["stamp"])
+          template.edit_attribute(line, column, params["name"].to_s, params.to_h.symbolize_keys)
+        end
       in [ "GET", "/translation" ]
         json(key: params["key"], locales: Source::Locale.lookup_all(params["key"].to_s))
       in [ "POST", "/translation" ]
-        result = Source::Locale.edit(params["locale"].to_s, params["key"].to_s, original: params["original"], text: params["text"])
-        written(result, :locale)
+        written(:locale) { Source::Locale.edit(params["locale"].to_s, params["key"].to_s, original: params["original"], text: params["text"]) }
       in [ "GET", "/markdown" ]
         json(Source::Markdown.new(params["range"]).describe(tag: params["tag"]))
       in [ "POST", "/markdown" ]
-        written(Source::Markdown.new(params["range"]).edit(original: params["original"], text: params["text"], tag: params["tag"]), :markdown)
+        written(:markdown) { Source::Markdown.new(params["range"]).edit(original: params["original"], text: params["text"], tag: params["tag"]) }
       in [ "GET", "/notes" ]
         Notes.prune!
         json(notes: Notes.list(url: params["url"].presence, status: params["status"].presence), open: Notes.list(status: Notes::ACTIVE).size, agent: Notes.agent)
@@ -96,7 +94,7 @@ module Tensaku
       in [ "GET", "/editor" ]
         json(url: editor_url(params["file"], params["line"]))
       in [ "POST", "/selection" ]
-        self.class.selection = params.to_h.slice("url", "targets", "text").merge("at" => Time.now.utc.iso8601)
+        Notes.selection = params.to_h.slice("url", "targets", "text").merge("at" => Time.now.utc.iso8601)
         json({ ok: true })
       else
         json({ error: "Not found" }, 404)
@@ -115,7 +113,9 @@ module Tensaku
       editor.url_for(path.to_s, line.to_i.clamp(1, 1_000_000))
     end
 
-    def written(result, kind)
+    # Reads, checks and writes the source under the write lock.
+    def written(kind)
+      result = FileWrite.locked { yield }
       Caches.clear!(kind) if result[:changed]
       json(result.merge(warning: Caches.fragment_cache_warning).compact)
     end
@@ -128,7 +128,13 @@ module Tensaku
 
     def body(request)
       raw = request.body&.read.to_s
-      raw.empty? ? {} : JSON.parse(raw)
+      raw.empty? ? {} : object!(JSON.parse(raw), "The request body")
+    end
+
+    def object!(value, what)
+      raise Error, "#{what} must be a JSON object" unless value.is_a?(Hash)
+
+      value
     end
 
     def json(data, status = 200)

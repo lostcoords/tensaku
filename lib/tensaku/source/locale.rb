@@ -9,7 +9,7 @@ module Tensaku
       EXTENSIONS = %w[.yml .yaml].freeze
       INTERPOLATION = /%\{[^}]+\}/
 
-      Entry = Data.define(:file, :path, :source, :node, :value) do
+      Entry = Data.define(:file, :path, :source, :node, :value, :flow) do
         def line = node.start_line + 1
 
         def to_h
@@ -24,8 +24,8 @@ module Tensaku
       def find(locale, key)
         candidates(locale).reverse_each do |relative, path|
           source = File.read(path, mode: "rb").force_encoding(Encoding::UTF_8)
-          node = scalar_at(Psych.parse(source), [ locale.to_s, *key.to_s.split(".") ])
-          return Entry.new(relative, path, source, node, node.value) if node
+          node, flow = scalar_at(Psych.parse(source), [ locale.to_s, *key.to_s.split(".") ])
+          return Entry.new(relative, path, source, node, node.value, flow) if node
         rescue Psych::SyntaxError
           next
         end
@@ -80,24 +80,35 @@ module Tensaku
         end.uniq.select { |_, path| File.read(path).include?(locale.to_s) }
       end
 
+      # The scalar at the key path, and whether it sits inside a flow collection (`{a: Hi}`), where a
+      # plain value can't contain `,` or brackets.
       def scalar_at(document, keys)
         node = document&.root
+        flow = false
         keys.each do |key|
           return nil unless node.is_a?(Psych::Nodes::Mapping)
 
+          flow ||= node.style == Psych::Nodes::Mapping::FLOW
           pair = node.children.each_slice(2).to_a.reverse.find { |name, _| name.is_a?(Psych::Nodes::Scalar) && name.value == key }
           return nil unless pair
 
           node = pair.last
         end
-        node if node.is_a?(Psych::Nodes::Scalar)
+        [ node, flow ] if node.is_a?(Psych::Nodes::Scalar)
       end
 
-      # Psych positions are 0-based lines and character columns.
+      # Psych positions are 0-based lines and character columns. A scalar's start includes its anchor
+      # (`&name`) and tag (`!!str`); the range starts after them, so they stay as written.
       def byte_range(source, node)
         lines = source.lines
         offset = ->(line, column) { lines.first(line).sum(&:bytesize) + lines.fetch(line, "")[0, column].to_s.bytesize }
-        [ offset.call(node.start_line, node.start_column), offset.call(node.end_line, node.end_column) ]
+        start = offset.call(node.start_line, node.start_column)
+        finish = offset.call(node.end_line, node.end_column)
+        if node.anchor || node.tag
+          properties = source.byteslice(start...finish).b[/\A(?:(?:&\S+|!\S*)[ \t]+)+/n]
+          start += properties.bytesize if properties
+        end
+        [ start, finish ]
       end
 
       # The new scalar in the style the old one had. A plain scalar that would read differently as
@@ -111,7 +122,7 @@ module Tensaku
         when Psych::Nodes::Scalar::LITERAL, Psych::Nodes::Scalar::FOLDED
           block(entry, text, old)
         else
-          plain_safe?(text) ? text : double_quoted(text)
+          plain_safe?(text) && !(entry.flow && text.match?(/[,\[\]{}]/)) ? text : double_quoted(text)
         end
       end
 
@@ -131,16 +142,18 @@ module Tensaku
 
       # Keeps the header (`>-`, `|+`), the indentation and any trailing blank lines of a block scalar.
       def block(entry, text, old)
+        eol = entry.source.include?("\r\n") ? "\r\n" : "\n"
         header, body = old.split("\n", 2)
+        header = header.delete_suffix("\r")
         indent = body.to_s[/\A[ ]+/] || "  "
-        trailing = body.to_s[/\n*\z/].to_s
+        trailing = body.to_s[/(?:\r?\n)*\z/].to_s
         lines = if entry.node.style == Psych::Nodes::Scalar::FOLDED
           text.split("\n", -1)
         else
           text.chomp.split("\n", -1)
         end
-        content = lines.map { it.empty? ? "" : "#{indent}#{it}" }.join("\n")
-        "#{header}\n#{content}#{trailing.empty? ? "" : trailing}"
+        content = lines.map { it.empty? ? "" : "#{indent}#{it}" }.join(eol)
+        "#{header}#{eol}#{content}#{trailing}"
       end
 
       def check!(updated, locale, key, text, file)

@@ -19,6 +19,7 @@ module Tensaku
         "iexcl" => "\u00A1", "iquest" => "\u00BF", "larr" => "\u2190", "rarr" => "\u2192"
       }.freeze
 
+      NBSP = "\u00A0"
       WHITESPACE = /\A[ \t\r\n\f]+\z/
       TOKEN = /&(?:#[xX]\h+|#\d+|[a-zA-Z][a-zA-Z0-9]*);|[ \t\r\n\f]+|./m
 
@@ -41,8 +42,13 @@ module Tensaku
       end
 
       # The new source for this text after an edit, changing only the segments the edit touched.
+      #
+      # Browsers hand back a non-breaking space for `&nbsp;` and for runs of typed spaces, so the two
+      # compare as equal: an untouched `&nbsp;` keeps its source, and a non-breaking space in the
+      # changed part is written as a plain space.
       def rewrite(new_text, escape:)
-        old_text = text
+        old_text = text.tr(NBSP, " ")
+        new_text = new_text.tr(NBSP, " ")
         return @raw if new_text == old_text
 
         prefix = common_prefix(old_text, new_text)
@@ -58,7 +64,7 @@ module Tensaku
       end
 
       def self.escape_text(text)
-        text.gsub("&", "&amp;").gsub("<", "&lt;").gsub(">", "&gt;").gsub("\u00A0", "&nbsp;")
+        text.gsub("&", "&amp;").gsub("<", "&lt;").gsub(">", "&gt;")
       end
 
       def self.attribute_escaper(quote)

@@ -50,4 +50,12 @@ class Tensaku::HtmlTextTest < ActiveSupport::TestCase
   test "unknown entities stay as written" do
     assert_equal "&bogus; x", HtmlText.new("&bogus; x").text
   end
+
+  test "an untouched &nbsp; keeps its source, a typed non-breaking space is written as a space" do
+    text = HtmlText.new("Price:&nbsp;10 euros")
+
+    assert_equal "Price:&nbsp;20 euros", text.rewrite("Price:\u00A020 euros", escape: ESCAPE)
+    assert_equal "Price:&nbsp;10 euros", text.rewrite("Price: 10 euros", escape: ESCAPE)
+    assert_equal "Price:&nbsp;10 big euros", text.rewrite("Price:\u00A010\u00A0big euros", escape: ESCAPE)
+  end
 end

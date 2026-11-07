@@ -82,4 +82,18 @@ class Tensaku::MarkdownTest < Tensaku::TestCase
 
     assert_raises(Tensaku::Forbidden) { Markdown.new("README.md:1:1-1:4") }
   end
+
+  test "an edit keeps untouched non-breaking spaces and the file's CRLF line endings" do
+    @file.write("A\u00A0paragraph with\r\ntwo lines.\r\n\r\nNext.\r\n")
+    block = Markdown.new("app/views/pages/menu.md:1:1-2:10")
+
+    assert_equal({ changed: false, file: "app/views/pages/menu.md" }, block.edit(original: block.describe[:original], text: "A\u00A0paragraph with\ntwo lines."))
+    block.edit(original: block.describe[:original], text: "A\u00A0paragraph with\ntwo short lines.")
+
+    assert_equal "A\u00A0paragraph with\r\ntwo short lines.\r\n\r\nNext.\r\n", @file.read
+  end
+
+  test "ranges count from line 1" do
+    assert_raises(Tensaku::Error) { Markdown.new("app/views/pages/menu.md:0:1-1:5") }
+  end
 end

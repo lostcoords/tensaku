@@ -83,6 +83,8 @@ module Tensaku
     private
 
     def respond(message)
+      return error_payload(nil, -32600, "Invalid Request") unless message.is_a?(Hash)
+
       id = message["id"]
       return nil if id.nil? # a notification
 
@@ -120,8 +122,9 @@ module Tensaku
       when "list_notes"
         status = arguments["status"].presence || "active"
         statuses = { "active" => Notes::ACTIVE, "all" => nil }.fetch(status, status)
+        checked_at = Time.now.utc.iso8601(6)
         notes = Notes.list(url: arguments["url"].presence, status: statuses)
-        tool_result(Notes.to_markdown(notes), notes:, checked_at: Time.now.utc.iso8601)
+        tool_result(Notes.to_markdown(notes), notes:, checked_at:)
       when "get_note"
         note = Notes.find(arguments["id"])
         tool_result(Notes.note_markdown(note), note:)
@@ -141,11 +144,11 @@ module Tensaku
         since = arguments["since"].present? ? Time.iso8601(arguments["since"]) : Time.now.utc
         timeout = arguments["timeout_seconds"].to_i.clamp(1, MAX_WATCH)
         timeout = 60 if arguments["timeout_seconds"].nil?
-        notes = Notes.watch(since:, timeout:)
+        notes, checked_at = Notes.watch(since:, timeout:)
         text = notes.empty? ? "No new notes in #{timeout}s. Call watch_notes again to keep waiting." : Notes.to_markdown(notes)
-        tool_result(text, notes:, checked_at: Time.now.utc.iso8601)
+        tool_result(text, notes:, checked_at: checked_at.iso8601(6))
       when "current_selection"
-        selection = Endpoints.selection
+        selection = Notes.selection
         tool_result(selection ? JSON.pretty_generate(selection) : "Nothing selected in the Tensaku overlay yet.", selection:)
       else
         tool_result("Unknown tool #{name}", error: true)

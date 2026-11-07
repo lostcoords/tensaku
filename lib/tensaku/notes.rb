@@ -3,7 +3,11 @@ require "time"
 require "fileutils"
 
 module Tensaku
-  # Notes are one JSON file each in tmp/tensaku/notes: local, ignored by git, cleared by tmp:clear.
+  # Notes are one JSON file each in tmp/tensaku/notes: local and ignored by git.
+  #
+  # Timestamps carry microseconds, so watch_notes can tell apart notes saved within one second. Every
+  # change goes through FileWrite.locked, so the overlay and an agent changing the same note at once
+  # don't lose either change.
   #
   # A note is open until an agent (or you) resolves it with a reply, or sets it to `question` with a
   # reply asking for more detail. An agent sets `working` when it picks a note up. Resolved notes are
@@ -30,7 +34,7 @@ module Tensaku
     def all
       return [] unless dir.directory?
 
-      dir.glob("*.json").filter_map { read(it) }.sort_by { it["created_at"] }
+      dir.glob("*.json").filter_map { read_note(it) }.sort_by { it["created_at"] }
     end
 
     def list(url: nil, status: nil)
@@ -43,7 +47,7 @@ module Tensaku
     def find(id)
       raise NotFound, "No note #{id.inspect}" unless id.to_s.match?(ID)
 
-      read(dir.join("#{id}.json")) or raise NotFound, "No note #{id.inspect}"
+      read_note(dir.join("#{id}.json")) or raise NotFound, "No note #{id.inspect}"
     end
 
     # attributes come from the overlay: url, comment, targets, and for area notes rect and viewport.
@@ -52,7 +56,7 @@ module Tensaku
       comment = attributes["comment"].to_s.strip
       raise Error, "A note needs a comment" if comment.empty?
 
-      now = Time.now.utc.iso8601
+      now = timestamp
       note = {
         "id" => new_id,
         "url" => attributes["url"].to_s,
@@ -66,13 +70,16 @@ module Tensaku
         "created_at" => now,
         "updated_at" => now
       }.compact_blank.merge("reply" => nil, "thread" => [])
-      write(note)
+      FileWrite.locked { write(note) }
     end
 
     # message adds to the note's thread, from "you" or "agent". An agent's message is also the note's
     # reply, the line shown next to the pin. targets moves the note to other elements.
     def update(id, status: nil, reply: nil, comment: nil, message: nil, from: "agent", agent: nil, targets: nil)
-      note = find(id)
+      FileWrite.locked { apply(find(id), status:, reply:, comment:, message:, from:, agent:, targets:) }
+    end
+
+    def apply(note, status:, reply:, comment:, message:, from:, agent:, targets:)
       if status
         raise Error, "Status must be one of #{STATUSES.join(", ")}" unless STATUSES.include?(status.to_s)
 
@@ -83,7 +90,7 @@ module Tensaku
       if message.present?
         raise Error, "A message is from one of #{AUTHORS.join(", ")}" unless AUTHORS.include?(from.to_s)
 
-        entry = { "from" => from.to_s, "text" => message.to_s.strip, "agent" => agent.presence, "at" => Time.now.utc.iso8601 }.compact
+        entry = { "from" => from.to_s, "text" => message.to_s.strip, "agent" => agent.presence, "at" => timestamp }.compact
         note["thread"] = Array(note["thread"]) << entry
         note["reply"] = entry["text"] if from.to_s == "agent"
       end
@@ -93,13 +100,15 @@ module Tensaku
         note.delete("rect")
         note.delete("viewport")
       end
-      note["updated_at"] = Time.now.utc.iso8601
+      note["updated_at"] = timestamp
       write(note)
     end
 
     def delete(id)
-      find(id)
-      dir.join("#{id}.json").delete
+      FileWrite.locked do
+        find(id)
+        dir.join("#{id}.json").delete
+      end
     end
 
     def prune!(now: Time.now)
@@ -107,13 +116,15 @@ module Tensaku
       all.each do |note|
         next unless note["status"] == "resolved" && Time.iso8601(note["updated_at"]) < cutoff
 
-        dir.join("#{note["id"]}.json").delete
+        dir.join("#{note["id"]}.json").delete if dir.join("#{note["id"]}.json").file?
       end
       agents_dir.glob("*.json").each { it.delete if now - it.mtime > 86_400 } if agents_dir.directory?
     end
 
     # Blocks until a note is created or changed after `since`, or the timeout passes. Returns the open
-    # notes that are new or changed. Polls the directory, which is plenty for one person and an agent.
+    # notes that are new or changed, and the time just before the last scan: pass it as the next
+    # `since` and a note saved during the scan is still seen. Polls the directory, which is plenty for
+    # one person and an agent.
     def watch(since:, timeout: 60, interval: 0.5)
       deadline = monotonic + timeout
       touched = monotonic
@@ -122,11 +133,22 @@ module Tensaku
           agent_seen!
           touched = monotonic
         end
+        checked_at = Time.now.utc
         fresh = all.select { it["status"] == "open" && Time.iso8601(it["updated_at"]) > since }
-        return fresh if fresh.any? || monotonic >= deadline
+        return [ fresh, checked_at ] if fresh.any? || monotonic >= deadline
 
         sleep interval
       end
+    end
+
+    # What the overlay last selected, for the MCP `current_selection` tool. A file, so every server
+    # process sees the same selection.
+    def selection
+      read(dir.join(".selection.json"))
+    end
+
+    def selection=(value)
+      write_json(dir.join(".selection.json"), value)
     end
 
     # Every MCP call touches a file next to the notes, so the overlay can show that an agent is
@@ -226,7 +248,9 @@ module Tensaku
     # Fills in file positions from what the overlay saw: a Herb stamp, a translation key or a Markdown
     # range. A target whose source can't be read keeps what the page said about it.
     def target(raw)
-      raw = raw.to_h.stringify_keys
+      raise Error, "A note target must be a JSON object" unless raw.is_a?(Hash)
+
+      raw = raw.stringify_keys
       kind = TARGET_KINDS.include?(raw["kind"]) ? raw["kind"] : "element"
       target = { "kind" => kind, "text" => raw["text"]&.to_s&.truncate(500), "tag" => raw["tag"]&.to_s }
 
@@ -261,7 +285,7 @@ module Tensaku
     end
 
     def rect(raw)
-      return nil unless raw
+      return nil unless raw.is_a?(Hash)
 
       raw.to_h.stringify_keys.slice("x", "y", "width", "height").transform_values { it.to_f.round }
     end
@@ -279,13 +303,36 @@ module Tensaku
       nil
     end
 
-    def write(note)
-      dir.mkpath
-      path = dir.join("#{note["id"]}.json")
-      temp = dir.join(".#{note["id"]}.json.tmp")
-      temp.write(JSON.pretty_generate(note) + "\n")
-      File.rename(temp, path)
+    # A note file as written by Tensaku. Agents may edit note files by hand, so a file that isn't a
+    # JSON object with an id and valid timestamps is skipped instead of breaking every list.
+    def read_note(path)
+      note = read(path)
+      return nil unless note.is_a?(Hash) && note["id"].to_s.match?(ID)
+
+      Time.iso8601(note["created_at"].to_s)
+      Time.iso8601(note["updated_at"].to_s)
       note
+    rescue ArgumentError
+      nil
+    end
+
+    def write(note)
+      write_json(dir.join("#{note["id"]}.json"), note)
+      note
+    end
+
+    # Through a temp file with a name of its own, so two writers never share one.
+    def write_json(path, data)
+      path.dirname.mkpath
+      temp = path.dirname.join(".#{path.basename}.#{SecureRandom.hex(4)}.tmp")
+      temp.write(JSON.pretty_generate(data) + "\n")
+      File.rename(temp, path)
+    ensure
+      temp.delete if temp&.exist?
+    end
+
+    def timestamp
+      Time.now.utc.iso8601(6)
     end
 
     def monotonic

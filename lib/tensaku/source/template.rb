@@ -133,9 +133,10 @@ module Tensaku
         { changed: true, file: relative_path }
       end
 
-      # Browsers hand back non-breaking spaces for typed runs of spaces in editable text.
+      # Browsers hand back "\n" line breaks; a file written with "\r\n" keeps them.
       def clean(text)
-        text.to_s.tr(" ", " ").delete("\r")
+        text = text.to_s.delete("\r")
+        source.include?("\r\n") ? text.gsub("\n", "\r\n") : text
       end
 
       def pieces_of(element)

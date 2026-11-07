@@ -108,4 +108,29 @@ class Tensaku::LocaleTest < Tensaku::TestCase
 
     assert_nil Locale.find("en", "vendored")
   end
+
+  test "an anchored or tagged value keeps its anchor and tag" do
+    @file.write("en:\n  a: &x Hello\n  b: !!str Tag\n  c: *x\n")
+
+    Locale.edit("en", "a", original: "Hello", text: "Howdy")
+    Locale.edit("en", "b", original: "Tag", text: "Label")
+
+    assert_equal "en:\n  a: &x Howdy\n  b: !!str Label\n  c: *x\n", @file.read
+  end
+
+  test "a value in a flow mapping that needs quoting is double-quoted" do
+    @file.write("en:\n  nav: {home: Home, about: About}\n")
+
+    Locale.edit("en", "nav.home", original: "Home", text: "Home, sweet home")
+
+    assert_equal %(en:\n  nav: {home: "Home, sweet home", about: About}\n), @file.read
+  end
+
+  test "a block scalar in a CRLF file keeps CRLF line endings" do
+    @file.write("en:\r\n  poem: |\r\n    one\r\n    two\r\n  after: kept\r\n")
+
+    Locale.edit("en", "poem", original: "one\ntwo\n", text: "uno\ndos\n")
+
+    assert_equal "en:\r\n  poem: |\r\n    uno\r\n    dos\r\n  after: kept\r\n", @file.read
+  end
 end

@@ -6,6 +6,7 @@ module Tensaku
     # inside a block's range and leaves the rest of the file alone.
     class Markdown
       EXTENSIONS = %w[.md .markdown].freeze
+      NBSP = "\u00A0"
 
       # Block syntax at the start of a range that stays locked: heading hashes, list markers, quotes.
       PREFIX = /\A(?:\#{1,6}[ \t]+|[-*+][ \t]+(?:\[[ xX]\][ \t]+)?|\d{1,9}[.)][ \t]+|>[ \t]?)/
@@ -18,6 +19,7 @@ module Tensaku
       def self.parse_range(value)
         match = value.to_s.match(/\A(?<path>.+):(?<sl>\d+):(?<sc>\d+)-(?<el>\d+):(?<ec>\d+)\z/)
         raise Error, "Not a Markdown range: #{value.inspect}" unless match
+        raise Error, "Markdown ranges count lines and columns from 1: #{value.inspect}" if %i[sl sc el ec].any? { match[it].to_i < 1 }
 
         [ match[:path], *%i[sl sc el ec].map { match[it].to_i } ]
       end
@@ -51,7 +53,7 @@ module Tensaku
         raise StaleSource, "#{relative_path} changed since the page was rendered. Reload the page and try again." unless raw == original.to_s
 
         prefix = WHOLE.include?(tag.to_s.downcase) ? "" : raw[PREFIX].to_s
-        replacement = prefix + text.to_s.tr(" ", " ").delete("\r")
+        replacement = prefix + merge(raw.delete_prefix(prefix), text.to_s)
         return { changed: false, file: relative_path } if replacement == raw
 
         start, finish = byte_range
@@ -60,6 +62,23 @@ module Tensaku
       end
 
       private
+
+      # The new block text, keeping the old characters where the text didn't change: a non-breaking space
+      # typed in the browser reads as a plain space, so an untouched one in the file survives, and only
+      # the changed middle is turned into plain spaces. The file's line endings are kept.
+      def merge(old, new)
+        crlf = @source.include?("\r\n")
+        old = old.gsub("\r\n", "\n")
+        new = new.delete("\r")
+        same = ->(a, b) { a == b || (a.tr(NBSP, " ") == b.tr(NBSP, " ")) }
+        prefix = 0
+        prefix += 1 while prefix < old.length && prefix < new.length && same.(old[prefix], new[prefix])
+        limit = [ old.length, new.length ].min - prefix
+        suffix = 0
+        suffix += 1 while suffix < limit && same.(old[-1 - suffix], new[-1 - suffix])
+        merged = old[0, prefix] + new[prefix...(new.length - suffix)].tr(NBSP, " ") + old[(old.length - suffix)..]
+        crlf ? merged.gsub("\n", "\r\n") : merged
+      end
 
       def block_source
         start, finish = byte_range
