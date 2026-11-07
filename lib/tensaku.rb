@@ -56,6 +56,9 @@ module Tensaku
     end
   end
 
+  TOKEN_LOCK = Mutex.new
+  TOKEN = /\A\h{32}\z/
+
   class << self
     def config
       @config ||= Config.new
@@ -74,9 +77,15 @@ module Tensaku
       defined?(Rails) && Rails.env.development?
     end
 
-    # A per-boot secret embedded in the page. Write requests must echo it back.
+    # A secret embedded in the page. Write requests must echo it back. It lives in tmp/tensaku/token,
+    # so every Puma worker and the next server boot use the same one (a page stays valid across a
+    # restart). Deleting the file makes a new one.
     def token
-      @token ||= SecureRandom.hex(16)
+      @token || TOKEN_LOCK.synchronize { @token ||= read_or_create_token }
+    end
+
+    def token_path
+      Pathname(Rails.root).join("tmp/tensaku/token")
     end
 
     # The app root that relative source paths resolve against. Tests point it at a scratch copy.
@@ -84,6 +93,32 @@ module Tensaku
 
     def root
       Pathname(@root || Rails.root)
+    end
+
+    private
+
+    def read_or_create_token
+      path = token_path
+      path.dirname.mkpath
+      existing = path.file? ? path.read.strip : ""
+      return existing if existing.match?(TOKEN)
+
+      path.delete if path.file?
+      # Written to a temp file and linked into place, so a worker never reads a half-written token,
+      # and the first worker to link wins.
+      temp = path.dirname.join(".token-#{SecureRandom.hex(4)}")
+      temp.write(SecureRandom.hex(16))
+      temp.chmod(0o600)
+      begin
+        File.link(temp, path)
+      rescue Errno::EEXIST
+        nil
+      ensure
+        temp.delete
+      end
+      path.read.strip.then { it.match?(TOKEN) ? it : SecureRandom.hex(16) }
+    rescue SystemCallError
+      SecureRandom.hex(16)
     end
   end
 end

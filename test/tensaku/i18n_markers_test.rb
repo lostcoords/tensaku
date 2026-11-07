@@ -39,8 +39,25 @@ class Tensaku::I18nMarkersTest < Tensaku::TestCase
     html = ->(_) { [ 200, { "content-type" => "text/html" }, [ "<html><head></head><body><script>var a = '#{marked}'</script><p>#{marked}</p></body></html>" ] ] }
 
     assert_equal %({"a":"Hi"}), Tensaku::Middleware.new(app).call({ "PATH_INFO" => "/" })[2].join
-    body = Tensaku::Middleware.new(html).call({ "PATH_INFO" => "/", "REQUEST_METHOD" => "GET" })[2].join
+    local = { "PATH_INFO" => "/", "REQUEST_METHOD" => "GET", "REMOTE_ADDR" => "127.0.0.1", "HTTP_HOST" => "localhost:3000" }
+    body = Tensaku::Middleware.new(html).call(local)[2].join
     assert_includes body, "<script>var a = 'Hi'</script>"
     assert_includes body, "<p>#{marked}</p>"
+
+    # A page that gets no overlay (another host name here) loses its markers too.
+    body = Tensaku::Middleware.new(html).call(local.merge("HTTP_HOST" => "evil.example"))[2].join
+    assert_includes body, "<p>Hi</p>"
+    assert_not_includes body, "data-tensaku-token"
+  end
+
+  test "a Chain backend gets markers from the backend that holds the key" do
+    simple = I18n::Backend::Simple.new
+    simple.store_translations(:en, chained: { title: "Chained" })
+    chain = I18n::Backend::Chain.new(simple).extend(Tensaku::I18nMarkers::Backend)
+
+    Tensaku::I18nMarkers.with_markers do
+      assert_equal [ "en:chained.title" ], markers_in(chain.translate(:en, "chained.title"))
+      assert_equal "Fallback", chain.translate(:en, "chained.missing", default: "Fallback")
+    end
   end
 end

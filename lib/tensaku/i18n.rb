@@ -44,6 +44,24 @@ module Tensaku
       text.include?(FENCE) ? text.gsub(PATTERN, "") : text
     end
 
+    # The raw value stored for the key, to tell a translation apart from a `default:` or a pluralized
+    # hash. A Chain backend asks each of its backends in order. A backend without its own lookup (one
+    # that only implements translate) gives nil, so its strings get no marker.
+    def stored_value(backend, locale, key, options)
+      if defined?(::I18n::Backend::Chain) && backend.is_a?(::I18n::Backend::Chain)
+        backend.backends.each do |inner|
+          value = stored_value(inner, locale, key, options)
+          return value unless value.nil?
+        end
+        return nil
+      end
+      return nil if backend.method(:lookup).owner == ::I18n::Backend::Base
+
+      backend.send(:lookup, locale, key, options[:scope], options)
+    rescue NameError, NotImplementedError
+      nil
+    end
+
     # Added to the app's I18n backend with `extend`, so it wraps whichever backend the app uses.
     module Backend
       def translate(locale, key, options = ::I18n::EMPTY_HASH)
@@ -52,7 +70,7 @@ module Tensaku
 
         full = ::I18n.normalize_keys(nil, key, options[:scope], options[:separator]).join(".")
         return result if full.match?(SKIP)
-        return result unless lookup(locale, key, options[:scope], options).is_a?(String)
+        return result unless I18nMarkers.stored_value(self, locale, key, options).is_a?(String)
 
         marked = result + I18nMarkers.encode(locale, full)
         result.html_safe? ? marked.html_safe : marked

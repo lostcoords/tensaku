@@ -17,7 +17,7 @@ module Tensaku
     teardown { FileUtils.rm_rf(@tmp_root) if @tmp_root }
 
     def get(path, env = {})
-      Rack::MockRequest.new(Rails.application).get(path, { "REMOTE_ADDR" => "127.0.0.1" }.merge(env))
+      Rack::MockRequest.new(Rails.application).get(path, { "REMOTE_ADDR" => "127.0.0.1", "HTTP_HOST" => "localhost:3000" }.merge(env))
     end
   end
 end

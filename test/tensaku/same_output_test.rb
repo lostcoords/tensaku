@@ -10,7 +10,7 @@ class Tensaku::SameOutputTest < Tensaku::TestCase
     require "./test/dummy/config/environment"
     require "rack/mock"
     require "json"
-    pages = #{PATHS.inspect}.to_h { [ it, Rack::MockRequest.new(Rails.application).get(it, "REMOTE_ADDR" => "127.0.0.1").body ] }
+    pages = #{PATHS.inspect}.to_h { [ it, Rack::MockRequest.new(Rails.application).get(it, "REMOTE_ADDR" => "127.0.0.1", "HTTP_HOST" => "localhost").body ] }
     puts JSON.generate(pages)
   RUBY
 
