@@ -100,6 +100,45 @@ end
     assert_empty Tensaku::Notes.all
   end
 
+  test "notes: your answers go in the thread, a note moves to other elements, and copies in short form" do
+    note = Tensaku::Notes.create(url: "/about", comment: "Tighten this", rect: { x: 1, y: 2, width: 3, height: 4 })
+    Tensaku::Notes.update(note["id"], status: "question", message: "Tighten what?", agent: "Claude Code")
+
+    answered = json(request("PATCH", "/notes/#{note["id"]}", body: { message: "The heading", status: "open" }))
+    assert_equal [ [ "agent", "Tighten what?", "Claude Code" ], [ "you", "The heading", nil ] ], answered["thread"].map { it.values_at("from", "text", "agent") }
+    assert_equal "Tighten what?", answered["reply"]
+    assert_equal "Tighten this", answered["comment"]
+
+    moved = json(request("PATCH", "/notes/#{note["id"]}", body: { targets: [ { kind: "element", stamp: "app/views/pages/hero.html.erb:2:3" } ] }))
+    assert_equal [ "app/views/pages/hero.html.erb", "2:3-2:34" ], moved["targets"].sole.values_at("file", "range")
+    assert_nil moved["rect"]
+
+    markdown = request("GET", "/notes.md?url=/about").body
+    assert_includes markdown, "> **Claude Code:** Tighten what?\n> **You:** The heading"
+    assert_equal "- `#{note["id"]}` (open) Tighten this at `app/views/pages/hero.html.erb:2:3`", request("GET", "/notes.md?url=/about&format=short").body
+  end
+
+  test "editor links come from RAILS_EDITOR, for files inside the app only" do
+    ActiveSupport::Editor.reset
+    with_env("RAILS_EDITOR" => nil, "EDITOR" => nil) { assert_nil json(request("GET", "/editor?file=app/views/pages/hero.html.erb&line=2"))["url"] }
+    ActiveSupport::Editor.reset
+    with_env("RAILS_EDITOR" => "vscode") do
+      url = json(request("GET", "/editor?file=app/views/pages/hero.html.erb&line=2"))["url"]
+      assert_equal "vscode://file/#{tmp_root.join("app/views/pages/hero.html.erb").expand_path}:2", url
+      assert_equal 422, request("GET", "/editor?file=../../etc/passwd&line=1").status
+    end
+  ensure
+    ActiveSupport::Editor.reset
+  end
+
+  def with_env(values)
+    old = values.keys.to_h { [ it, ENV[it] ] }
+    values.each { |key, value| ENV[key] = value }
+    yield
+  ensure
+    old.each { |key, value| ENV[key] = value }
+  end
+
   test "note ids can't reach outside the notes directory" do
     assert_equal 404, request("PATCH", "/notes/..%2F..%2Fx", body: { status: "resolved" }).status
     assert_raises(Tensaku::Notes::NotFound) { Tensaku::Notes.find("../../etc") }

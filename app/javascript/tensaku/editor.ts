@@ -16,6 +16,23 @@ interface MarkdownDescription { file: string; range: string; editable: boolean; 
 
 interface Undo { label: string; run: () => Promise<void> }
 const undos = new Map<string, Undo>()
+
+// The saves made from this page, newest last. Each element keeps one undo, its latest edit, so only
+// that entry can be undone from the history.
+interface HistoryEntry { key: string; label: string; at: Date; file?: string; undone: boolean; undo: Undo }
+const history: HistoryEntry[] = []
+const HISTORY_LIMIT = 20
+
+export function editHistory() {
+  return history.slice().reverse().map((entry) => ({
+    label: entry.label,
+    at: entry.at,
+    file: entry.file,
+    undone: entry.undone,
+    canUndo: !entry.undone && undos.get(entry.key) === entry.undo,
+    run: () => entry.undo.run().catch(report),
+  }))
+}
 let open: { element: HTMLElement; save: () => Promise<void>; close: () => void } | null = null
 
 export function undoFor(element: Element): Undo | undefined {
@@ -142,7 +159,9 @@ function frame(element: Element, surface: HTMLElement, info: string, save: () =>
   const keys = (event: KeyboardEvent) => {
     if (!container.isConnected) return
     if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close() }
-    if (event.key === "Enter" && !event.shiftKey && activeInShadow()?.classList.contains("editable")) { event.preventDefault(); saveAndClose() }
+    if (event.key !== "Enter" || !activeInShadow()?.classList.contains("editable")) return
+    const newlines = surface.dataset.newlines !== undefined
+    if (newlines ? event.metaKey || event.ctrlKey : !event.shiftKey) { event.preventDefault(); saveAndClose() }
   }
   document.addEventListener("keydown", keys, true)
   // Blur saves, unless focus moved to another part of the editor.
@@ -337,23 +356,28 @@ async function saveTranslation(element: Element, key: TranslationKey, original: 
 
 async function editMarkdown(element: Element) {
   const range = element.getAttribute(MARKDOWN)!
-  const info = await api<MarkdownDescription>("GET", "/markdown" + query({ range, tag: element.tagName.toLowerCase() }))
+  const tag = element.tagName.toLowerCase()
+  const info = await api<MarkdownDescription>("GET", "/markdown" + query({ range, tag }))
   if (!info.editable) throw new Error("This Markdown block can only get notes.")
-  assertRendered(element, [info.text.replace(/\]\([^)]*\)/g, "").replace(/[*_`#>\[\]]/g, "").split(/\s+/).slice(0, 6).join(" ")])
+  const words = info.text.replace(/^\s*(?:[-*+]|\d{1,9}[.)])\s+(?:\[[ xX]\]\s+)?/gm, "").replace(/\]\([^)]*\)/g, "").replace(/[*_`#>\[\]]/g, "")
+  // Each line on its own: list items render without the line breaks between them.
+  assertRendered(element, words.split("\n").map((line) => line.trim().split(/\s+/).slice(0, 6).join(" ")).slice(0, 8))
   const surface = div("")
+  // A whole list is several lines of source: Enter starts a new item, Cmd/Ctrl+Enter saves.
+  if (tag === "ul" || tag === "ol") surface.dataset.newlines = ""
   if (info.prefix.trim()) surface.append(chip(info.prefix.trim()), " ")
   const text = field(info.text, true)
   surface.append(text)
   frame(element, surface, `${info.file}:${info.range.split(":")[0]} (Markdown)`, async () => {
     const value = valueOf(text)
     if (value === info.text) return
-    await saveMarkdown(element, range, info.original, info.prefix, value, info.text)
+    await saveMarkdown(element, range, info.original, info.prefix, value, info.text, false, tag)
   })
 }
 
-async function saveMarkdown(element: Element, range: string, original: string, prefix: string, text: string, previous: string, isUndo = false) {
-  const result = await api("POST", "/markdown", { range, original, text })
-  if (!/[*_`\[\]<>#]/.test(previous + text)) replaceText(Array.from(element.childNodes).filter((n): n is Text => n.nodeType === Node.TEXT_NODE), previous, text)
+async function saveMarkdown(element: Element, range: string, original: string, prefix: string, text: string, previous: string, isUndo = false, tag?: string) {
+  const result = await api("POST", "/markdown", { range, original, text, tag })
+  if (!tag?.match(/^[uo]l$/) && !/[*_`\[\]<>#]/.test(previous + text)) replaceText(Array.from(element.childNodes).filter((n): n is Text => n.nodeType === Node.TEXT_NODE), previous, text)
   if (!isUndo) {
     remember(element, "Undo Markdown edit", async () => {
       const [, path, startLine, startColumn] = range.match(/^(.+):(\d+):(\d+)-/)!
@@ -361,7 +385,7 @@ async function saveMarkdown(element: Element, range: string, original: string, p
       const lines = source.split("\n")
       const endLine = Number(startLine) + lines.length - 1
       const endColumn = (lines.length === 1 ? Number(startColumn) - 1 : 0) + utf8Length(lines[lines.length - 1])
-      await saveMarkdown(element, `${path}:${startLine}:${startColumn}-${endLine}:${endColumn}`, source, prefix, previous, text, true)
+      await saveMarkdown(element, `${path}:${startLine}:${startColumn}-${endLine}:${endColumn}`, source, prefix, previous, text, true, tag)
     })
   }
   done(result, "markdown")
@@ -371,11 +395,17 @@ async function saveMarkdown(element: Element, range: string, original: string, p
 
 function remember(element: Element, label: string, run: () => Promise<void>) {
   const key = undoKey(element)
-  undos.set(key, { label, run: async () => { undos.delete(key); await run() } })
+  const entry: HistoryEntry = { key, label: label.replace(/^Undo /, ""), at: new Date(), undone: false, undo: { label, run: async () => {} } }
+  entry.undo = { label, run: async () => { undos.delete(key); entry.undone = true; await run() } }
+  undos.set(key, entry.undo)
+  history.push(entry)
+  if (history.length > HISTORY_LIMIT) history.shift()
 }
 
 function done(result: { changed?: boolean; file?: string; warning?: string }, kind: SourceKind) {
   if (!result.changed) return
+  const entry = history[history.length - 1]
+  if (entry && !entry.file && Date.now() - entry.at.getTime() < 10000) entry.file = result.file
   const last = Array.from(undos.values()).pop()
   toast(`Saved ${result.file ?? ""}`.trim(), {
     actions: last ? { Undo: () => last.run().catch(report) } : undefined,

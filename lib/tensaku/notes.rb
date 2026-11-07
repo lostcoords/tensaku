@@ -16,6 +16,8 @@ module Tensaku
     AGENT_WINDOW = 20
     ID = /\A[a-z0-9]{4,12}\z/
     TARGET_KINDS = %w[element text translation markdown].freeze
+    AUTHORS = %w[you agent].freeze
+    SESSION = /\A[a-f0-9]{32}\z/
 
     class NotFound < Error; end
 
@@ -60,13 +62,16 @@ module Tensaku
         "viewport" => attributes["viewport"]&.to_s,
         "status" => "open",
         "reply" => nil,
+        "thread" => [],
         "created_at" => now,
         "updated_at" => now
-      }.compact_blank.merge("reply" => nil)
+      }.compact_blank.merge("reply" => nil, "thread" => [])
       write(note)
     end
 
-    def update(id, status: nil, reply: nil, comment: nil)
+    # message adds to the note's thread, from "you" or "agent". An agent's message is also the note's
+    # reply, the line shown next to the pin. targets moves the note to other elements.
+    def update(id, status: nil, reply: nil, comment: nil, message: nil, from: "agent", agent: nil, targets: nil)
       note = find(id)
       if status
         raise Error, "Status must be one of #{STATUSES.join(", ")}" unless STATUSES.include?(status.to_s)
@@ -75,6 +80,19 @@ module Tensaku
       end
       note["reply"] = reply.to_s.strip.presence unless reply.nil?
       note["comment"] = comment.to_s.strip unless comment.to_s.strip.empty?
+      if message.present?
+        raise Error, "A message is from one of #{AUTHORS.join(", ")}" unless AUTHORS.include?(from.to_s)
+
+        entry = { "from" => from.to_s, "text" => message.to_s.strip, "agent" => agent.presence, "at" => Time.now.utc.iso8601 }.compact
+        note["thread"] = Array(note["thread"]) << entry
+        note["reply"] = entry["text"] if from.to_s == "agent"
+      end
+      note["agent"] = agent if agent.present? && status.to_s == "working"
+      if targets
+        note["targets"] = Array(targets).map { target(it) }
+        note.delete("rect")
+        note.delete("viewport")
+      end
       note["updated_at"] = Time.now.utc.iso8601
       write(note)
     end
@@ -91,6 +109,7 @@ module Tensaku
 
         dir.join("#{note["id"]}.json").delete
       end
+      agents_dir.glob("*.json").each { it.delete if now - it.mtime > 86_400 } if agents_dir.directory?
     end
 
     # Blocks until a note is created or changed after `since`, or the timeout passes. Returns the open
@@ -112,17 +131,57 @@ module Tensaku
 
     # Every MCP call touches a file next to the notes, so the overlay can show that an agent is
     # connected, whichever server process it talks to.
-    def agent_seen!
-      dir.mkpath
-      FileUtils.touch(dir.join(".agent"))
+    # An MCP client that keeps the session id from initialize gets a file of its own with its name, so
+    # the page can say which agent is connected. Other clients share one nameless file.
+    def agent_seen!(session = nil)
+      return touch(dir.join(".agent")) unless session.to_s.match?(SESSION)
+
+      path = agents_dir.join("#{session}.json")
+      path.file? ? FileUtils.touch(path) : write_agent(path, nil)
+    end
+
+    def register_agent(session, name)
+      write_agent(agents_dir.join("#{session}.json"), name.to_s.truncate(80).presence)
+    end
+
+    def agent_name(session)
+      return nil unless session.to_s.match?(SESSION)
+
+      read(agents_dir.join("#{session}.json"))&.dig("name")
     end
 
     def agent
-      path = dir.join(".agent")
-      return { "connected" => false, "seen_at" => nil } unless path.file?
+      files = [ dir.join(".agent"), *(agents_dir.directory? ? agents_dir.glob("*.json") : []) ].select(&:file?)
+      return { "connected" => false, "seen_at" => nil, "names" => [] } if files.empty?
 
-      seen = path.mtime
-      { "connected" => Time.now - seen < AGENT_WINDOW, "seen_at" => seen.utc.iso8601 }
+      recent = files.select { Time.now - it.mtime < AGENT_WINDOW }
+      names = recent.filter_map { read(it)&.dig("name") if it.extname == ".json" }.uniq
+      { "connected" => recent.any?, "seen_at" => files.map(&:mtime).max.utc.iso8601, "names" => names }
+    end
+
+    def agents_dir
+      dir.join(".agents")
+    end
+
+    def touch(path)
+      path.dirname.mkpath
+      FileUtils.touch(path)
+    end
+
+    def write_agent(path, name)
+      path.dirname.mkpath
+      path.write(JSON.generate({ "name" => name }.compact) + "\n")
+    end
+
+    # One line per note, for a chat where the detailed form is too long.
+    def to_short_markdown(notes)
+      notes = Array(notes)
+      return "No notes." if notes.empty?
+
+      notes.map do |note|
+        where = Array(note["targets"]).filter_map { [ it["file"], it["range"]&.split("-")&.first ].compact.join(":").presence }.uniq.first(3)
+        "- `#{note["id"]}` (#{note["status"]}) #{note["comment"].squish.truncate(160)}#{" at #{where.map { "`#{it}`" }.join(", ")}" if where.any?}"
+      end.join("\n")
     end
 
     def to_markdown(notes)
@@ -142,7 +201,13 @@ module Tensaku
       if (rect = note["rect"])
         lines << "" << "Area: #{rect["width"]}x#{rect["height"]} at (#{rect["x"]}, #{rect["y"]}) in a #{note["viewport"] || "unknown"} viewport"
       end
-      lines << "" << "Reply: #{note["reply"]}" if note["reply"]
+      thread = Array(note["thread"])
+      if thread.any?
+        lines << ""
+        thread.each { lines << "> **#{it["from"] == "you" ? "You" : (it["agent"] || "Agent")}:** #{it["text"].to_s.gsub("\n", "\n> ")}" }
+      elsif note["reply"]
+        lines << "" << "Reply: #{note["reply"]}"
+      end
       lines.join("\n")
     end
 

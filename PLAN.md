@@ -470,6 +470,10 @@ adds a second one.
   `start_note`, an "agent connected" light (any MCP call touches `tmp/tensaku/notes/.agent`; connected
   means touched in the last 20 seconds), and a poll of the notes every four seconds while the tab is
   visible. Editing a note sets it back to `open` and clears the reply.
+- **MCP sessions (changed 2026-11-07):** `initialize` hands out an `Mcp-Session-Id` so the page can name
+  the agent. It only labels; requests without it are served the same, and nothing else keys on it.
+- **Threads (added 2026-11-07):** a note keeps `thread`, a list of messages from you or the agent.
+  `reply` stays as the agent's latest message, for older readers.
 - **Stale check (refined 2026-11-07):** the server's byte comparison plus an overlay check that the
   file's static text still matches the rendered element when the editor opens.
 

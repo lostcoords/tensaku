@@ -23,6 +23,19 @@
   it as a green light. The overlay polls the notes every four seconds while the tab is visible.
 - Shift-click in select mode picks several elements for one note.
 - Toolbar buttons to hide the pins and to delete the page's notes (after a second click).
+- Arrow keys move the select-mode highlight through stamped elements; Enter opens the menu; Cmd/Ctrl+C
+  copies the highlighted element's reference.
+- Notes keep a thread (`thread`, with `from` and the agent's name). `reply_to_note` adds an agent
+  message; answering a question from the page adds yours. Notes can move to another element
+  (`PATCH /notes/:id` with `targets`), and the card says when a note's element is gone.
+- MCP `initialize` returns an `Mcp-Session-Id`; the page names connected agents from `clientInfo`.
+- The notes panel shows every page's notes; `GET /notes.md?format=short` gives one line per note.
+- A note on selected text keeps the phrase marked on the page.
+- Toasts, and optional browser notifications, when an agent starts, answers or resolves a note.
+- Whole Markdown lists can be edited as source.
+- Open in editor (`GET /editor`), through Rails' `ActiveSupport::Editor` and `RAILS_EDITOR`.
+- Edit history for the saves made since the page loaded, and settings: copy format, notifications, a
+  compact corner button.
 - The editor takes the page's background, text colour and type and sits over the element, with its
   status bar floating below in the toolbar's dark material.
 - Page update after a save: same-source nodes right away, then refetch and idiomorph.

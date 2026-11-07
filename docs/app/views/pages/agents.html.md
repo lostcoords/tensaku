@@ -31,7 +31,10 @@ Every note records the file and line of each element it points at, so an agent c
 | `start_note` | Marks a note as being worked on; the pin shows it |
 | `resolve_note` | Marks a note resolved, with a reply for the person |
 | `ask_question` | Asks the person something; the question shows on the page |
+| `reply_to_note` | Adds a message to the note's thread without changing its status |
 | `watch_notes` | Waits up to 300 seconds for new or changed notes |
 | `current_selection` | Returns the element last clicked in select mode |
 
 `watch_notes` holds a server thread while it waits.
+
+`initialize` returns an `Mcp-Session-Id`. A client that sends it back is named on the page by its `clientInfo` title or name, and its messages carry that name. Requests without it work the same.

@@ -14,7 +14,7 @@ one or more targets with the source position Herb stamped on the element.
 Use whichever is available, in this order:
 
 1. **MCP**: the `tensaku` server (`/__tensaku/mcp` on the dev server). Tools: `list_notes`, `get_note`,
-   `start_note`, `resolve_note`, `ask_question`, `watch_notes`, `current_selection`. The dev server must be running.
+   `start_note`, `resolve_note`, `reply_to_note`, `ask_question`, `watch_notes`, `current_selection`. The dev server must be running.
 2. **Files**: `tmp/tensaku/notes/*.json`, one note per file. Read them directly when the server isn't
    running. Edit `status` and `reply` in the file to resolve one.
 
@@ -49,7 +49,8 @@ A note looks like this:
 2. Call `start_note` on the note you take, so the person sees it's being worked on. Then open the target file at the range, read the comment, and make the change. Look at
    `context.partials` when the fix belongs in a parent template, and at the translation target when the
    text comes from a locale file (change every locale that needs it).
-3. If the comment is ambiguous, don't guess: call `ask_question` with a short, specific question. The
+3. Read the note's `thread`: the person's answers to earlier questions are there. Use `reply_to_note`
+   to say what you found when that helps the person. If the comment is ambiguous, don't guess: call `ask_question` with a short, specific question. The
    question shows on the page and the note waits for an answer.
 4. When done, call `resolve_note` with a one-line reply that says what changed and where, for example
    `Shortened the intro in app/views/pages/_hero.html.erb:6`. The pin on the page turns green so the

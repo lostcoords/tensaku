@@ -5,6 +5,7 @@ import { api, query } from "./api"
 import { contentRect, contextOf, MARKDOWN, nearestStamp, STAMP, tagLabel, translationOf, visibleText } from "./dom"
 import { textKeys } from "./markers"
 import { icon } from "./icons"
+import { settings } from "./settings"
 import { activeInShadow, copy, div, h, layer, fixed, panel, toast } from "./ui"
 
 export interface Target {
@@ -29,10 +30,12 @@ export interface Note {
   viewport?: string
   status: "open" | "working" | "question" | "resolved"
   reply: string | null
+  thread?: { from: "you" | "agent"; text: string; agent?: string; at: string }[]
+  agent?: string
   created_at: string
 }
 
-export interface Agent { connected: boolean; seen_at: string | null }
+export interface Agent { connected: boolean; seen_at: string | null; names?: string[] }
 
 let notes: Note[] = []
 let openCount = 0
@@ -60,7 +63,47 @@ export async function deleteAll() {
 // Notes change from outside the page too (an agent starts or resolves one), so the overlay asks
 // again every few seconds while the tab is visible. Nothing is redrawn when the answer is the same.
 export function poll() {
-  setInterval(() => { if (document.visibilityState === "visible") load() }, 4000)
+  let ticks = 0
+  setInterval(() => {
+    ticks++
+    if (document.visibilityState === "visible" || (settings().notify && ticks % 4 === 0)) load()
+  }, 4000)
+}
+
+// Moving a note to another element is a pick on the page, which index.ts handles.
+let moveHandler: ((note: Note) => void) | null = null
+export const setMoveHandler = (handler: (note: Note) => void) => { moveHandler = handler }
+
+export async function moveNote(note: Note, element: Element) {
+  localChanges.add(note.id)
+  await api("PATCH", `/notes/${note.id}`, { targets: targetsFor(element) })
+  toast("Note moved")
+  await load({ force: true })
+}
+
+// Changes made from this page, so they aren't announced as the agent's.
+const localChanges = new Set<string>()
+
+function announce(note: Note, what: "resolved" | "question" | "working" | "message") {
+  const who = note.agent ?? note.thread?.filter((entry) => entry.from === "agent").pop()?.agent ?? "The agent"
+  const about = `"${note.comment.length > 48 ? note.comment.slice(0, 48) + "…" : note.comment}"`
+  const text = { resolved: `${who} resolved ${about}`, question: `${who} has a question on ${about}`, working: `${who} started on ${about}`, message: `${who} replied on ${about}` }[what]
+  toast(text, { actions: { Show: () => { const rect = anchorFor(note); if (rect) { scrollTo({ top: Math.max(0, rect.top - 120), behavior: "smooth" }); showNote(note, rect) } } } })
+  if (document.visibilityState !== "visible" && settings().notify && "Notification" in window && Notification.permission === "granted") {
+    new Notification("Tensaku", { body: text, tag: `tensaku-${note.id}` })
+  }
+}
+
+function announceChanges(before: Note[], after: Note[]) {
+  const old = new Map(before.map((note) => [note.id, note]))
+  for (const note of after) {
+    const previous = old.get(note.id)
+    if (!previous) continue
+    if (localChanges.delete(note.id)) continue
+    const messages = note.thread?.length ?? 0
+    if (messages > (previous.thread?.length ?? 0) && note.thread![messages - 1].from === "agent" && note.status === previous.status) announce(note, "message")
+    else if (note.status !== previous.status && note.status !== "open") announce(note, note.status)
+  }
 }
 export const currentNotes = () => notes
 
@@ -143,6 +186,9 @@ export function noteForm(anchor: DOMRect, targets: Target[], extra: Partial<Note
   return element
 }
 
+// The server leaves out empty fields, so a note made without targets has none.
+const normalized = (list: Note[]) => list.map((note) => ({ ...note, targets: note.targets ?? [] }))
+
 let lastSignature = ""
 export async function load({ force = false } = {}) {
   try {
@@ -153,8 +199,10 @@ export async function load({ force = false } = {}) {
     if (signature === lastSignature) return
     lastSignature = signature
     if (!primed) data.notes.forEach((note) => drawn.set(note.id, note.status))
+    else if (data.notes.length && notes.length) announceChanges(notes, normalized(data.notes))
     primed = true
-    notes = data.notes
+    notes = normalized(data.notes)
+    if (sidebarScope === "all" && sidebar?.isConnected) allNotes = normalized((await api<{ notes: Note[] }>("GET", "/notes")).notes)
     openCount = data.open
   } catch {
     notes = []
@@ -164,6 +212,33 @@ export async function load({ force = false } = {}) {
   drawPins()
   // A card being edited or answered is left alone when the poll redraws.
   if (sidebar?.isConnected && (force || !sidebar.contains(activeInShadow()))) renderSidebar()
+}
+
+// The selected text a "text" note is about, found again in its element.
+function phraseRects(note: Note): DOMRect[] {
+  const target = note.targets.find((t) => t.kind === "text" && t.text && t.stamp)
+  const element = target && document.querySelector(`[${STAMP}="${CSS.escape(target.stamp!)}"]`)
+  if (!target || !element) return []
+  const nodes: Text[] = []
+  const starts: number[] = []
+  let all = ""
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
+  while (walker.nextNode()) {
+    const node = walker.currentNode as Text
+    starts.push(all.length)
+    nodes.push(node)
+    all += node.data
+  }
+  const at = all.indexOf(target.text!)
+  if (at < 0) return []
+  const end = at + target.text!.length
+  const lastIndex = (test: (start: number) => boolean) => { for (let i = starts.length - 1; i >= 0; i--) if (test(starts[i])) return i; return 0 }
+  const first = lastIndex((start) => start <= at)
+  const last = lastIndex((start) => start < end)
+  const range = document.createRange()
+  range.setStart(nodes[first], at - starts[first])
+  range.setEnd(nodes[last], end - starts[last])
+  return Array.from(range.getClientRects()).filter((r) => r.width > 0).map((r) => new DOMRect(r.left + scrollX, r.top + scrollY, r.width, r.height))
 }
 
 function anchorFor(note: Note): DOMRect | null {
@@ -182,7 +257,13 @@ let primed = false
 export function drawPins() {
   pinLayer.replaceChildren()
   notes.forEach((note, index) => {
-    const rect = anchorFor(note)
+    const phrase = phraseRects(note)
+    for (const r of phrase) {
+      const mark = div(`phrase ${note.status}`)
+      Object.assign(mark.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` })
+      pinLayer.append(mark)
+    }
+    const rect = phrase.length ? phrase[phrase.length - 1] : anchorFor(note)
     if (!rect) return
     const fresh = drawn.get(note.id) !== note.status
     drawn.set(note.id, note.status)
@@ -196,9 +277,9 @@ export function drawPins() {
 
 function noteCard(note: Note, onChange: () => void) {
   const actions = div("row")
-  const update = async (body: Record<string, unknown>) => { await api("PATCH", `/notes/${note.id}`, body); await load({ force: true }); onChange() }
+  const update = async (body: Record<string, unknown>) => { localChanges.add(note.id); await api("PATCH", `/notes/${note.id}`, body); await load({ force: true }); onChange() }
   const remove = async () => { await api("DELETE", `/notes/${note.id}`); await load({ force: true }); onChange() }
-  actions.append(h("button", { type: "button", onclick: async () => { await copy(await api<string>("GET", "/notes.md" + query({ id: note.id }))); toast("Copied note as Markdown") } }, "Copy"))
+  actions.append(h("button", { type: "button", onclick: async () => { await copy(await api<string>("GET", "/notes.md" + query({ id: note.id, format: settings().copyFormat === "short" ? "short" : undefined }))); toast("Copied note as Markdown") } }, "Copy"))
   const comment = h("div", { className: "comment" }, note.comment)
   // Editing a note sends it back to the agent: it becomes open again, and an old reply is cleared.
   const startEditing = () => {
@@ -223,20 +304,29 @@ function noteCard(note: Note, onChange: () => void) {
     field.setSelectionRange(field.value.length, field.value.length)
   }
   actions.append(h("button", { type: "button", onclick: startEditing }, "Edit"))
+  const here = note.url === location.pathname
+  if (here && moveHandler) actions.append(h("button", { type: "button", onclick: () => { onChange(); moveHandler!(note) } }, "Move"))
   if (note.status === "resolved") {
     actions.append(h("button", { type: "button", onclick: remove }, "Dismiss"), h("button", { type: "button", onclick: () => update({ status: "open" }) }, "Reopen"))
   } else {
     actions.append(h("button", { type: "button", onclick: () => update({ status: "resolved" }) }, "Resolve"), h("button", { type: "button", onclick: remove }, "Delete"))
   }
-  const answer = note.status === "question" ? h("textarea", { rows: 2, placeholder: "Answer the question (updates the note)" }) : null
+  // Any note can take a message; answering a question sends the note back as open.
+  const answer = note.status !== "resolved" ? h("textarea", { rows: 2, placeholder: note.status === "question" ? "Answer the question" : "Add a message for the agent", "aria-label": "Message" }) : null
   if (answer) {
-    actions.append(h("button", { type: "button", className: "primary", onclick: () => answer.value.trim() && update({ status: "open", comment: `${note.comment}\n\nAnswer: ${answer.value.trim()}`, reply: "" }) }, "Answer"))
+    answer.addEventListener("keydown", (event) => event.stopPropagation())
+    actions.append(h("button", { type: "button", className: "primary", onclick: () => answer.value.trim() && update({ message: answer.value.trim(), status: note.status === "question" ? "open" : undefined }) }, note.status === "question" ? "Answer" : "Send"))
   }
+  const thread = note.thread?.length
+    ? div("thread", ...note.thread.map((entry) => div(`message ${entry.from}`, h("span", { className: "who" }, entry.from === "you" ? "You" : entry.agent ?? "Agent"), h("span", {}, entry.text))))
+    : note.reply ? h("div", { className: `reply ${note.status}` }, note.reply) : null
+  const missing = here && !anchorFor(note) ? div("missing", "Not found on this page any more. Move it to the element it's about.") : null
   const files = note.targets.filter((t) => t.file).map((t) => `${t.file}${t.range ? ":" + t.range.split("-")[0] : ""}`)
   return div(`postit note-card ${note.status}`,
-    div("row", h("span", { className: `status ${note.status}` }, note.status === "resolved" ? icon("check") : null, note.status === "working" ? "agent working" : note.status), h("span", { className: "meta" }, Array.from(new Set(files)).join(", "))),
+    div("row", h("span", { className: `status ${note.status}` }, note.status === "resolved" ? icon("check") : null, note.status === "working" ? `${note.agent ?? "agent"} working` : note.status), h("span", { className: "meta" }, Array.from(new Set(files)).join(", "))),
     comment,
-    note.reply ? h("div", { className: `reply ${note.status}` }, note.reply) : null,
+    thread,
+    missing,
     answer,
     actions)
 }
@@ -264,15 +354,40 @@ export function toggleSidebar(force?: boolean) {
 
 export const sidebarOpen = () => Boolean(sidebar?.isConnected)
 
+let sidebarScope: "page" | "all" = "page"
+let allNotes: Note[] = []
+
+async function showScope(scope: "page" | "all") {
+  sidebarScope = scope
+  if (scope === "all") allNotes = normalized((await api<{ notes: Note[] }>("GET", "/notes")).notes)
+  renderSidebar()
+}
+
 function renderSidebar() {
   if (!sidebar) return
+  const format = settings().copyFormat === "short" ? "short" : undefined
   const copyAll = async (all: boolean) => {
-    const markdown = await api<string>("GET", "/notes.md" + query(all ? {} : { url: location.pathname }))
+    const markdown = await api<string>("GET", "/notes.md" + query(all ? { format } : { url: location.pathname, format }))
     await copy(markdown)
     toast(all ? "Copied all open notes" : "Copied this page's open notes")
   }
+  const tab = (scope: "page" | "all", text: string) =>
+    h("button", { type: "button", role: "tab", "aria-selected": String(sidebarScope === scope), onclick: () => showScope(scope) }, text)
+  let body: Node[]
+  if (sidebarScope === "page") {
+    body = notes.length ? notes.map((note) => noteCard(note, () => {})) : [div("empty", "No notes on this page. Select an element or drag over an area to add one.")]
+  } else {
+    const pages = Array.from(new Set(allNotes.map((note) => note.url)))
+    body = pages.length
+      ? pages.flatMap((url) => [
+          h("a", { className: `page${url === location.pathname ? " current" : ""}`, href: url }, url, h("span", {}, String(allNotes.filter((note) => note.url === url).length))),
+          ...allNotes.filter((note) => note.url === url).map((note) => noteCard(note, () => {})),
+        ])
+      : [div("empty", "No notes yet.")]
+  }
   sidebar.replaceChildren(
-    h("header", {}, h("strong", {}, `Notes on ${location.pathname}`), h("button", { type: "button", className: "icon-button", onclick: () => toggleSidebar(false), "aria-label": "Close notes" }, icon("close"))),
+    h("header", {}, h("strong", {}, sidebarScope === "page" ? `Notes on ${location.pathname}` : "Notes on every page"), h("button", { type: "button", className: "icon-button", onclick: () => toggleSidebar(false), "aria-label": "Close notes" }, icon("close"))),
+    div("tabs", tab("page", "This page"), tab("all", "All pages")),
     div("row", h("button", { type: "button", onclick: () => copyAll(false) }, "Copy page notes"), h("button", { type: "button", onclick: () => copyAll(true) }, `Copy all open (${openCount})`)),
-    ...(notes.length ? notes.map((note) => noteCard(note, () => {})) : [div("empty", "No notes on this page. Select an element or drag over an area to add one.")]))
+    ...body)
 }

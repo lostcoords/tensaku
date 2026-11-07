@@ -125,10 +125,11 @@ class NotesTest < ApplicationSystemTestCase
     assert_eventually { copied.to_s.include?("Rename this section") }
     assert_includes copied, "at `app/views/pages/about.html.erb:1:1-1:18`"
 
-    overlay.find(".sidebar textarea").set("The one in the header")
+    overlay.find(".sidebar .note-card.question textarea").set("The one in the header")
     overlay.find(".sidebar button", text: "Answer").click
     assert_eventually { Tensaku::Notes.find(note["id"])["status"] == "open" }
-    assert_includes Tensaku::Notes.find(note["id"])["comment"], "Answer: The one in the header"
+    assert_equal [ "you", "The one in the header" ], Tensaku::Notes.find(note["id"])["thread"].last.values_at("from", "text")
+    assert overlay.has_css?(".sidebar .message.you", text: "The one in the header")
   end
 
   test "a note is edited from its card and goes back to the agent as open" do
@@ -195,12 +196,120 @@ class NotesTest < ApplicationSystemTestCase
     assert overlay.has_no_css?(".agent-light")
 
     Tensaku::Notes.agent_seen!
-    Tensaku::Notes.update(note["id"], status: "working")
+    Tensaku::Notes.update(note["id"], status: "working", agent: "Claude Code")
     assert overlay.has_css?(".pin.working", wait: 8)
     assert overlay.has_css?(".agent-light")
+    assert overlay.has_css?(".toast", text: "Claude Code started on \"Rename this section\"")
 
-    Tensaku::Notes.update(note["id"], status: "resolved", reply: "Renamed it")
+    Tensaku::Notes.update(note["id"], status: "resolved", message: "Renamed it", agent: "Claude Code")
     assert overlay.has_css?(".pin.resolved", wait: 8)
+    assert overlay.has_css?(".toast", text: "Claude Code resolved")
+  end
+
+  test "arrow keys walk the stamped elements and Cmd+C copies the highlighted one" do
+    visit "/"
+    wait_for_overlay
+    stub_clipboard
+    select_mode
+
+    find("li.item span.name", match: :first).hover
+    assert overlay.has_css?(".label", text: "span.name")
+    page.driver.browser.keyboard.type(:up)
+    assert overlay.has_css?(".label", text: "li.item")
+    page.driver.browser.keyboard.type(:down)
+    assert overlay.has_css?(".label", text: "span.name")
+    page.driver.browser.keyboard.type(:up)
+    page.driver.browser.keyboard.type([ :ctrl, "c" ])
+
+    assert_eventually { copied.present? }
+    assert_includes copied, "app/views/shared/_item.html.erb:1:1"
+    assert_includes copied, "<li.item>"
+  end
+
+  test "a note on selected text marks the phrase on the page" do
+    visit "/about"
+    wait_for_overlay
+    select_mode
+    page.execute_script(<<~JS)
+      const text = document.querySelector("p.bio").firstChild;
+      const range = document.createRange();
+      range.setStart(text, 2); range.setEnd(text, 13);
+      getSelection().removeAllRanges(); getSelection().addRange(range);
+    JS
+    # A real drag selects the text and ends in a click; a scripted click keeps the selection.
+    page.execute_script(%q{document.querySelector("p.bio").dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }))})
+    overlay.find(".menu button", text: "Note on selected text").click
+    overlay.find(".note-form textarea").set("Say what kind")
+    overlay.find(".note-form button", text: "Save note").click
+
+    assert overlay.has_css?(".phrase")
+    assert_equal [ "text", "build small" ], Tensaku::Notes.all.sole["targets"].first.values_at("kind", "text")
+  end
+
+  test "the agent's messages show as a thread, and a note moves to another element" do
+    note = Tensaku::Notes.create(url: "/about", comment: "Rename this", targets: [ { kind: "element", stamp: "app/views/pages/about.html.erb:9:1" } ])
+    Tensaku::Notes.update(note["id"], message: "Which one?", agent: "Claude Code")
+
+    visit "/about"
+    wait_for_overlay
+    overlay.find(".corner").click
+    overlay.find(".toolbar button[aria-label='Notes (1)']").click
+    assert overlay.has_css?(".sidebar .message.agent", text: "Which one?")
+    assert overlay.has_css?(".sidebar .missing")
+
+    overlay.find(".sidebar button", text: "Move").click
+    find("h1").click
+    assert overlay.has_css?(".pin.open")
+    assert_equal "app/views/pages/about.html.erb:1:1", Tensaku::Notes.find(note["id"])["targets"].sole["stamp"]
+  end
+
+  test "the notes panel shows every page's notes, and copies them in short form" do
+    Tensaku::Notes.create(url: "/about", comment: "Here", targets: [ { kind: "element", stamp: "app/views/pages/about.html.erb:1:1" } ])
+    other = Tensaku::Notes.create(url: "/", comment: "On the home page")
+
+    visit "/about"
+    wait_for_overlay
+    stub_clipboard
+    overlay.find(".corner").click
+    overlay.find(".toolbar button[aria-label='Settings']").click
+    overlay.find(".popover button", text: "One line each").click
+    overlay.find(".toolbar button[aria-label^='Notes']").click
+    overlay.find(".sidebar .tabs button", text: "All pages").click
+    assert overlay.has_css?(".sidebar a.page", text: "/")
+    assert overlay.has_css?(".sidebar .note-card", text: "On the home page")
+
+    overlay.find(".sidebar button", text: "Copy all open").click
+    assert_eventually { copied.to_s.include?("- `#{other["id"]}` (open) On the home page") }
+  end
+
+  test "the history lists this page's saves and undoes the latest one" do
+    visit "/about"
+    wait_for_overlay
+    alt_click find("h1")
+    type_in_editor "About us"
+    overlay.find(".editor button", text: "Save").click
+    assert_selector "h1", text: "About us"
+
+    overlay.find(".corner").click
+    overlay.find(".toolbar button[aria-label='Edit history']").click
+    assert overlay.has_css?(".popover .entry", text: "app/views/pages/about.html.erb")
+    overlay.find(".popover .entry button", text: "Undo").click
+    assert_selector "h1", text: "About me"
+    assert_equal "<h1>About me</h1>", view("app/views/pages/about.html.erb").lines.first.chomp
+  end
+
+  test "open in editor explains RAILS_EDITOR when no editor is set" do
+    ActiveSupport::Editor.reset
+    old = [ ENV.delete("RAILS_EDITOR"), ENV.delete("EDITOR") ]
+    visit "/about"
+    wait_for_overlay
+    select_mode
+    find("h1").click
+    overlay.find(".menu button", text: "Open in editor").click
+    assert overlay.has_css?(".toast", text: "Set RAILS_EDITOR")
+  ensure
+    ENV["RAILS_EDITOR"], ENV["EDITOR"] = old if old
+    ActiveSupport::Editor.reset
   end
 
   private

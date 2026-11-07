@@ -34,7 +34,9 @@ export class DemoServer {
     if (method === "POST" && path === "/attribute") return this.editAttribute(body)
     if (method === "POST" && path === "/selection") return [200, { ok: true }]
     if (method === "GET" && path === "/notes") return [200, this.listNotes(params.get("url"))]
-    if (method === "GET" && path === "/notes.md") return [200, this.markdown(this.notesFor(params))]
+    if (method === "GET" && path === "/notes.md") return [200, params.get("format") === "short" ? this.shortMarkdown(this.notesFor(params)) : this.markdown(this.notesFor(params))]
+    // The demo can't open an editor; the overlay explains RAILS_EDITOR instead.
+    if (method === "GET" && path === "/editor") return [200, { url: null }]
     if (method === "POST" && path === "/notes") return this.createNote(body)
     const id = path.match(/^\/notes\/([a-z0-9]+)$/)?.[1]
     if (id && method === "PATCH") return this.updateNote(id, body)
@@ -131,6 +133,7 @@ export class DemoServer {
       created_at: now,
       updated_at: now,
       reply: null,
+      thread: [],
     }
     this.notes.push(note)
     this.changed("notes")
@@ -145,12 +148,20 @@ export class DemoServer {
     return target
   }
 
-  updateNote(id, { status, reply, comment }) {
+  // What Notes.update does: a message joins the thread (an agent's is also the reply), and targets
+  // move the note.
+  updateNote(id, { status, reply, comment, message, from = "you", agent, targets }) {
     const note = this.notes.find((n) => n.id === id)
     if (!note) return [404, { error: "No such note" }]
     if (comment) note.comment = comment
-    if (reply !== undefined) note.reply = reply
+    if (reply !== undefined) note.reply = reply || null
     if (status) note.status = status
+    if (message) {
+      note.thread = [...(note.thread ?? []), { from, text: message, ...(agent ? { agent } : {}), at: new Date().toISOString() }]
+      if (from === "agent") note.reply = message
+    }
+    if (agent && status === "working") note.agent = agent
+    if (targets) { note.targets = targets.map((target) => this.target(target)); delete note.rect; delete note.viewport }
     note.updated_at = new Date().toISOString()
     this.changed("notes")
     return [200, clone(note)]
@@ -163,12 +174,21 @@ export class DemoServer {
   }
 
   // Tensaku::Notes.to_markdown, which the MCP tools and the clipboard return.
+  shortMarkdown(notes) {
+    if (!notes.length) return "No notes."
+    return notes.map((note) => {
+      const where = [...new Set(note.targets.filter((t) => t.file).map((t) => `\`${t.file}:${(t.range ?? "").split("-")[0]}\``))].slice(0, 3)
+      return `- \`${note.id}\` (${note.status}) ${note.comment}${where.length ? ` at ${where.join(", ")}` : ""}`
+    }).join("\n")
+  }
+
   markdown(notes) {
     if (!notes.length) return "No notes."
     return notes.map((note) => {
       const lines = [`## Tensaku note ${note.id} (${note.status}) on ${note.url}`, "", note.comment]
       if (note.targets.length) lines.push("", ...note.targets.map((t) => `- ${targetMarkdown(t)}`))
-      if (note.reply) lines.push("", `Reply: ${note.reply}`)
+      if (note.thread?.length) lines.push("", ...note.thread.map((m) => `> **${m.from === "you" ? "You" : m.agent ?? "Agent"}:** ${m.text}`))
+      else if (note.reply) lines.push("", `Reply: ${note.reply}`)
       return lines.join("\n")
     }).join("\n\n")
   }

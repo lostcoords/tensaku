@@ -2,7 +2,9 @@
 
 Alt-click (Option-click on a Mac) any text to edit it, in any mode. Or turn on edit mode from the toolbar: it outlines every editable text on the page, and a normal click edits.
 
-Enter or leaving the editor saves. Shift+Enter adds a line break in Markdown. Escape cancels. After a save, a toast offers Undo.
+The editor sits over the text in the page's own colours and type, with its file, Cancel and Save in a bar below.
+
+Enter or leaving the editor saves. Shift+Enter adds a line break in Markdown. Escape cancels. After a save, a toast offers Undo, and the toolbar's **Edit history** lists the saves made since the page loaded. Each element can undo its latest edit from there.
 
 ## What can be edited
 
@@ -11,13 +13,13 @@ Enter or leaving the editor saves. Shift+Enter adds a line break in Markdown. Es
 | Static text in ERB views, partials, layouts, ViewComponent sidecar templates and mailer templates | The template, only the bytes of that text |
 | `alt`, `title`, `placeholder`, `aria-label` and button `value` | The attribute value, keeping its quotes |
 | `t()` translations, in text and attributes | The locale YAML, only the value's bytes |
-| Markdown blocks: paragraphs, headings, list items and quotes | The Markdown file, inside the block's range |
+| Markdown blocks: paragraphs, headings, list items, quotes and whole lists | The Markdown file, inside the block's range |
 
 Text from Ruby data (`@post.title`), the output of `form_with` or custom helpers, and DOM built by JavaScript can't be edited. They can still get notes.
 
 ## The editor shows the source
 
-Ruby in a template shows as a locked chip, so you edit the text around it. Translations show `%{name}` interpolations as chips, and **Other locales** updates the same key in every locale at once. In Markdown, the heading hashes and list markers are locked and the rest is edited as Markdown.
+Ruby in a template shows as a locked chip, so you edit the text around it. Translations show `%{name}` interpolations as chips, and **Other locales** updates the same key in every locale at once. In Markdown, the heading hashes and list markers are locked and the rest is edited as Markdown. **Edit the whole list**, in a list item's menu, edits the list's source with its markers. There Enter starts a new line and Cmd+Enter (Ctrl+Enter) saves. Tables and code blocks only get notes.
 
 Elements rendered in a loop share one stamp, so the editor says "this edits all 3 copies".
 

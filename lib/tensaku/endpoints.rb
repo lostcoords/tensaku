@@ -76,27 +76,43 @@ module Tensaku
       in [ "GET", "/markdown" ]
         json(Source::Markdown.new(params["range"]).describe(tag: params["tag"]))
       in [ "POST", "/markdown" ]
-        written(Source::Markdown.new(params["range"]).edit(original: params["original"], text: params["text"]), :markdown)
+        written(Source::Markdown.new(params["range"]).edit(original: params["original"], text: params["text"], tag: params["tag"]), :markdown)
       in [ "GET", "/notes" ]
         Notes.prune!
         json(notes: Notes.list(url: params["url"].presence, status: params["status"].presence), open: Notes.list(status: Notes::ACTIVE).size, agent: Notes.agent)
       in [ "GET", "/notes.md" ]
         notes = params["id"].present? ? [ Notes.find(params["id"]) ] : Notes.list(url: params["url"].presence, status: params["status"].presence || Notes::ACTIVE)
-        [ 200, { "content-type" => "text/markdown; charset=utf-8" }, [ Notes.to_markdown(notes) ] ]
+        markdown = params["format"] == "short" ? Notes.to_short_markdown(notes) : Notes.to_markdown(notes)
+        [ 200, { "content-type" => "text/markdown; charset=utf-8" }, [ markdown ] ]
       in [ "POST", "/notes" ]
         json(Notes.create(params), 201)
       in [ "PATCH", %r{\A/notes/([a-z0-9]+)\z} ]
         id = path.split("/").last
-        json(Notes.update(id, status: params["status"], reply: params["reply"], comment: params["comment"]))
+        json(Notes.update(id, status: params["status"], reply: params["reply"], comment: params["comment"],
+          message: params["message"], from: params["from"] || "you", targets: params["targets"]))
       in [ "DELETE", %r{\A/notes/([a-z0-9]+)\z} ]
         Notes.delete(path.split("/").last)
         json({ deleted: true })
+      in [ "GET", "/editor" ]
+        json(url: editor_url(params["file"], params["line"]))
       in [ "POST", "/selection" ]
         self.class.selection = params.to_h.slice("url", "targets", "text").merge("at" => Time.now.utc.iso8601)
         json({ ok: true })
       else
         json({ error: "Not found" }, 404)
       end
+    end
+
+    # A link that opens the file in the editor named by RAILS_EDITOR or EDITOR, through Rails' own
+    # list of editors, or nil when none is set.
+    def editor_url(file, line)
+      editor = ActiveSupport::Editor.current
+      return nil unless editor
+
+      path = Tensaku.root.join(file.to_s).expand_path
+      raise Error, "Not a file in this app: #{file}" unless path.to_s.start_with?(Tensaku.root.expand_path.to_s + "/") && path.file?
+
+      editor.url_for(path.to_s, line.to_i.clamp(1, 1_000_000))
     end
 
     def written(result, kind)

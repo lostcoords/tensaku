@@ -202,6 +202,49 @@ kbd { font: 10.5px/1 var(--mono); padding: 2px 4px; border-radius: 4px; backgrou
 .pin.working { animation-name: breathe-ink; }
 @keyframes breathe-ink { 50% { box-shadow: 0 0 0 7px rgba(255, 225, 77, 0), 0 3px 8px rgba(0, 0, 0, .3); } }
 
+/* Popovers above the toolbar: history and settings, in the tray's material. */
+.popover { position: absolute; right: 0; bottom: calc(100% + 12px); width: 340px; max-width: calc(100vw - 24px); max-height: 60vh; overflow: auto; background: var(--tray); color: var(--tray-ink); border: 1px solid var(--tray-line); border-radius: 14px; padding: 10px; box-shadow: 0 18px 40px -12px rgba(0, 0, 0, .5); animation: settle .18s var(--spring); }
+.popover h3 { display: flex; flex-direction: column; gap: 3px; margin: 2px 4px 10px; font-size: 13px; }
+.popover .where { font: 400 11px/1.35 var(--sans); color: var(--tray-muted); }
+.popover button { border-color: var(--tray-line); color: var(--tray-ink); font-size: 12px; }
+.popover button:hover { background: var(--tray-raised); border-color: var(--tray-muted); }
+.popover .empty { color: var(--tray-muted); padding: 4px; }
+.popover .entry { display: flex; gap: 8px; align-items: center; padding: 7px 6px; border-top: 1px solid var(--tray-line); }
+.popover .entry .what { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.popover .entry .what .where { font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.popover .entry.undone .what > span:first-child { text-decoration: line-through; color: var(--tray-muted); }
+.popover .setting { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 4px; border-top: 1px solid var(--tray-line); }
+.popover .setting > span:first-child { flex: 1; }
+.popover .setting .where { flex-basis: 100%; }
+.segmented { display: inline-flex; border: 1px solid var(--tray-line); border-radius: 999px; padding: 2px; }
+.segmented button { border: none; border-radius: 999px; padding: 3px 10px; }
+.segmented button[aria-pressed="true"] { background: var(--tray-ink); color: var(--tray); }
+.popover .check { display: flex; gap: 10px; align-items: flex-start; padding: 8px 4px; border-top: 1px solid var(--tray-line); cursor: pointer; }
+.popover .check input { width: auto; margin-top: 2px; accent-color: var(--akaji); }
+.popover .check > span { display: flex; flex-direction: column; gap: 2px; }
+
+/* The corner button, compact: a small tab that grows when pointed at. */
+.corner.compact:not(.active):not([aria-expanded="true"]) { width: 18px; height: 18px; font-size: 0; opacity: .7; }
+.corner.compact:not(.active):not([aria-expanded="true"]) .count { display: none; }
+.dock:hover .corner.compact { width: 40px; height: 40px; font-size: 19px; opacity: 1; }
+
+/* Notes on selected text: the phrase stays marked with the highlighter. */
+.phrase { position: absolute; pointer-events: none; background: var(--marker-soft); box-shadow: inset 0 -2px 0 var(--marker-edge); border-radius: 2px; }
+.phrase.resolved { background: rgba(47, 168, 114, .16); box-shadow: inset 0 -2px 0 var(--resolved); }
+
+.note-card .thread { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.note-card .message { padding: 6px 9px; border-radius: 0 6px 6px 0; background: rgba(255, 255, 255, .55); border-left: 3px solid var(--resolved); white-space: pre-wrap; }
+.note-card .message.you { border-left-color: var(--ink); background: rgba(255, 255, 255, .3); }
+.note-card .message .who { display: block; font: 700 10px/1.4 var(--sans); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.note-card .missing { margin-top: 8px; font-size: 12px; color: var(--akaji); }
+.sidebar .tabs { display: flex; gap: 2px; margin-bottom: 10px; border: 1px solid var(--tray-line); border-radius: 999px; padding: 2px; width: fit-content; }
+.sidebar .tabs button { border: none; border-radius: 999px; padding: 3px 12px; color: var(--tray-muted); font-size: 12px; }
+.sidebar .tabs button[aria-selected="true"] { background: var(--tray-ink); color: var(--tray); }
+.sidebar a.page { display: flex; justify-content: space-between; margin: 14px 2px 8px; color: var(--tray-ink); font: 600 12px/1.3 var(--mono); text-decoration: none; }
+.sidebar a.page:hover { text-decoration: underline; }
+.sidebar a.page.current { color: var(--marker); }
+.sidebar a.page span { color: var(--tray-muted); }
+
 @keyframes settle { from { opacity: 0; transform: translateY(6px) rotate(-1.2deg); } to { opacity: 1; transform: none; } }
 @keyframes slide-in { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
 @keyframes pin-drop { from { opacity: 0; transform: translate(-50%, -140%) scale(.6); } to { opacity: 1; transform: translate(-50%, -50%); } }

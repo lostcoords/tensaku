@@ -42,13 +42,19 @@ anywhere). Click it for the toolbar, or press **Alt+Shift+T** to go straight to 
   - **Copy reference**: `GET /about → app/views/pages/_hero.html.erb:4:3`, the text, the partial
     chain, the Stimulus controller, the Turbo Frame and the translation key.
   - **Add note**: write what should change. Select some text first to note just that text.
-  - **Edit text** / **Edit attributes**.
+  - **Edit text** / **Edit attributes**, and **Edit the whole list** in a Markdown list.
+  - **Open in editor**, through `RAILS_EDITOR` or `EDITOR`.
+- **Arrow keys** in select mode move to the parent, a child or a sibling; Cmd+C copies the highlighted
+  element's reference.
 - **Drag** in select mode to note an area. The note collects every stamped element inside it.
 - **Shift-click** elements in select mode to put several in one note.
 - **Alt/Option-click** any text to edit it right away, in any mode.
 - **Edit**: outlines every editable text on the page. A normal click edits.
-- **Notes**: the notes on this page, copy them as Markdown, edit, resolve, delete or answer questions.
+- **Notes**: this page's notes or every page's, copy them as Markdown (detailed or one line each), edit,
+  move, resolve or delete them, and keep a thread with the agent.
 - **Pins** hides and shows the pins; the bin deletes every note on the page after a second click.
+- **Edit history** lists this page's saves, with undo for each element's latest edit.
+- **Settings**: copy format, background notifications, a compact corner button.
 
 The editor shows the source, never the rendered text. In `Hello <%= user.name %>!` you edit `Hello ` and
 `!`; the Ruby shows as a locked chip. Translations show `%{name}` interpolations as chips, and
@@ -103,7 +109,7 @@ An agent gets them four ways:
 
 - **Files**: read `tmp/tensaku/notes/*.json`.
 - **MCP**: `http://localhost:3000/__tensaku/mcp` (Streamable HTTP). Tools: `list_notes`, `get_note`,
-  `start_note`, `resolve_note`, `ask_question`, `watch_notes` (waits for new notes) and `current_selection`. The
+  `start_note`, `resolve_note`, `reply_to_note`, `ask_question`, `watch_notes` (waits for new notes) and `current_selection`. The
   generator adds it to `.mcp.json`.
 - **Clipboard**: copy one note or all open notes as Markdown from the page, for any chat.
 - **Claude Code skill**: `.claude/skills/tensaku/SKILL.md` explains how to find, act on and resolve notes.

@@ -60,8 +60,21 @@ class Tensaku::MarkdownTest < Tensaku::TestCase
     assert_raises(Tensaku::StaleSource) { block.edit(original:, text: "x") }
   end
 
-  test "lists are for notes, not edits" do
-    refute Markdown.new("app/views/pages/menu.md:10:1-11:13").describe(tag: "ul")[:editable]
+  test "a whole list is edited as its source, markers included, and the rest of the file is unchanged" do
+    list = Markdown.new("app/views/pages/menu.md:10:1-11:13")
+    info = list.describe(tag: "ul")
+    assert info[:editable]
+    assert_equal "", info[:prefix]
+    assert_equal "- First item\n- Second item", info[:text]
+
+    list.edit(original: info[:original], text: "- First item\n- Second item\n- Third item", tag: "ul")
+
+    assert_equal SOURCE.sub("- Second item", "- Second item\n- Third item"), @file.read
+  end
+
+  test "tables and code are for notes, not edits" do
+    refute Markdown.new("app/views/pages/menu.md:10:1-11:13").describe(tag: "table")[:editable]
+    refute Markdown.new("app/views/pages/menu.md:10:1-11:13").describe(tag: "pre")[:editable]
   end
 
   test "Markdown outside the writable paths is refused" do

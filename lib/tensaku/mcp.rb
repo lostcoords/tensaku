@@ -1,7 +1,7 @@
 require "json"
 
 module Tensaku
-  # A small MCP server (Streamable HTTP transport, JSON responses, no sessions) on the dev server, so
+  # A small MCP server (Streamable HTTP transport, JSON responses, optional sessions) on the dev server, so
   # an agent can read and resolve notes. Configure it in .mcp.json as an http server at
   # http://localhost:3000/__tensaku/mcp.
   class Mcp
@@ -41,6 +41,11 @@ module Tensaku
         inputSchema: { type: "object", properties: { id: { type: "string" }, question: { type: "string" } }, required: %w[id question] }
       },
       {
+        name: "reply_to_note",
+        description: "Add a message to a note's thread without changing its status, for example to say what you found or what you will do. It shows on the page under the note.",
+        inputSchema: { type: "object", properties: { id: { type: "string" }, message: { type: "string" } }, required: %w[id message] }
+      },
+      {
         name: "watch_notes",
         description: "Wait for new or changed open notes, so you can work through notes as they are added. Returns as soon as there are any, or empty after the timeout. Pass the checked_at value of the previous call as since so nothing is missed.",
         inputSchema: {
@@ -58,15 +63,19 @@ module Tensaku
       }
     ].freeze
 
+    # The session id given at initialize only names the agent on the page; requests without one work
+    # the same.
     def call(request)
       return [ 405, { "allow" => "POST" }, [ "" ] ] unless request.post?
 
+      @session = request.get_header("HTTP_MCP_SESSION_ID").presence
       message = JSON.parse(request.body.read.to_s)
       responses = Array.wrap(message).filter_map { respond(it) }
-      return [ 202, {}, [ "" ] ] if responses.empty?
+      headers = @new_session ? { "mcp-session-id" => @new_session } : {}
+      return [ 202, headers, [ "" ] ] if responses.empty?
 
       payload = message.is_a?(Array) ? responses : responses.first
-      [ 200, { "content-type" => "application/json" }, [ JSON.generate(payload) ] ]
+      [ 200, { "content-type" => "application/json", **headers }, [ JSON.generate(payload) ] ]
     rescue JSON::ParserError
       [ 400, { "content-type" => "application/json" }, [ JSON.generate(error_payload(nil, -32700, "Parse error")) ] ]
     end
@@ -78,13 +87,23 @@ module Tensaku
       return nil if id.nil? # a notification
 
       result = case message["method"]
-      when "initialize" then initialize_result(message.dig("params", "protocolVersion"))
+      when "initialize" then start_session(message.dig("params", "clientInfo")).then { initialize_result(message.dig("params", "protocolVersion")) }
       when "ping" then {}
       when "tools/list" then { tools: TOOLS }
-      when "tools/call" then Notes.agent_seen!.then { call_tool(message.dig("params", "name"), message.dig("params", "arguments") || {}) }
+      when "tools/call" then Notes.agent_seen!(@session).then { call_tool(message.dig("params", "name"), message.dig("params", "arguments") || {}) }
       else return error_payload(id, -32601, "Method not found: #{message["method"]}")
       end
       { jsonrpc: "2.0", id:, result: }
+    end
+
+    def start_session(client)
+      @new_session = SecureRandom.hex(16)
+      @session = @new_session
+      Notes.register_agent(@new_session, client.to_h["title"].presence || client.to_h["name"])
+    end
+
+    def agent
+      Notes.agent_name(@session)
     end
 
     def initialize_result(requested)
@@ -107,14 +126,17 @@ module Tensaku
         note = Notes.find(arguments["id"])
         tool_result(Notes.note_markdown(note), note:)
       when "start_note"
-        note = Notes.update(arguments["id"], status: "working")
+        note = Notes.update(arguments["id"], status: "working", agent:)
         tool_result("Started note #{note["id"]}. Resolve it with resolve_note when the change is made.", note:)
       when "resolve_note"
-        note = Notes.update(arguments["id"], status: "resolved", reply: arguments["reply"])
+        note = Notes.update(arguments["id"], status: "resolved", message: arguments["reply"], agent:)
         tool_result("Resolved note #{note["id"]}.", note:)
       when "ask_question"
-        note = Notes.update(arguments["id"], status: "question", reply: arguments["question"])
+        note = Notes.update(arguments["id"], status: "question", message: arguments["question"], agent:)
         tool_result("Asked on note #{note["id"]}. It shows on the page until the person answers.", note:)
+      when "reply_to_note"
+        note = Notes.update(arguments["id"], message: arguments["message"], agent:)
+        tool_result("Added a message to note #{note["id"]}.", note:)
       when "watch_notes"
         since = arguments["since"].present? ? Time.iso8601(arguments["since"]) : Time.now.utc
         timeout = arguments["timeout_seconds"].to_i.clamp(1, MAX_WATCH)

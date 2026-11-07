@@ -142,14 +142,14 @@ function renderAgent(window_, server) {
 async function resolveAsAgent(server) {
   const notes = server.notes.filter((n) => n.status === "open")
   server.agentConnected = true
-  for (const note of notes) server.updateNote(note.id, { status: "working" })
+  for (const note of notes) server.updateNote(note.id, { status: "working", agent: "Your agent" })
   // The overlay reloads its notes on Turbo's page load.
   document.dispatchEvent(new Event("turbo:load"))
   await new Promise((resolve) => setTimeout(resolve, 1400))
   for (const note of notes) {
     const target = note.targets[0]
     const where = target?.file ? `${target.file}:${target.range}` : "the page"
-    server.updateNote(note.id, { status: "resolved", reply: `Done. I changed ${where} (this is the demo, so nothing was written).` })
+    server.updateNote(note.id, { status: "resolved", from: "agent", agent: "Your agent", message: `Done. I changed ${where} (this is the demo, so nothing was written).` })
   }
   document.dispatchEvent(new Event("turbo:load"))
 }

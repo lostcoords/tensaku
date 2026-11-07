@@ -10,8 +10,10 @@ module Tensaku
       # Block syntax at the start of a range that stays locked: heading hashes, list markers, quotes.
       PREFIX = /\A(?:\#{1,6}[ \t]+|[-*+][ \t]+(?:\[[ xX]\][ \t]+)?|\d{1,9}[.)][ \t]+|>[ \t]?)/
 
-      # Block tags whose text is edited; others (lists, tables, code) only get notes.
-      EDITABLE = %w[p h1 h2 h3 h4 h5 h6 li blockquote].freeze
+      # Block tags whose text is edited; others (tables, code) only get notes. A whole list is edited
+      # as its source, markers included.
+      EDITABLE = %w[p h1 h2 h3 h4 h5 h6 li blockquote ul ol].freeze
+      WHOLE = %w[ul ol].freeze
 
       def self.parse_range(value)
         match = value.to_s.match(/\A(?<path>.+):(?<sl>\d+):(?<sc>\d+)-(?<el>\d+):(?<ec>\d+)\z/)
@@ -30,7 +32,7 @@ module Tensaku
 
       def describe(tag: nil)
         raw = block_source
-        prefix = raw[PREFIX].to_s
+        prefix = WHOLE.include?(tag.to_s.downcase) ? "" : raw[PREFIX].to_s
         {
           file: relative_path,
           range: "#{@start_line}:#{@start_column}-#{@end_line}:#{@end_column}",
@@ -43,12 +45,13 @@ module Tensaku
 
       # original: the block's whole source when the editor opened. text: the new source after the
       # locked prefix.
-      def edit(original:, text:)
+      def edit(original:, text:, tag: nil)
         @source = File.read(@path, mode: "rb").force_encoding(Encoding::UTF_8)
         raw = block_source
         raise StaleSource, "#{relative_path} changed since the page was rendered. Reload the page and try again." unless raw == original.to_s
 
-        replacement = raw[PREFIX].to_s + text.to_s.tr(" ", " ").delete("\r")
+        prefix = WHOLE.include?(tag.to_s.downcase) ? "" : raw[PREFIX].to_s
+        replacement = prefix + text.to_s.tr(" ", " ").delete("\r")
         return { changed: false, file: relative_path } if replacement == raw
 
         start, finish = byte_range
