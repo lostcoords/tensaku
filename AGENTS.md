@@ -13,6 +13,9 @@ notes for coding agents. Use jj for version control; never use mutating Git comm
 - The overlay source is `app/javascript/tensaku/*.ts`. Run `bun run build` and commit
   `app/assets/tensaku.js`; `bin/lint` fails when it's out of date.
 - The test suite runs `test/dummy` in development. Browser tests write to dummy files and restore them.
+- `docs/` is the documentation site, a separate Rails app with its own Gemfile (Kiln content layer,
+  lostcoords-ui). Its pages are `docs/app/views/pages/*.html.md`. Try overlay changes there in a
+  browser before calling them done. `RAILS_ENV=production bin/rails kiln:build` in `docs/` must succeed.
 - Run `bin/lint` and `bin/test` for code changes.
 - Never run `gem push`, create the GitHub repo, push, or tag without the user's approval.
 - No AI attribution in commits, pull requests or files.

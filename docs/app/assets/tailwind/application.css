@@ -1,0 +1,27 @@
+@layer theme, base, layout, components, modules, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+
+@plugin "@tailwindcss/typography";
+
+@source "../../views/**/*.erb";
+@source "../../views/**/*.md";
+@source "../../javascript/**/*.js";
+
+@import "../builds/tailwind/lostcoords_ui.css";
+
+/* Tensaku's ink: correction red on warm paper. */
+:root {
+  --tensaku-akaji: #c41e3a;
+}
+
+[data-theme="dark"] {
+  --tensaku-akaji: #ff5d73;
+}
+
+.brand-mark {
+  color: var(--tensaku-akaji);
+  font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
+}

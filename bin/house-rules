@@ -109,7 +109,9 @@ violations = files.flat_map do |path|
 
   found = line_violations(path, text, (DASH_EXEMPT.include?(path) ? {} : DASHES).merge(SCAFFOLD, ATTRIBUTION))
   if path.match?(PROSE)
-    found += line_violations(path, text, SLOP) + dead_link_violations(path, text)
+    # Links in the docs site's pages are routes, checked by the Kiln build.
+    found += line_violations(path, text, SLOP)
+    found += dead_link_violations(path, text) unless path.start_with?("docs/app/views/")
     found += line_violations(path, text, HISTORY) unless File.basename(path) == "CHANGELOG.md"
   end
   found

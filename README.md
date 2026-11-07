@@ -172,6 +172,20 @@ bin/lint             # RuboCop, house rules, TypeScript, compiled overlay up to 
 bun run build        # app/javascript/tensaku/*.ts -> app/assets/tensaku.js (committed)
 ```
 
+The documentation site is a Rails app in `docs/`, rendered to static files by Kiln and styled with
+lostcoords-ui. Tensaku runs on it in development, so it's also where Tensaku is tried on a real site:
+
+```sh
+cd docs
+bundle install
+bin/rails tailwindcss:build
+bin/rails server                          # edit the docs from the page
+RAILS_ENV=production bin/rails kiln:build # static site in docs/dist
+```
+
+It needs a checkout of [Kiln](https://github.com/davafons/kiln) next to this repository until Kiln
+0.1.1 is released.
+
 The test suite runs `test/dummy` in the development environment, since that's the only place Tensaku
 switches on. Browser tests write to the dummy app's files and restore them afterwards.
 

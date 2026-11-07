@@ -254,7 +254,7 @@ chasing coverage.
 - [x] Minitest, Capybara with Cuprite for browser tests.
 - [x] TypeScript build for the overlay (esbuild or bun), compiled file committed.
 - [x] Lint (rubocop-rails-omakase) and GitHub Actions CI, actions pinned to commit SHAs.
-- [ ] jj repo, colocated. Public repo at github.com/davafons/tensaku.
+- [x] jj repo, colocated. Public repo at github.com/davafons/tensaku.
 - [ ] Claim the `tensaku` name on RubyGems with a 0.0.1 placeholder (ask before `gem push`).
 
 Findings (2026-11-07):
@@ -375,6 +375,17 @@ Kiln's `Kiln::Content.root` is writable automatically when Kiln's content layer 
 Kiln change. Tested with a stand-in producer in the dummy app, not yet against Kiln itself.
 
 ### Phase 7 — adopt
+
+- [x] Tensaku's own docs site (`docs/`), added 2026-11-07 as the first place Tensaku runs on a real
+  site before it goes into other apps.
+
+Findings (2026-11-07): the docs app is Rails 8.1 with lostcoords-ui 0.8.2 for the layout and Kiln's
+content layer for the pages, which are `.html.md` views. In development Herb stamps the layout and
+Kiln marks every Markdown block, and the Alt-click, edit, Enter flow writes the paragraph back with
+only that line changed. `RAILS_ENV=production bin/rails kiln:build` writes `docs/dist/` with no Herb
+or Tensaku markup. Kiln is a path gem (`../../kiln`), because its content layer is in the unreleased
+0.1.1, so the docs aren't built on CI yet. A controller that inherits `ActionController::Base`
+directly only looks for its own layout, which looked like missing stamps at first.
 
 - [ ] davafons.com on Rails + Kiln.
 - [ ] lostcoords-ui docs.

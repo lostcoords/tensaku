@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title><%= @page && @page.slug != "index" ? "#{@page.title} · " : "" %>Tensaku</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="description" content="Edit text and leave notes for your coding agent on a running Rails page, in development.">
+    <script>
+      try {
+        const theme = localStorage.getItem("tensaku-docs:theme")
+        if (theme === "dark" || (!theme && matchMedia("(prefers-color-scheme: dark)").matches)) document.documentElement.dataset.theme = "dark"
+      } catch {}
+    </script>
+    <%= stylesheet_link_tag "tailwind", "application_header", "docs_shell", data: { turbo_track: "reload" } %>
+    <meta name="turbo-prefetch" content="true">
+    <%= javascript_importmap_tags %>
+  </head>
+  <body class="antialiased">
+    <%= lc_skip_link %>
+    <% brand = capture do %>
+      <span class="brand-mark text-2xl leading-none" aria-hidden="true">添</span>
+      <span class="text-sm">tensaku</span>
+    <% end %>
+    <%= render layout: "shared/header", locals: { brand:, home_label: "Tensaku home", width: "max-w-330" } do %>
+      <%= lc_icon_button "Switch color theme", icon: "moon", size: :sm, data: { controller: "theme", action: "theme#toggle" }, aria: { pressed: false } %>
+      <%= lc_button_link_to "https://github.com/davafons/tensaku", variant: :ghost, size: :sm, aria: { label: "Source on GitHub" } do %><%= render "shared/github_icon" %><% end %>
+    <% end %>
+    <%= render layout: "shared/docs_shell", locals: { navigation: render("shared/navigation"), menu_label: "Pages", width: "max-w-3xl" } do %>
+      <article class="<%= lc_prose_class %>">
+        <%= yield %>
+      </article>
+    <% end %>
+    <footer class="mx-auto flex max-w-360 flex-wrap items-center justify-between gap-4 px-5 py-10 text-xs text-muted-foreground sm:px-8 lg:px-10">
+      <span>Tensaku · MIT license</span><%= lc_link "Source on GitHub ↗", "https://github.com/davafons/tensaku", tone: :muted, class: "no-underline hover:underline" %>
+    </footer>
+  </body>
+</html>
