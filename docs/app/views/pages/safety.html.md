@@ -3,9 +3,11 @@
 ## Safety
 
 - **Development only.** The railtie, middleware and I18n markers check `Rails.env.development?`, so nothing loads in test or production, even if the gem is in the wrong Gemfile group.
-- **Loopback only.** Every endpoint answers loopback addresses only. Everything the overlay calls needs a per-boot token embedded in the page.
-- **MCP.** An MCP client can't receive the page's token, so the MCP endpoint also refuses requests with a foreign `Origin` or a non-local `Host`. It reads and updates notes and never writes source files.
-- **Writable paths.** Writes are limited to the writable paths, checked after resolving symlinks.
+- **This machine only.** Every endpoint needs a loopback peer address, no proxy header naming another client, a `Host` that is `localhost`, a `.localhost` name, a loopback IP or a name in the app's `config.hosts`, and no `Origin` from another site. The `Host` check stops DNS rebinding.
+- **Token.** Everything the overlay calls needs a token embedded in the page, kept in `tmp/tensaku/token` so every Puma worker shares it. Only successful pages (and 422 form errors) requested with a local `Host` get it; error pages and HTML fragments fetched by scripts don't.
+- **MCP.** An MCP client can't receive the page's token, so the MCP endpoint relies on the checks above. It reads and updates notes and never writes source files.
+- **Writable paths.** Writes are limited to the writable paths, checked after resolving symlinks. Saves take a lock shared by every thread and server process.
+- **Content Security Policy.** The injected script carries the page's CSP nonce, and the overlay's styles use constructed stylesheets.
 
 ## Limits
 

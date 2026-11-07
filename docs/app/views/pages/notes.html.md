@@ -39,4 +39,4 @@ The gear in the toolbar holds the settings, kept in the browser:
 
 ## Where notes live
 
-Notes are JSON files in `tmp/tensaku/notes/`, one per note. They stay on your machine, are ignored by git and are cleared by `bin/rails tmp:clear`.
+Notes are JSON files in `tmp/tensaku/notes/`, one per note. They stay on your machine and are ignored by git.

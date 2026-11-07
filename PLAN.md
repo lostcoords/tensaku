@@ -53,8 +53,8 @@ Markdown, plus notes with exact positions that an agent can read.
 
 - The gem belongs in the `development` group. The middleware, routes and overlay also check
   `Rails.env.development?`, so nothing loads in test or production even if the gem is in the wrong group.
-- Write endpoints accept requests from loopback addresses only, and need a per-boot token that is
-  embedded in the page.
+- Write endpoints accept requests from this machine only (loopback peer, no forwarded client, a local
+  `Host`, no foreign `Origin`), and need a token that is embedded in the page.
 - Writes are limited to an allow-list: `app/views`, `app/components`, `config/locales`, and paths that
   other gems register (for example Kiln's `content/`).
 - Kiln fails a build if any `data-herb-*` or `data-tensaku-*` attribute reaches the output.
@@ -132,7 +132,7 @@ the author in pencil (鉛筆, *enpitsu*):
 
 ### 7. Notes are local files the agent can read
 
-- One JSON file per note in `tmp/tensaku/notes/`: local, ignored by git, cleared by `tmp:clear`. Notes
+- One JSON file per note in `tmp/tensaku/notes/`: local, ignored by git. Notes
   are short-lived instructions, not project history.
 - A note holds the URL, the comment, every target's file, range, kind and text, the rectangle and
   viewport for area notes, a status and a reply. No screenshots: the agent can take its own with a
@@ -476,6 +476,13 @@ adds a second one.
   `reply` stays as the agent's latest message, for older readers.
 - **Stale check (refined 2026-11-07):** the server's byte comparison plus an overlay check that the
   file's static text still matches the rendered element when the editor opens.
+- **Request checks (added 2026-11-08):** every endpoint checks the raw `Host` (local names, loopback
+  IPs, or names in `config.hosts`) and `Origin`, and refuses requests whose proxy headers name a
+  non-loopback client. The token goes only into 2xx and 422 pages with a local `Host`, whole documents
+  or fragments the browser loads as a page or frame. Tunnels and containers are unsupported.
+- **Shared state (added 2026-11-08):** the token lives in `tmp/tensaku/token` and the overlay's
+  selection in the notes directory, so Puma workers agree. Saves and note changes run under one
+  `flock` in `tmp/tensaku/write.lock`, re-reading the file inside it.
 
 ## Open questions
 

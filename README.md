@@ -11,7 +11,8 @@ Tensaku is built on [Herb](https://github.com/marcoroth/herb) through
 [ReActionView](https://github.com/marcoroth/reactionview), and only runs in development. Production
 doesn't change: it keeps rendering with Erubi and never loads Tensaku, ReActionView or Herb.
 
-Status: 0.0.1, unreleased. Requires Ruby 4.0+ and Rails 8.1+.
+Status: 0.0.1, unreleased. Requires Ruby 4.0+ and Rails 8.1 (8.2 isn't supported yet). Herb and
+ReActionView are pinned to their current minor versions (0.11 and 0.6).
 
 ## Install
 
@@ -89,8 +90,8 @@ Elements rendered in a loop share one stamp: the editor says "this edits all 3 c
 
 ## Notes for agents
 
-Notes are JSON files in `tmp/tensaku/notes/`, one per note: local, ignored by git, cleared by
-`bin/rails tmp:clear`. Resolved notes are deleted after three days.
+Notes are JSON files in `tmp/tensaku/notes/`, one per note: local and ignored by git. Resolved notes are
+deleted after three days. A note file that isn't valid JSON with an id and timestamps is skipped.
 
 ```json
 {
@@ -155,11 +156,21 @@ Other gems can call `Tensaku.register_writable_path("their/dir")`.
 
 - Development only. The railtie, middleware and I18n markers check `Rails.env.development?`, so nothing
   loads in test or production even if the gem is in the wrong Gemfile group.
-- Every endpoint answers loopback addresses only. Everything the overlay calls needs a per-boot token
-  embedded in the page. The MCP endpoint can't receive that token from an MCP client, so it also
-  refuses requests with a foreign `Origin` or a non-local `Host` (browsers can't reach it from another
-  site). It reads and updates notes; it never writes source files.
-- Writes are limited to the writable paths, checked after resolving symlinks.
+- Every endpoint answers requests from this machine only: a loopback peer address, no proxy header
+  (`X-Forwarded-For`, `Forwarded` and similar) naming another client, a `Host` that is `localhost`, a
+  `.localhost` name, a loopback IP or a name listed in the app's `config.hosts`, and no `Origin` from
+  another site. The `Host` check stops DNS rebinding, where a site on another domain resolves its name
+  to 127.0.0.1.
+- Everything the overlay calls also needs a token embedded in the page. The token is kept in
+  `tmp/tensaku/token`, so every Puma worker uses the same one and pages stay valid across a restart.
+  Only successful pages (and 422 form errors) requested with a local `Host` get it; error pages and HTML
+  fragments fetched by scripts don't.
+- The MCP endpoint can't receive the token from an MCP client, so it relies on the checks above. It
+  reads and updates notes; it never writes source files.
+- Writes are limited to the writable paths, checked after resolving symlinks. Saves take a lock shared
+  by every thread and server process, so two saves to one file can't overwrite each other.
+- The injected script carries the page's Content Security Policy nonce when Rails generated one, and
+  the overlay's styles use constructed stylesheets, so a nonce-based CSP doesn't block it.
 
 ## Limits
 
@@ -171,6 +182,15 @@ Other gems can call `Tensaku.register_writable_path("their/dir")`.
 - Fragment caching in development (`bin/rails dev:cache`) keeps showing the old text from cached
   fragments. Tensaku warns when it's on.
 - One person editing at a time. No undo history beyond one step: version control is the history.
+- The server has to see the browser's connection as coming from this machine. Behind a tunnel (ngrok,
+  cloudflared) or a reverse proxy that forwards other clients, and in Docker or a devcontainer where
+  requests arrive from the container's gateway address, the overlay doesn't load and the endpoints
+  answer 403.
+- Translations get markers only from I18n backends that look keys up themselves: the Simple backend,
+  backends built on it, and `I18n::Backend::Chain` over those. Strings from other backends aren't
+  marked, so they aren't edited in the page.
+- HTML responses are buffered to add the overlay. Responses from `ActionController::Live`, files sent
+  from disk, downloads and compressed or non-UTF-8 bodies pass through unchanged and get no overlay.
 - Herb's dev server patches template changes itself when it runs (ReActionView's `slots` option), and
   Tensaku then skips its own refetch for template edits.
 

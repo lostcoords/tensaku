@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- The endpoints check the `Host` and `Origin` headers and refuse requests a proxy forwarded from
+  another machine, so DNS rebinding or a tunnel can't reach them. The token goes only into successful
+  pages (and 422 form errors) requested with a local `Host`, never into error pages or HTML fragments
+  fetched by scripts. The script carries the page's CSP nonce and respects `SCRIPT_NAME`.
+- The token is kept in `tmp/tensaku/token`, shared by Puma workers and across restarts.
+- Apps that use `I18n::Backend::Chain` no longer fail on every `t()` call in development.
+- Saves and note changes take a shared lock, so concurrent saves don't lose each other's changes.
+- An untouched `&nbsp;` stays `&nbsp;` after an edit nearby, CRLF files keep CRLF line endings, YAML
+  anchors and tags survive an edit, and a value in a flow mapping is quoted when it needs to be.
+- `watch_notes` no longer misses notes saved in the same second as its `since`. Malformed note files
+  are skipped. Bad request bodies get a 422 instead of a server error.
+- Overlay: the toast's Undo reverts the save it belongs to; Enter while composing with an IME doesn't
+  save; values typed into the page's forms survive the refresh after a save; translations stay editable
+  after Back and Forward; a second copy of the script adds nothing; select mode leaves keys in the
+  page's own inputs alone; every changed piece of an attribute is saved; pins and outlines follow
+  scrolling containers; a note on a repeated element pins to the matching copy.
+- Herb, ReActionView and Rails are pinned to the versions Tensaku is tested with. The generator reads
+  the Gemfile through Bundler, reports an invalid `.mcp.json` instead of crashing, honors `--pretend`
+  and uses the configured mount path.
+
 - Herb source stamps on every ERB element in development, through ReActionView's ERB interception and
   Herb's `SourceAttributionVisitor`. Production keeps Erubi.
 - Overlay with a corner button and Alt+Shift+T: hover to see sources, copy references with the
