@@ -57,6 +57,21 @@ export async function refresh(kind: SourceKind) {
   }
 }
 
+// A form control the person has changed since the page loaded keeps what they typed or picked: the
+// morph only brings in the server's value for controls still at their default.
+function changedByUser(element: Element) {
+  if (element instanceof HTMLInputElement) {
+    if (element.type === "checkbox" || element.type === "radio") return element.checked !== element.defaultChecked
+    return element.type !== "file" && element.value !== element.defaultValue
+  }
+  if (element instanceof HTMLTextAreaElement) return element.value !== element.defaultValue
+  if (element instanceof HTMLOptionElement) return element.selected !== element.defaultSelected
+  if (element instanceof HTMLSelectElement) return Array.from(element.options).some((option) => option.selected !== option.defaultSelected)
+  return false
+}
+
+const FORM_STATE = new Set(["value", "checked", "selected"])
+
 function morph(next: Document) {
   const lazyFrames = Array.from(document.querySelectorAll("turbo-frame[src]"))
   Idiomorph.morph(document.body, next.body, {
@@ -64,7 +79,9 @@ function morph(next: Document) {
     ignoreActiveValue: true,
     restoreFocus: true,
     callbacks: {
-      beforeNodeMorphed: (oldNode) => !permanent(oldNode),
+      // A changed <textarea> keeps its text: its children are its default value.
+      beforeNodeMorphed: (oldNode) => !permanent(oldNode) && !(oldNode instanceof HTMLTextAreaElement && changedByUser(oldNode)),
+      beforeAttributeUpdated: (name, element) => !(FORM_STATE.has(name) && changedByUser(element)),
       beforeNodeRemoved: (node) => !permanent(node),
     },
   })

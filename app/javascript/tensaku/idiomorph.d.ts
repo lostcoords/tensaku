@@ -3,6 +3,7 @@ declare module "idiomorph" {
     beforeNodeMorphed?: (oldNode: Node, newNode: Node) => boolean | void
     beforeNodeRemoved?: (node: Node) => boolean | void
     beforeNodeAdded?: (node: Node) => boolean | void
+    beforeAttributeUpdated?: (name: string, element: Element, type: "update" | "remove") => boolean | void
   }
 
   interface Options {

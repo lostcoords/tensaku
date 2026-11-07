@@ -36,12 +36,20 @@ export function editHistory() {
 let open: { element: HTMLElement; save: () => Promise<void>; close: () => void } | null = null
 
 export function undoFor(element: Element): Undo | undefined {
-  return undos.get(undoKey(element))
+  const key = undoKey(element)
+  return key ? undos.get(key) : undefined
 }
 
-function undoKey(element: Element) {
-  return element.getAttribute(STAMP) ?? element.getAttribute(MARKDOWN) ?? translationOf(element)?.key ?? ""
+// The element's source position, or null when it has none (a translated attribute on an element
+// without a stamp). Those saves get an undo of their own that no other element shares.
+function undoKey(element: Element): string | null {
+  const translation = translationOf(element)
+  return element.getAttribute(STAMP) ?? element.getAttribute(MARKDOWN) ?? (translation ? `${translation.locale}.${translation.key}` : null)
 }
+let anonymousUndos = 0
+
+// Enter that confirms an IME composition (Japanese, Chinese, Korean input) must not save or insert.
+const composing = (event: KeyboardEvent) => event.isComposing || event.keyCode === 229
 
 export function isEditing() {
   return open !== null
@@ -94,7 +102,7 @@ function field(text: string, multiline = false) {
     event.preventDefault()
     document.execCommand("insertText", false, event.clipboardData?.getData("text/plain") ?? "")
   })
-  if (!multiline) span.addEventListener("keydown", (event) => { if (event.key === "Enter" && event.shiftKey) event.preventDefault() })
+  if (!multiline) span.addEventListener("keydown", (event) => { if (event.key === "Enter" && event.shiftKey && !composing(event)) event.preventDefault() })
   return span
 }
 
@@ -145,7 +153,7 @@ function frame(element: Element, surface: HTMLElement, info: string, save: () =>
   const container = div("panel editor",
     surface,
     ...extra,
-    div("bar", h("span", {}, status, warning ? h("strong", { style: "color: var(--akaji)" }, ` · ${warning}`) : null),
+    div("bar", h("span", {}, status, warning ? h("strong", { className: "ink-warning" }, ` · ${warning}`) : null),
       div("actions", h("button", { onclick: close, type: "button" }, "Cancel"), h("button", { className: "primary", onclick: saveAndClose, type: "button" }, "Save"))))
   container.setAttribute("role", "dialog")
   container.setAttribute("aria-label", "Tensaku editor")
@@ -159,7 +167,7 @@ function frame(element: Element, surface: HTMLElement, info: string, save: () =>
   const keys = (event: KeyboardEvent) => {
     if (!container.isConnected) return
     if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close() }
-    if (event.key !== "Enter" || !activeInShadow()?.classList.contains("editable")) return
+    if (event.key !== "Enter" || composing(event) || !activeInShadow()?.classList.contains("editable")) return
     const newlines = surface.dataset.newlines !== undefined
     if (newlines ? event.metaKey || event.ctrlKey : !event.shiftKey) { event.preventDefault(); saveAndClose() }
   }
@@ -218,8 +226,9 @@ async function saveTemplate(element: Element, stamp: string, changes: { piece: T
   const nodes = Array.from(document.querySelectorAll(`[${STAMP}="${CSS.escape(stamp)}"]`)).flatMap((el) =>
     Array.from(el.childNodes).filter((node): node is Text => node.nodeType === Node.TEXT_NODE))
   changes.forEach(({ piece, text }) => replaceText(nodes, piece.text, text))
+  let undo: Undo | undefined
   if (!isUndo) {
-    remember(element, `Undo edit in ${stamp}`, async () => {
+    undo = remember(element, `Undo edit in ${stamp}`, async () => {
       const fresh = await api<Description>("GET", "/source" + query({ stamp }))
       const texts = fresh.pieces.filter((p): p is TextPiece => p.kind === "text")
       const reverse = changes.map(({ piece, text }) => {
@@ -230,7 +239,7 @@ async function saveTemplate(element: Element, stamp: string, changes: { piece: T
       await saveTemplate(element, stamp, reverse, true)
     })
   }
-  done(result, "template")
+  done(result, "template", undo)
 }
 
 // Attributes -----------------------------------------------------------------------------------
@@ -241,6 +250,8 @@ async function editAttributes(element: Element) {
   const names = editableAttributes(element)
   const rows: Node[] = []
   const savers: (() => Promise<void>)[] = []
+  // Template attribute text, across every attribute of the element, saved in one pass at the end.
+  const templateFields: { name: string; span: HTMLElement; piece: TextPiece }[] = []
 
   for (const name of names) {
     const key = attributeKey(element, name)
@@ -252,7 +263,10 @@ async function editAttributes(element: Element) {
       rows.push(div("attr", h("span", { className: "name", title: `${key.locale}.${key.key}` }, `${name} (t)`), div("value", surface)))
       savers.push(async () => {
         const text = read()
-        if (text !== entry.value) await saveTranslation(element, key, entry.value!, text)
+        if (text === entry.value) return
+        await saveTranslation(element, key, entry.value!, text)
+        // A retry after a later save fails starts from what is in the file now.
+        entry.value = text
       })
       continue
     }
@@ -261,27 +275,9 @@ async function editAttributes(element: Element) {
     assertRendered(attributeNode(element, name), attribute.pieces.filter((p): p is TextPiece => p.kind === "text").map((p) => p.text))
     const { surface, fields } = pieceSurface(attribute.pieces)
     rows.push(div("attr", h("span", { className: "name" }, name), div("value", surface)))
-    savers.push(async () => {
-      for (const { span, piece } of fields) {
-        const text = valueOf(span)
-        if (text === piece.text) continue
-        const result = await api("POST", "/attribute", { stamp: stamp!.value, name, start: piece.start, end: piece.end, original: piece.raw, text })
-        document.querySelectorAll(`[${STAMP}="${CSS.escape(stamp!.value)}"]`).forEach((el) => {
-          const current = el.getAttribute(name)
-          if (current !== null) el.setAttribute(name, current.replace(piece.text, text))
-        })
-        remember(element, `Undo ${name}`, async () => {
-          const fresh = await api<Description>("GET", "/source" + query({ stamp: stamp!.value }))
-          const now = fresh.attributes.find((a) => a.name === name)?.pieces.find((p): p is TextPiece => p.kind === "text" && p.text === text)
-          if (!now) throw new ApiError("The attribute changed since the edit, so it can't be undone here.", 409, true)
-          await api("POST", "/attribute", { stamp: stamp!.value, name, start: now.start, end: now.end, original: now.raw, text: piece.text })
-          done({ changed: true }, "template")
-        })
-        done(result, "template")
-        return
-      }
-    })
+    fields.forEach(({ span, piece }) => templateFields.push({ name, span, piece }))
   }
+  if (templateFields.length) savers.push(() => saveAttributePieces(element, stamp!.value, templateFields))
   if (!rows.length) throw new Error("Nothing here can be edited. Leave a note instead.")
 
   const surface = div("")
@@ -289,6 +285,44 @@ async function editAttributes(element: Element) {
   frame(element, surface, description ? `${description.file}:${stamp!.line} attributes` : "attributes", async () => {
     for (const save of savers) await save()
   })
+}
+
+// The /attribute endpoint takes one piece at a time, addressed by byte offsets in the file. Pieces are
+// sent from the end of the file backwards, so a write never moves the offsets of the pieces still to
+// send. A piece that saved is marked as such, so a retry after a failure only sends what is left.
+async function saveAttributePieces(element: Element, stamp: string, fields: { name: string; span: HTMLElement; piece: TextPiece }[]) {
+  const changed = fields
+    .map(({ name, span, piece }) => ({ name, piece, text: valueOf(span) }))
+    .filter(({ piece, text }) => text !== piece.text)
+    .sort((a, b) => b.piece.start - a.piece.start)
+  if (!changed.length) return
+  const saved: { name: string; index: number; from: string; to: string }[] = []
+  let last: { changed?: boolean; file?: string; warning?: string } = {}
+  try {
+    for (const { name, piece, text } of changed) {
+      last = await api("POST", "/attribute", { stamp, name, start: piece.start, end: piece.end, original: piece.raw, text })
+      document.querySelectorAll(`[${STAMP}="${CSS.escape(stamp)}"]`).forEach((el) => {
+        const current = el.getAttribute(name)
+        if (current !== null) el.setAttribute(name, current.replace(piece.text, text))
+      })
+      const index = fields.filter((field) => field.name === name).findIndex((field) => field.piece === piece)
+      saved.push({ name, index, from: piece.text, to: text })
+      piece.text = text
+    }
+  } finally {
+    if (saved.length) {
+      const undo = remember(element, `Undo ${Array.from(new Set(saved.map((s) => s.name))).join(", ")}`, async () => {
+        for (const { name, index, from, to } of saved) {
+          const fresh = await api<Description>("GET", "/source" + query({ stamp }))
+          const now = fresh.attributes.find((a) => a.name === name)?.pieces.filter((p): p is TextPiece => p.kind === "text")[index]
+          if (!now || now.text !== to) throw new ApiError("The attribute changed since the edit, so it can't be undone here.", 409, true)
+          await api("POST", "/attribute", { stamp, name, start: now.start, end: now.end, original: now.raw, text: from })
+        }
+        done({ changed: true }, "template")
+      })
+      done({ ...last, changed: true }, "template", undo)
+    }
+  }
 }
 
 // Translations ---------------------------------------------------------------------------------
@@ -324,7 +358,7 @@ async function editTranslation(element: Element, key: TranslationKey) {
       otherReaders.push({ locale, entry: other, read: surface.read })
       otherRows.append(div("locale", h("span", { className: "code" }, locale), surface.surface))
     } else {
-      otherRows.append(div("locale", h("span", { className: "code" }, locale), h("em", { style: "color: var(--muted)" }, other.value === null ? "missing" : `${other.value} (not writable)`)))
+      otherRows.append(div("locale", h("span", { className: "code" }, locale), h("em", { className: "ink-muted" }, other.value === null ? "missing" : `${other.value} (not writable)`)))
     }
   }
   const toggle = others.length
@@ -333,11 +367,18 @@ async function editTranslation(element: Element, key: TranslationKey) {
   const extra = toggle ? [div("locale", h("span", { className: "code" }, ""), toggle), otherRows] : []
 
   frame(element, main.surface, `${key.locale}.${key.key} · ${entry.file}:${entry.line}`, async () => {
+    // Each write that succeeds updates what the editor holds as the file's value, so a retry after a
+    // later write fails doesn't resend it with an outdated original.
     const text = main.read()
-    if (text !== entry.value) await saveTranslation(element, key, entry.value!, text)
+    if (text !== entry.value) {
+      await saveTranslation(element, key, entry.value!, text)
+      entry.value = text
+    }
     for (const other of otherReaders) {
       const value = other.read()
-      if (value !== other.entry.value) await api("POST", "/translation", { locale: other.locale, key: key.key, original: other.entry.value, text: value })
+      if (value === other.entry.value) continue
+      await api("POST", "/translation", { locale: other.locale, key: key.key, original: other.entry.value, text: value })
+      other.entry.value = value
     }
   }, extra)
 }
@@ -348,8 +389,8 @@ async function saveTranslation(element: Element, key: TranslationKey, original: 
     replaceText(nodesForKey(key), original, text)
     elementsWithAttributeKey(key).forEach(({ element: el, name }) => { if (el.getAttribute(name) === original) el.setAttribute(name, text) })
   }
-  if (!isUndo) remember(element, `Undo ${key.key}`, () => saveTranslation(element, key, text, original, true))
-  done(result, "translation")
+  const undo = isUndo ? undefined : remember(element, `Undo ${key.key}`, () => saveTranslation(element, key, text, original, true))
+  done(result, "translation", undo)
 }
 
 // Markdown -------------------------------------------------------------------------------------
@@ -378,8 +419,9 @@ async function editMarkdown(element: Element) {
 async function saveMarkdown(element: Element, range: string, original: string, prefix: string, text: string, previous: string, isUndo = false, tag?: string) {
   const result = await api("POST", "/markdown", { range, original, text, tag })
   if (!tag?.match(/^[uo]l$/) && !/[*_`\[\]<>#]/.test(previous + text)) replaceText(Array.from(element.childNodes).filter((n): n is Text => n.nodeType === Node.TEXT_NODE), previous, text)
+  let undo: Undo | undefined
   if (!isUndo) {
-    remember(element, "Undo Markdown edit", async () => {
+    undo = remember(element, "Undo Markdown edit", async () => {
       const [, path, startLine, startColumn] = range.match(/^(.+):(\d+):(\d+)-/)!
       const source = prefix + text
       const lines = source.split("\n")
@@ -388,27 +430,29 @@ async function saveMarkdown(element: Element, range: string, original: string, p
       await saveMarkdown(element, `${path}:${startLine}:${startColumn}-${endLine}:${endColumn}`, source, prefix, previous, text, true, tag)
     })
   }
-  done(result, "markdown")
+  done(result, "markdown", undo)
 }
 
 // After any save --------------------------------------------------------------------------------
 
-function remember(element: Element, label: string, run: () => Promise<void>) {
-  const key = undoKey(element)
+function remember(element: Element, label: string, run: () => Promise<void>): Undo {
+  const key = undoKey(element) ?? `anonymous:${++anonymousUndos}`
   const entry: HistoryEntry = { key, label: label.replace(/^Undo /, ""), at: new Date(), undone: false, undo: { label, run: async () => {} } }
   entry.undo = { label, run: async () => { undos.delete(key); entry.undone = true; await run() } }
   undos.set(key, entry.undo)
   history.push(entry)
   if (history.length > HISTORY_LIMIT) history.shift()
+  return entry.undo
 }
 
-function done(result: { changed?: boolean; file?: string; warning?: string }, kind: SourceKind) {
+// undo is the one this save created; a save that is itself an undo has none, so its toast offers no
+// Undo. The toast's Undo is only live while that edit is still the element's latest.
+function done(result: { changed?: boolean; file?: string; warning?: string }, kind: SourceKind, undo?: Undo) {
   if (!result.changed) return
-  const entry = history[history.length - 1]
-  if (entry && !entry.file && Date.now() - entry.at.getTime() < 10000) entry.file = result.file
-  const last = Array.from(undos.values()).pop()
+  const entry = undo ? history.find((item) => item.undo === undo) : undefined
+  if (entry && !entry.file) entry.file = result.file
   toast(`Saved ${result.file ?? ""}`.trim(), {
-    actions: last ? { Undo: () => last.run().catch(report) } : undefined,
+    actions: undo ? { Undo: () => { if (Array.from(undos.values()).includes(undo)) undo.run().catch(report); else toast("That edit was changed again, so it can't be undone from here.") } } : undefined,
   })
   if (result.warning) toast(result.warning, { timeout: 8000 })
   refresh(kind)

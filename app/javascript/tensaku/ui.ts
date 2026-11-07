@@ -230,6 +230,8 @@ kbd { font: 10.5px/1 var(--mono); padding: 2px 4px; border-radius: 4px; backgrou
 
 /* Notes on selected text: the phrase stays marked with the highlighter. */
 .phrase { position: absolute; pointer-events: none; background: var(--marker-soft); box-shadow: inset 0 -2px 0 var(--marker-edge); border-radius: 2px; }
+.ink-warning { color: var(--akaji); }
+.ink-muted { color: var(--muted); }
 .phrase.resolved { background: rgba(47, 168, 114, .16); box-shadow: inset 0 -2px 0 var(--resolved); }
 
 .note-card .thread { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
@@ -263,12 +265,21 @@ host.setAttribute("data-tensaku-ui", "")
 host.setAttribute("data-turbo-permanent", "")
 export const shadow = host.attachShadow({ mode: "open" })
 
-const style = document.createElement("style")
-style.textContent = CSS
+// A constructed stylesheet, so a page with a strict Content-Security-Policy (no 'unsafe-inline' for
+// styles) still styles the overlay. Browsers without constructable stylesheets get a <style> element.
+if ("adoptedStyleSheets" in shadow && typeof CSSStyleSheet !== "undefined" && "replaceSync" in CSSStyleSheet.prototype) {
+  const sheet = new CSSStyleSheet()
+  sheet.replaceSync(CSS)
+  shadow.adoptedStyleSheets = [sheet]
+} else {
+  const style = document.createElement("style")
+  style.textContent = CSS
+  shadow.append(style)
+}
 export const layer = div("layer")
 export const fixed = div("fixed")
 const toasts = div("toasts")
-shadow.append(style, layer, fixed)
+shadow.append(layer, fixed)
 fixed.append(toasts)
 
 export function mount() {

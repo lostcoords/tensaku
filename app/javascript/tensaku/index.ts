@@ -15,6 +15,19 @@ declare global {
   interface Window { __tensaku?: boolean }
 }
 
+// Listeners on the page (document and window) and timers are only added by boot(), after its guard, so
+// a second copy of this script on the page adds nothing. Listeners on the overlay's own elements stay
+// inline: a second copy's elements are never mounted.
+const pending: (() => void)[] = []
+function onDocument<K extends keyof DocumentEventMap>(type: K, listener: (event: DocumentEventMap[K]) => void, options?: boolean | AddEventListenerOptions): void
+function onDocument(type: string, listener: (event: Event) => void, options?: boolean | AddEventListenerOptions): void
+function onDocument(type: string, listener: (event: any) => void, options?: boolean | AddEventListenerOptions) {
+  pending.push(() => document.addEventListener(type, listener, options))
+}
+function onWindow<K extends keyof WindowEventMap>(type: K, listener: (event: WindowEventMap[K]) => void) {
+  pending.push(() => addEventListener(type, listener))
+}
+
 type Mode = "off" | "inspect" | "edit"
 let mode: Mode = "off"
 let hoverBoxes: HTMLElement[] = []
@@ -162,7 +175,7 @@ function openPopover(tool: HTMLElement, render: () => Node[]) {
   popoverTool = tool
   tool.setAttribute("aria-pressed", "true")
 }
-document.addEventListener("pointerdown", (event) => {
+onDocument("pointerdown", (event) => {
   if (popover && !event.composedPath().some((node) => node === popover || node === popoverTool)) closePopover()
 }, true)
 
@@ -280,8 +293,14 @@ function step(element: Element, key: string): Element | null {
   return siblings[index + (key === "ArrowRight" ? 1 : -1)] ?? null
 }
 
+// Focus in one of the page's own fields: its keys (arrows, Enter, Cmd+C) belong to the field.
+function typingInPage() {
+  const active = document.activeElement
+  return active instanceof HTMLElement && !isUi(active) && (active.matches("input, textarea, select") || active.isContentEditable)
+}
+
 function keyboardSelect(event: KeyboardEvent): boolean {
-  if (mode !== "inspect" || !current || menu || isEditing() || activeInShadow()?.matches("textarea, input, [contenteditable]")) return false
+  if (mode !== "inspect" || !current || menu || isEditing() || activeInShadow()?.matches("textarea, input, [contenteditable]") || typingInPage()) return false
   if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key) && !event.altKey && !event.metaKey && !event.ctrlKey) {
     const next = step(current, event.key)
     event.preventDefault()
@@ -478,7 +497,7 @@ function pageTarget(event: Event): Element | null {
   return sourceElement(target)
 }
 
-document.addEventListener("mousemove", (event) => {
+onDocument("mousemove", (event) => {
   if (drag) return updateDrag(event)
   if (mode === "off" || menu || isEditing()) return
   const element = pageTarget(event)
@@ -487,7 +506,7 @@ document.addEventListener("mousemove", (event) => {
   highlight(element)
 }, true)
 
-document.addEventListener("mousedown", (event) => {
+onDocument("mousedown", (event) => {
   if (mode !== "inspect" || event.button !== 0 || isUi(event.target as Element) || menu || isEditing()) return
   // Shift would extend the text selection; in select mode it picks elements instead.
   if (event.shiftKey) { event.preventDefault(); return }
@@ -504,7 +523,7 @@ function updateDrag(event: MouseEvent) {
   event.preventDefault()
 }
 
-document.addEventListener("mouseup", (event) => {
+onDocument("mouseup", (event) => {
   if (!drag) return
   const area = drag.area
   const start = drag
@@ -522,7 +541,7 @@ document.addEventListener("mouseup", (event) => {
   api("POST", "/selection", { url: location.pathname, targets, text: "" }).catch(() => {})
 }, true)
 
-document.addEventListener("click", (event) => {
+onDocument("click", (event) => {
   if (suppressClick) { suppressClick = false; event.preventDefault(); event.stopPropagation(); return }
   if (isUi(event.target as Element)) return
   const element = pageTarget(event)
@@ -568,7 +587,7 @@ function matchesShortcut(event: KeyboardEvent) {
     event.ctrlKey === want.has("ctrl") && event.metaKey === (want.has("meta") || want.has("cmd"))
 }
 
-document.addEventListener("keydown", (event) => {
+onDocument("keydown", (event) => {
   if (matchesShortcut(event)) {
     event.preventDefault()
     setMode(mode === "off" ? "inspect" : "off")
@@ -596,7 +615,7 @@ function scheduleRedraw() {
   cancelAnimationFrame(redraw)
   redraw = requestAnimationFrame(() => { drawPins(); drawEditBoxes(); if (picked.length) drawPicked() })
 }
-addEventListener("resize", () => { placeDock(); scheduleRedraw() })
+onWindow("resize", () => { placeDock(); scheduleRedraw() })
 
 let path = location.pathname
 function pageChanged() {
@@ -608,19 +627,25 @@ function pageChanged() {
   loadNotes()
   scheduleRedraw()
 }
-document.addEventListener("turbo:load", pageChanged)
-document.addEventListener("turbo:frame-load", scheduleRedraw)
-addEventListener("popstate", pageChanged)
+onDocument("turbo:load", pageChanged)
+onDocument("turbo:frame-load", scheduleRedraw)
+onWindow("popstate", pageChanged)
 // A save can change what a template's elements contain.
-onRefresh(() => { templateText.clear(); scheduleRedraw(); loadNotes() })
+pending.push(() => onRefresh(() => { templateText.clear(); scheduleRedraw(); loadNotes() }))
 // Layout shifts (images loading, content changing) move elements; pins follow every second.
-setInterval(() => { if (location.pathname !== path) pageChanged(); else drawPins() }, 1000)
+pending.push(() => setInterval(() => { if (location.pathname !== path) pageChanged(); else drawPins() }, 1000))
+// Scrolling inside a container (an app shell's <main> with overflow) moves elements without a resize.
+// Scrolling the page itself doesn't: boxes and pins are in page coordinates.
+onDocument("scroll", (event) => {
+  if (event.target !== document && !isUi(event.target as Element)) scheduleRedraw()
+}, { capture: true, passive: true })
 
 // Boot ------------------------------------------------------------------------------------------
 
 function boot() {
   if (window.__tensaku) return
   window.__tensaku = true
+  pending.forEach((add) => add())
   watchMarkers()
   mount()
   placeDock()

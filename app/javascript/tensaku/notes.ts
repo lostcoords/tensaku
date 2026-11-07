@@ -1,7 +1,7 @@
 // Notes: comments on elements or areas that an agent reads with the file and line attached. Stored
 // by the server in tmp/tensaku/notes; this module draws pins, the note form and the notes panel.
 
-import { api, query } from "./api"
+import { api, ApiError, query } from "./api"
 import { contentRect, contextOf, MARKDOWN, nearestStamp, STAMP, tagLabel, translationOf, visibleText } from "./dom"
 import { textKeys } from "./markers"
 import { icon } from "./icons"
@@ -190,9 +190,17 @@ export function noteForm(anchor: DOMRect, targets: Target[], extra: Partial<Note
 const normalized = (list: Note[]) => list.map((note) => ({ ...note, targets: note.targets ?? [] }))
 
 let lastSignature = ""
+// Polls and forced loads can overlap; only the newest request's answer is used.
+let loadSequence = 0
+// A 403 means the page's token no longer matches the server's (it restarted). Said once, not on every
+// poll; the notes already drawn stay.
+let tokenWarned = false
 export async function load({ force = false } = {}) {
+  const sequence = ++loadSequence
   try {
     const data = await api<{ notes: Note[]; open: number; agent?: Agent }>("GET", "/notes" + query({ url: location.pathname }))
+    if (sequence !== loadSequence) return
+    tokenWarned = false
     agent = data.agent ?? { connected: false, seen_at: null }
     agentListeners.forEach((listener) => listener(agent))
     const signature = location.pathname + JSON.stringify([data.notes, data.open])
@@ -202,11 +210,19 @@ export async function load({ force = false } = {}) {
     else if (data.notes.length && notes.length) announceChanges(notes, normalized(data.notes))
     primed = true
     notes = normalized(data.notes)
-    if (sidebarScope === "all" && sidebar?.isConnected) allNotes = normalized((await api<{ notes: Note[] }>("GET", "/notes")).notes)
     openCount = data.open
-  } catch {
-    notes = []
-    lastSignature = ""
+    if (sidebarScope === "all" && sidebar?.isConnected) {
+      const all = normalized((await api<{ notes: Note[] }>("GET", "/notes")).notes)
+      if (sequence !== loadSequence) return
+      allNotes = all
+    }
+  } catch (error) {
+    if (sequence !== loadSequence) return
+    if (error instanceof ApiError && error.status === 403 && !tokenWarned) {
+      tokenWarned = true
+      toast(`${error.message} Notes can't be loaded until then.`, { error: true, timeout: 15000, actions: { Reload: () => location.reload() } })
+    }
+    return
   }
   countListeners.forEach((listener) => listener(openCount))
   drawPins()
@@ -217,7 +233,7 @@ export async function load({ force = false } = {}) {
 // The selected text a "text" note is about, found again in its element.
 function phraseRects(note: Note): DOMRect[] {
   const target = note.targets.find((t) => t.kind === "text" && t.text && t.stamp)
-  const element = target && document.querySelector(`[${STAMP}="${CSS.escape(target.stamp!)}"]`)
+  const element = target && Array.from(document.querySelectorAll(`[${STAMP}="${CSS.escape(target.stamp!)}"]`)).find((el) => el.textContent?.includes(target.text!))
   if (!target || !element) return []
   const nodes: Text[] = []
   const starts: number[] = []
@@ -244,11 +260,24 @@ function phraseRects(note: Note): DOMRect[] {
 function anchorFor(note: Note): DOMRect | null {
   if (note.rect) return new DOMRect(note.rect.x, note.rect.y, note.rect.width, note.rect.height)
   for (const target of note.targets) {
-    const selector = target.stamp ? `[${STAMP}="${CSS.escape(target.stamp)}"]` : target.md ? `[${MARKDOWN}="${CSS.escape(target.md)}"]` : null
-    const element = selector && document.querySelector(selector)
+    const element = targetElement(target)
     if (element) return contentRect(element)
   }
   return null
+}
+
+// A stamp is shared by every copy of an element a loop renders; the note belongs to the copy whose
+// text it was written about, or the first copy when none matches any more.
+function targetElement(target: Target): Element | null {
+  const selector = target.stamp ? `[${STAMP}="${CSS.escape(target.stamp)}"]` : target.md ? `[${MARKDOWN}="${CSS.escape(target.md)}"]` : null
+  if (!selector) return null
+  const elements = Array.from(document.querySelectorAll(selector))
+  if (elements.length < 2 || !target.text) return elements[0] ?? null
+  const text = target.text.replace(/…$/, "")
+  return elements.find((element) => visibleText(element, 300) === target.text)
+    ?? elements.find((element) => visibleText(element, 300).startsWith(text))
+    ?? elements.find((element) => target.kind === "text" && element.textContent?.includes(text))
+    ?? elements[0]
 }
 
 // Pins drop in when a note is added or changes status after the first load.
@@ -277,9 +306,21 @@ export function drawPins() {
 
 function noteCard(note: Note, onChange: () => void) {
   const actions = div("row")
-  const update = async (body: Record<string, unknown>) => { localChanges.add(note.id); await api("PATCH", `/notes/${note.id}`, body); await load({ force: true }); onChange() }
-  const remove = async () => { await api("DELETE", `/notes/${note.id}`); await load({ force: true }); onChange() }
-  actions.append(h("button", { type: "button", onclick: async () => { await copy(await api<string>("GET", "/notes.md" + query({ id: note.id, format: settings().copyFormat === "short" ? "short" : undefined }))); toast("Copied note as Markdown") } }, "Copy"))
+  // Failures show as a toast; the card stays as it was. update reports whether it saved.
+  const attempt = async (run: () => Promise<void>) => {
+    try {
+      await run()
+      return true
+    } catch (error) {
+      localChanges.delete(note.id)
+      toast((error as Error).message, { error: true })
+      return false
+    }
+  }
+  const update = (body: Record<string, unknown>) => attempt(async () => { localChanges.add(note.id); await api("PATCH", `/notes/${note.id}`, body); await load({ force: true }); onChange() })
+  const remove = () => attempt(async () => { await api("DELETE", `/notes/${note.id}`); await load({ force: true }); onChange() })
+  const copyNote = () => attempt(async () => { await copy(await api<string>("GET", "/notes.md" + query({ id: note.id, format: settings().copyFormat === "short" ? "short" : undefined }))); toast("Copied note as Markdown") })
+  actions.append(h("button", { type: "button", onclick: copyNote }, "Copy"))
   const comment = h("div", { className: "comment" }, note.comment)
   // Editing a note sends it back to the agent: it becomes open again, and an old reply is cleared.
   const startEditing = () => {
@@ -288,8 +329,7 @@ function noteCard(note: Note, onChange: () => void) {
       const value = field.value.trim()
       if (!value) return field.focus()
       if (value === note.comment) return stopEditing()
-      await update({ comment: value, status: "open", reply: "" })
-      toast("Note updated")
+      if (await update({ comment: value, status: "open", reply: "" })) toast("Note updated")
     }
     const stopEditing = () => { editing.replaceWith(comment); actions.hidden = false }
     field.addEventListener("keydown", (event) => {

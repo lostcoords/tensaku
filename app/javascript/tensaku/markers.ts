@@ -17,6 +17,62 @@ const PATTERN = /⁣[​‌‍⁠]+⁣/g
 const nodeKeys = new WeakMap<Text, TranslationKey[]>()
 const attributeKeys = new WeakMap<Element, Map<string, TranslationKey>>()
 
+// The maps above are keyed by node, and Turbo's Back/Forward shows a cloned snapshot of the page, whose
+// nodes are new and already stripped. So each element also carries its keys in an attribute, which
+// cloning copies, and restore() reads them back into the maps.
+// TEXT_KEYS: JSON [[index among the element's text nodes, locale, key], ...]
+// ATTRIBUTE_KEYS: JSON [[attribute name, locale, key], ...]
+const TEXT_KEYS = "data-tensaku-t"
+const ATTRIBUTE_KEYS = "data-tensaku-a"
+
+const textNodesOf = (element: Element) => Array.from(element.childNodes).filter((node): node is Text => node.nodeType === Node.TEXT_NODE)
+
+function recordText(node: Text) {
+  const parent = node.parentElement
+  if (!parent) return
+  const entries: [number, string, string][] = []
+  textNodesOf(parent).forEach((text, index) => nodeKeys.get(text)?.forEach((key) => entries.push([index, key.locale, key.key])))
+  writeRecord(parent, TEXT_KEYS, entries)
+}
+
+function recordAttributes(element: Element) {
+  const entries: [string, string, string][] = Array.from(attributeKeys.get(element) ?? []).map(([name, key]) => [name, key.locale, key.key])
+  writeRecord(element, ATTRIBUTE_KEYS, entries)
+}
+
+function writeRecord(element: Element, name: string, entries: unknown[]) {
+  const value = JSON.stringify(entries)
+  if (entries.length && element.getAttribute(name) !== value) element.setAttribute(name, value)
+}
+
+function readRecord<T>(element: Element, name: string): T[] {
+  try {
+    const value = JSON.parse(element.getAttribute(name) ?? "[]")
+    return Array.isArray(value) ? value : []
+  } catch {
+    return []
+  }
+}
+
+// Fills the maps for nodes that have a record but no entry, after Turbo renders a cached snapshot.
+export function restore(root: ParentNode = document) {
+  root.querySelectorAll(`[${TEXT_KEYS}]`).forEach((element) => {
+    const texts = textNodesOf(element)
+    for (const [index, locale, key] of readRecord<[number, string, string]>(element, TEXT_KEYS)) {
+      const node = texts[index]
+      if (!node || nodeKeys.get(node)?.some((k) => k.key === key && k.locale === locale)) continue
+      nodeKeys.set(node, [...(nodeKeys.get(node) ?? []), { locale, key }])
+    }
+  })
+  root.querySelectorAll(`[${ATTRIBUTE_KEYS}]`).forEach((element) => {
+    const map = attributeKeys.get(element) ?? new Map<string, TranslationKey>()
+    for (const [name, locale, key] of readRecord<[string, string, string]>(element, ATTRIBUTE_KEYS)) {
+      if (!map.has(name)) map.set(name, { locale, key })
+    }
+    if (map.size) attributeKeys.set(element, map)
+  })
+}
+
 function decode(marker: string): TranslationKey | null {
   const digits = [...marker.slice(1, -1)].map((char) => DIGITS.indexOf(char))
   if (digits.length % 4 !== 0 || digits.includes(-1)) return null
@@ -44,7 +100,11 @@ function stripText(node: Text) {
   if (!node.data.includes(FENCE)) return
   const { text, keys } = extract(node.data)
   node.data = text
-  if (keys.length) nodeKeys.set(node, [...(nodeKeys.get(node) ?? []), ...keys])
+  if (keys.length) {
+    const known = nodeKeys.get(node) ?? []
+    nodeKeys.set(node, [...known, ...keys.filter((key) => !known.some((k) => k.key === key.key && k.locale === key.locale))])
+    recordText(node)
+  }
 }
 
 function stripAttributes(element: Element) {
@@ -56,6 +116,7 @@ function stripAttributes(element: Element) {
       const map = attributeKeys.get(element) ?? new Map()
       map.set(attribute.name, keys[keys.length - 1])
       attributeKeys.set(element, map)
+      recordAttributes(element)
     }
   }
   if (element instanceof HTMLTextAreaElement && element.value.includes(FENCE)) element.value = extract(element.value).text
@@ -75,6 +136,8 @@ export function strip(root: Node) {
 export function watch() {
   strip(document.documentElement)
   if (document.title.includes(FENCE)) document.title = extract(document.title).text
+  document.addEventListener("turbo:render", () => restore())
+  document.addEventListener("turbo:frame-render", () => restore())
   new MutationObserver((records) => {
     for (const record of records) {
       if (record.type === "characterData") stripText(record.target as Text)
