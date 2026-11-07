@@ -1,0 +1,126 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Checks for the writing and output rules a machine can decide. AGENTS.md keeps the judgment a machine
+# cannot. A rule belongs here only when it has no false positives: a lint that cries wolf teaches
+# people to ignore lints.
+#
+# A line that has to break a rule on purpose (quoting the thing it is about) carries `house-rules:allow`.
+#
+# Run via `bin/lint house` (and so `bin/lint`, and so CI).
+
+require "open3"
+
+Dir.chdir(File.expand_path("..", __dir__))
+
+Violation = Data.define(:path, :line, :message)
+
+ALLOW = "house-rules:allow"
+PROSE = /\.(md|markdown)\z/
+# Files we generate or receive rather than write.
+SKIPPED = %r{\A(app/assets/tensaku\.js|bun\.lock|Gemfile\.lock|test/dummy/public/|test/dummy/log/|test/dummy/tmp/|tmp/)}
+
+def tracked_files
+  command = File.directory?(".jj") ? %w[jj file list] : %w[git ls-files --cached --others --exclude-standard]
+  out, status = Open3.capture2(*command)
+  abort "house-rules: could not list files" unless status.success?
+
+  out.lines(chomp: true).uniq.select { File.file?(it) }.reject { it.match?(SKIPPED) }
+end
+
+def line_violations(path, text, patterns)
+  text.each_line.with_index(1).flat_map do |line, number|
+    next [] if line.include?(ALLOW)
+
+    patterns.filter_map do |pattern, why|
+      hit = line[pattern] or next
+      Violation.new(path, number, "#{hit.strip.inspect}: #{why}")
+    end
+  end
+end
+
+# The em dash, and the en dash standing in for one. A bare en dash between numbers is a range.
+DASHES = { /—|(?<= )–(?= )/ => "dash. Use a colon, a full stop, or commas" } # house-rules:allow
+
+# The planning and style documents keep their author's punctuation.
+DASH_EXEMPT = %w[PLAN.md RESEARCH.md REFERENCES.md ART_STYLE.md].freeze
+
+# An agent's tool-call markup written into a file.
+SCAFFOLD = { %r{^\s*</?(invoke|function_calls|parameter|antml:[\w-]+)\b[^>]*>\s*$} => "tool-call markup, not content. Delete the line" }
+
+# Commits and docs carry no AI attribution (see AGENTS.md).
+ATTRIBUTION = {
+  /co-authored-by:\s*(claude|codex|copilot|chatgpt)/i => "AI co-author trailer",
+  /generated (with|by) (\[)?(claude|codex|copilot|chatgpt)/i => "AI attribution line"
+}
+
+# Deliberately small: each entry has no honest use in this repo's prose.
+SLOP = {
+  /\bdelve\b/i => "say what it actually does",
+  /\btestament to\b/i => "puffery",
+  /\b(vibrant|breathtaking|seamless(ly)?|cutting-edge|game-?changer)\b/i => "promotional adjective",
+  /\b(serves|stands) as\b/i => "use `is`",
+  /\bboasts\b/i => "use `has`",
+  /\b(I hope this helps|Great question|Certainly!)/i => "chatbot filler",
+  /\bnot just .{1,40}, but\b/i => "the construction, not the point",
+  /\b[a-z]+\(s\)/ => "parenthetical plural: pick one, or reword"
+}
+
+# A document narrating its own past text. State the fact forward; the VCS is the archive.
+HISTORY = {
+  /\bthis (section|document|file|page) (used to|previously|formerly)\b/i => "state the fact forward, or delete it",
+  /\bused to (say|recommend|read|claim)\b/i => "keep the correction, drop the account of the old wording",
+  /\(historical\)/i => "a section labelled history is a section to delete"
+}
+
+DOC_LINK = %r{\]\((?<target>(?!https?:|mailto:|#)[^)\s]+)\)}
+
+def dead_link_violations(path, text)
+  text.each_line.with_index(1).flat_map do |line, number|
+    next [] if line.include?(ALLOW)
+
+    line.scan(DOC_LINK).flatten.filter_map do |target|
+      file = File.expand_path(target.split("#").first, File.dirname(path))
+      Violation.new(path, number, "`#{target}` does not exist") unless File.exist?(file)
+    end
+  end
+end
+
+BANNED = {
+  "rspec" => "Minitest is used here",
+  "mocha" => "plain Minitest, no mocking library",
+  "pry" => "use the debug gem or nothing"
+}
+
+def dependency_violations
+  %w[Gemfile tensaku.gemspec].flat_map do |manifest|
+    File.readlines(manifest, chomp: true).each_with_index.filter_map do |line, index|
+      name = line[/^\s*(?:gem|spec\.add_(?:development_)?dependency)\s+["']([^"']+)["']/, 1]
+      reason = name && BANNED[name]
+      Violation.new(manifest, index + 1, "`#{name}` is not used here: #{reason}") if reason
+    end
+  end
+end
+
+files = tracked_files
+violations = files.flat_map do |path|
+  text = File.read(path, encoding: "UTF-8")
+  next [] unless text.valid_encoding?
+
+  found = line_violations(path, text, (DASH_EXEMPT.include?(path) ? {} : DASHES).merge(SCAFFOLD, ATTRIBUTION))
+  if path.match?(PROSE)
+    found += line_violations(path, text, SLOP) + dead_link_violations(path, text)
+    found += line_violations(path, text, HISTORY) unless File.basename(path) == "CHANGELOG.md"
+  end
+  found
+end + dependency_violations
+
+if violations.empty?
+  puts "House rules: clean (#{files.size} files)."
+  exit 0
+end
+
+violations.each { puts "#{it.path}:#{it.line}: #{it.message}" }
+puts
+puts "#{violations.size} house-rule #{violations.one? ? "violation" : "violations"}. See AGENTS.md."
+exit 1

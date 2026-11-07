@@ -1,0 +1,10 @@
+<%# Stands in for a Markdown producer such as Kiln's content layer. %>
+<article class="guide">
+  <%= raw Rails.root.join("content/guide.md").read.then { |md|
+    lines = md.lines
+    heading = lines.index { it.start_with?("## ") } + 1
+    para = lines.index { it.start_with?("Install") } + 1
+    %(<h2 data-tensaku-md="content/guide.md:#{heading}:1-#{heading}:#{lines[heading - 1].chomp.bytesize}">#{ERB::Util.h(lines[heading - 1].delete_prefix("## ").chomp)}</h2>\n) +
+      %(<p data-tensaku-md="content/guide.md:#{para}:1-#{para + 1}:#{lines[para].chomp.bytesize}">#{ERB::Util.h((lines[para - 1] + lines[para]).squish)}</p>)
+  } %>
+</article>

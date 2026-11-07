@@ -125,6 +125,18 @@ export function documentRect(element: Element): DOMRect {
   return new DOMRect(rect.left + scrollX, rect.top + scrollY, rect.width, rect.height)
 }
 
+// Block elements span the whole line; what a person sees and drags over is their content.
+export function contentRect(element: Element): DOMRect {
+  const outer = documentRect(element)
+  const range = document.createRange()
+  range.selectNodeContents(element)
+  const inner = range.getBoundingClientRect()
+  if (!inner.width || !inner.height) return outer
+  const left = Math.max(outer.left, inner.left + scrollX)
+  const top = Math.max(outer.top, inner.top + scrollY)
+  return new DOMRect(left, top, Math.min(outer.right, inner.right + scrollX) - left, Math.min(outer.bottom, inner.bottom + scrollY) - top)
+}
+
 export function utf8Length(text: string): number {
   return new TextEncoder().encode(text).length
 }

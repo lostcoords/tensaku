@@ -5,7 +5,8 @@ Click a piece of text and edit it in place, and Tensaku writes the change back t
 locale file or the Markdown source. Or leave a note on an element or an area of the page, and your coding
 agent reads it with the exact file and line attached, instead of a screenshot and "change this".
 
-Status: planned, all questions answered (see the decisions log at the end). Nothing is implemented yet.
+Status: phases 0 to 6 implemented and tested locally (2026-11-07), unreleased. Not yet public: the GitHub
+repo, the RubyGems name and phase 7 wait for approval. See the Findings under each phase.
 Prior art: [RESEARCH.md](RESEARCH.md) (state of Herb, Rails, threads) and [REFERENCES.md](REFERENCES.md)
 (related projects).
 
@@ -247,58 +248,131 @@ chasing coverage.
 
 ### Phase 0 — workspace
 
-- [ ] Gem skeleton, MIT license, README.
-- [ ] `test/dummy` Rails 8.1 app with ReActionView (development group), Turbo, Stimulus, a ViewComponent
+- [x] Gem skeleton, MIT license, README.
+- [x] `test/dummy` Rails 8.1 app with ReActionView (development group), Turbo, Stimulus, a ViewComponent
       and a mailer preview.
-- [ ] Minitest, Capybara with Cuprite for browser tests.
-- [ ] TypeScript build for the overlay (esbuild or bun), compiled file committed.
-- [ ] Lint (rubocop-rails-omakase) and GitHub Actions CI, actions pinned to commit SHAs.
+- [x] Minitest, Capybara with Cuprite for browser tests.
+- [x] TypeScript build for the overlay (esbuild or bun), compiled file committed.
+- [x] Lint (rubocop-rails-omakase) and GitHub Actions CI, actions pinned to commit SHAs.
 - [ ] jj repo, colocated. Public repo at github.com/davafons/tensaku.
 - [ ] Claim the `tensaku` name on RubyGems with a 0.0.1 placeholder (ask before `gem push`).
 
+Findings (2026-11-07):
+
+- The jj repo is colocated; the public GitHub repo isn't created yet (waiting for approval), so CI
+  hasn't run on GitHub. `bin/lint` and `bin/test` pass locally. `gem build` packages the right files.
+- Spike before building on it: ReActionView 0.6.1 plus `SourceAttributionVisitor` stamps layouts,
+  views, partials rendered in a loop, `link_to` (through `action_view_helpers`, which the visitor turns
+  on by itself) and ViewComponent sidecar templates on Rails 8.1.4.1. Mailer previews render through
+  Herb with no extra work.
+- Herb positions are 1-based lines and 0-based character columns (stamps add 1); token ranges are byte
+  offsets. Psych columns are characters too. Kiln's `data-tensaku-md` columns are bytes. Every splice
+  converts to byte offsets and has a multibyte test.
+- The test suite runs the dummy app in the development environment, since that is where Tensaku is on.
+  Tests wrapped in the executor hold the load interlock that the view reloader needs after a write, so
+  the dummy app sets `active_support.executor_around_test_case = false`.
+- Tensaku requires ReActionView and Herb only in development, and the rest of the gem autoloads.
+  A test boots the dummy in production and test with Tensaku required, and checks that Erubi renders
+  and nothing from Tensaku, ReActionView or Herb is loaded or emitted.
+- With `action_view_helpers: true`, every dummy page renders byte for byte the same under Herb in
+  development and Erubi in production once stamps, markers and the overlay are removed (the only other
+  difference is ReActionView's own importmap pin). Checked by a test.
+- House rules from Kiln run here too; PLAN.md, RESEARCH.md, REFERENCES.md and ART_STYLE.md are exempt
+  from the dash rule.
+
 ### Phase 1 — references
 
-- [ ] Railtie: ReActionView interception and `SourceAttributionVisitor` in development only.
-- [ ] Middleware injects the overlay.
-- [ ] Corner button with note count, keyboard shortcut.
-- [ ] Check that ViewComponent sidecar templates get stamps.
-- [ ] Overlay: hover highlight, click to copy a reference with partial chain, Stimulus controller and
+- [x] Railtie: ReActionView interception and `SourceAttributionVisitor` in development only.
+- [x] Middleware injects the overlay.
+- [x] Corner button with note count, keyboard shortcut.
+- [x] Check that ViewComponent sidecar templates get stamps.
+- [x] Overlay: hover highlight, click to copy a reference with partial chain, Stimulus controller and
       Turbo Frame.
+
+Findings: the overlay lives in a shadow root on an element attached to `<html>`, outside `<body>`, so
+Turbo body swaps and the morph never touch it. The default shortcut is Alt+Shift+T
+(`config.shortcut`). ReActionView's debug mode (Herb dev tools) wraps ERB output in
+`display: contents` spans; the overlay treats them as part of the parent element's text.
 
 ### Phase 2 — notes
 
-- [ ] Note format and storage in `tmp/tensaku/notes/`.
-- [ ] Element and area selection, comment box, pins, notes panel.
-- [ ] Resolve and dismiss from the page, prune old resolved notes.
+- [x] Note format and storage in `tmp/tensaku/notes/`.
+- [x] Element and area selection, comment box, pins, notes panel.
+- [x] Resolve and dismiss from the page, prune old resolved notes.
+
+Findings: block elements span the whole line, so an area note measures each element's content extent
+(a range over its children) and keeps elements that are at least half inside the rectangle, outermost
+first. Notes without targets show in the panel only, with no pin. Text-selection notes (kind `text`)
+come from selecting text before clicking in select mode. Answering a question appends the answer to
+the comment and sets the note back to open.
 
 ### Phase 3 — notes for agents
 
-- [ ] Copy one or all notes as Markdown.
-- [ ] MCP endpoint.
-- [ ] Claude Code skill.
-- [ ] Install generator.
+- [x] Copy one or all notes as Markdown.
+- [x] MCP endpoint.
+- [x] Claude Code skill.
+- [x] Install generator.
+
+Findings: MCP clients configured in `.mcp.json` can't read the page's boot token, so the MCP endpoint
+takes no token. It answers loopback addresses only and refuses a foreign `Origin` or a non-local `Host`
+(so a web page can't reach it, including through DNS rebinding). It only reads and updates notes, never
+source files. See the decisions log. `watch_notes` long-polls up to 300 seconds and holds a server
+thread while it waits.
 
 ### Phase 4 — editing templates
 
-- [ ] Spike: page update strategies on Hotwire, Turbo Frames and no-Turbo pages (decision 5).
-- [ ] Guard: loopback, token, allow-list.
-- [ ] Source pieces from an element stamp, text and attribute splices, stale-file check.
-- [ ] Cache clearing after writes, fragment-cache warning.
-- [ ] Overlay: Alt-click and edit mode, locked chips, attribute form, save, one-step undo.
-- [ ] Mailer previews.
-- [ ] Page update: same-source nodes, refetch and morph, POST pages, Herb live patching when present.
+- [x] Spike: page update strategies on Hotwire, Turbo Frames and no-Turbo pages (decision 5).
+- [x] Guard: loopback, token, allow-list.
+- [x] Source pieces from an element stamp, text and attribute splices, stale-file check.
+- [x] Cache clearing after writes, fragment-cache warning.
+- [x] Overlay: Alt-click and edit mode, locked chips, attribute form, save, one-step undo.
+- [x] Mailer previews.
+- [x] Page update: same-source nodes, refetch and morph, POST pages, Herb live patching when present.
+
+Findings (2026-11-07):
+
+- Spike results, as browser tests: on the Hotwire page the morph keeps the Stimulus controller
+  connected (no disconnect) and fires no Turbo visit; Turbo Frame content morphs and the lazy frame
+  loads again (the overlay calls `reload()` on lazy frames that come back as placeholders); the page
+  without Turbo updates the same way; a page reached by a POST updates in place and says "reload to
+  check". The morph also brings in changes made to the file by someone else.
+- The morph removes attributes that client code added and the server doesn't render (a Stimulus
+  controller setting `data-*` on its element). Mark such elements `data-tensaku-permanent`.
+- The stale-file check on the server compares the bytes at the range with what the editor loaded. The
+  editor loads the source when it opens, which can be after the file changed, so the overlay also
+  checks that the static source text still appears in the rendered element before it lets you edit.
+  Without that, an outside change made after the page rendered was silently overwritten (found by a
+  browser test).
+- Herb live patching is detected through the `herb-dev-server-port` meta tag, and then the refetch is
+  skipped for template edits. Not exercised by the tests (it needs ReActionView's `slots`).
+- `link_to` and other helper output is stamped but its text isn't editable (the open tag is ERB).
 
 ### Phase 5 — translations
 
-- [ ] I18n backend markers (key and locale), stripped by the overlay, text and attributes.
-- [ ] YAML scalar splice that keeps quoting and comments.
-- [ ] Other-locale toggle.
+- [x] I18n backend markers (key and locale), stripped by the overlay, text and attributes.
+- [x] YAML scalar splice that keeps quoting and comments.
+- [x] Other-locale toggle.
+
+Findings: markers are invisible: U+2063, then "locale:key" in base 4 with four zero-width characters,
+then U+2063. They're added only while a controller handles an HTML request, never to `number.*`,
+`date.*`, `time.*` and similar keys, never to a value from `default:`, and never to pluralized lookups
+(so `count:` translations aren't edited in the page). The middleware strips them from non-HTML
+responses and from `<script>` and `<style>`. A Ruby comparison with a translated string sees the
+marker in development. Every YAML write is verified by loading the result before the file is
+replaced; a plain scalar that would change meaning is written double-quoted; `%{...}` placeholders
+must stay the same.
 
 ### Phase 6 — Markdown
 
 - [x] Kiln emits `data-tensaku-md` (done in Kiln, unreleased, see Kiln's PLAN.md "Tensaku support").
-- [ ] Markdown splice. Kiln's headings contain a generated empty `<a class="anchor">`; text extraction
-      ignores children without text.
+- [x] Markdown splice.
+
+Findings: Kiln's headings no longer contain an anchor link (`<h2 id="slug">Text</h2>`), so nothing
+needs ignoring. `data-tensaku-md` columns are commonmarker's byte columns, end inclusive. Heading
+hashes, list markers and quote markers are locked; the rest of the block is edited as Markdown
+source. `p`, headings, `li` and `blockquote` are editable; lists, tables and code only get notes.
+Kiln's `Kiln::Content.root` is writable automatically when Kiln's content layer is loaded, with no
+Kiln change. Tested with a stand-in producer in the dummy app, not yet against Kiln itself.
 
 ### Phase 7 — adopt
 
@@ -359,6 +433,13 @@ chasing coverage.
 - **Kiln:** done in Kiln (unreleased, 0.1.1): the build fails on `data-herb-*`/`data-tensaku-*`, and the
   content layer moved to commonmarker and emits `data-tensaku-md` in development when Tensaku is loaded.
   David accepted the Markdown HTML changes.
+
+- **MCP authentication (changed 2026-11-07):** the MCP endpoint takes no boot token, because MCP clients
+  can't read it from the page. Loopback only, plus refusing a foreign `Origin` or non-local `Host`.
+  It reads and updates notes, never source files. Every endpoint the overlay calls still needs the
+  token.
+- **Stale check (refined 2026-11-07):** the server's byte comparison plus an overlay check that the
+  file's static text still matches the rendered element when the editor opens.
 
 ## Open questions
 

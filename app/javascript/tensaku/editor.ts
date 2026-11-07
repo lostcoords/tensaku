@@ -3,7 +3,7 @@
 
 import { api, ApiError, query } from "./api"
 import { attributeKey, nodesForKey, elementsWithAttributeKey, type TranslationKey } from "./markers"
-import { copiesOf, documentRect, editableAttributes, MARKDOWN, stampOf, STAMP, translationOf, utf8Length, editKind } from "./dom"
+import { contentRect, copiesOf, editableAttributes, MARKDOWN, stampOf, STAMP, translationOf, utf8Length, editKind } from "./dom"
 import { refresh, replaceText, type SourceKind } from "./refresh"
 import { activeInShadow, div, h, layer, place, toast } from "./ui"
 
@@ -89,7 +89,7 @@ function chip(label: string, title?: string) {
 
 // The floating editor over the element, styled like it, with a status bar.
 function frame(element: Element, surface: HTMLElement, info: string, save: () => Promise<void>, extra: Node[] = [], warning?: string) {
-  const rect = documentRect(element)
+  const rect = contentRect(element)
   const computed = getComputedStyle(element)
   Object.assign(surface.style, {
     fontFamily: computed.fontFamily, fontSize: computed.fontSize, fontWeight: computed.fontWeight,

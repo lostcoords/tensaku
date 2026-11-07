@@ -2,7 +2,7 @@
 // by the server in tmp/tensaku/notes; this module draws pins, the note form and the notes panel.
 
 import { api, query } from "./api"
-import { contextOf, documentRect, MARKDOWN, nearestStamp, STAMP, tagLabel, translationOf, visibleText } from "./dom"
+import { contentRect, contextOf, MARKDOWN, nearestStamp, STAMP, tagLabel, translationOf, visibleText } from "./dom"
 import { textKeys } from "./markers"
 import { copy, div, h, layer, fixed, panel, toast } from "./ui"
 
@@ -74,18 +74,6 @@ export function elementsInArea(rect: DOMRect): Element[] {
   return fallback ? [fallback] : []
 }
 
-// Block elements span the whole line; what a person sees and drags over is their content.
-function contentRect(element: Element): DOMRect {
-  const outer = documentRect(element)
-  const range = document.createRange()
-  range.selectNodeContents(element)
-  const inner = range.getBoundingClientRect()
-  if (!inner.width || !inner.height) return outer
-  const left = Math.max(outer.left, inner.left + scrollX)
-  const top = Math.max(outer.top, inner.top + scrollY)
-  return new DOMRect(left, top, Math.min(outer.right, inner.right + scrollX) - left, Math.min(outer.bottom, inner.bottom + scrollY) - top)
-}
-
 export function noteForm(anchor: DOMRect, targets: Target[], extra: Partial<Note> = {}, onDone?: () => void) {
   const textarea = h("textarea", { rows: 3, placeholder: "What should change?", "aria-label": "Note" })
   const where = targets.filter((t) => t.kind !== "translation" && t.kind !== "markdown").map((t) => t.stamp ?? t.tag).filter(Boolean)
@@ -133,7 +121,7 @@ function anchorFor(note: Note): DOMRect | null {
   for (const target of note.targets) {
     const selector = target.stamp ? `[${STAMP}="${CSS.escape(target.stamp)}"]` : target.md ? `[${MARKDOWN}="${CSS.escape(target.md)}"]` : null
     const element = selector && document.querySelector(selector)
-    if (element) return documentRect(element)
+    if (element) return contentRect(element)
   }
   return null
 }

@@ -5,7 +5,7 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
   driven_by :cuprite, screen_size: [ 1400, 900 ], options: { headless: ENV["HEADLESS"] != "0", process_timeout: 30, timeout: 15 }
 
   # Browser tests write to the dummy app's real files, so every writable file is restored afterwards.
-  WATCHED = %w[app/views app/components config/locales].freeze
+  WATCHED = %w[app/views app/components config/locales content].freeze
 
   setup do
     Capybara.server = :puma, { Silent: true }

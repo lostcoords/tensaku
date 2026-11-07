@@ -10,13 +10,13 @@ module Tensaku
       Segment = Data.define(:raw, :text)
 
       ENTITIES = {
-        "amp" => "&", "lt" => "<", "gt" => ">", "quot" => '"', "apos" => "'", "nbsp" => " ",
-        "copy" => "©", "reg" => "®", "trade" => "™", "hellip" => "…",
-        "mdash" => "—", "ndash" => "–", "lsquo" => "‘", "rsquo" => "’",
-        "ldquo" => "“", "rdquo" => "”", "laquo" => "«", "raquo" => "»",
-        "middot" => "·", "bull" => "•", "euro" => "€", "pound" => "£",
-        "times" => "×", "divide" => "÷", "deg" => "°", "shy" => "­",
-        "iexcl" => "¡", "iquest" => "¿", "larr" => "←", "rarr" => "→"
+        "amp" => "&", "lt" => "<", "gt" => ">", "quot" => '"', "apos" => "'", "nbsp" => "\u00A0",
+        "copy" => "\u00A9", "reg" => "\u00AE", "trade" => "\u2122", "hellip" => "\u2026",
+        "mdash" => "\u2014", "ndash" => "\u2013", "lsquo" => "\u2018", "rsquo" => "\u2019",
+        "ldquo" => "\u201C", "rdquo" => "\u201D", "laquo" => "\u00AB", "raquo" => "\u00BB",
+        "middot" => "\u00B7", "bull" => "\u2022", "euro" => "\u20AC", "pound" => "\u00A3",
+        "times" => "\u00D7", "divide" => "\u00F7", "deg" => "\u00B0", "shy" => "\u00AD",
+        "iexcl" => "\u00A1", "iquest" => "\u00BF", "larr" => "\u2190", "rarr" => "\u2192"
       }.freeze
 
       WHITESPACE = /\A[ \t\r\n\f]+\z/
@@ -58,7 +58,7 @@ module Tensaku
       end
 
       def self.escape_text(text)
-        text.gsub("&", "&amp;").gsub("<", "&lt;").gsub(">", "&gt;").gsub(" ", "&nbsp;")
+        text.gsub("&", "&amp;").gsub("<", "&lt;").gsub(">", "&gt;").gsub("\u00A0", "&nbsp;")
       end
 
       def self.attribute_escaper(quote)

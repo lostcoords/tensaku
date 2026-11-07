@@ -10,6 +10,7 @@ Usage:
 Steps:
   ruby       RuboCop
   house      bin/house-rules
+  js         TypeScript check, and the committed overlay matches its source
 
 With no steps, runs every linter. --fix autocorrects where the tool supports it.
 USAGE
@@ -33,18 +34,30 @@ run_ruby() {
   if [[ "$fix" == true ]]; then bin/rubocop -a; else bin/rubocop; fi
 }
 
+run_js() {
+  echo "== Checking the overlay =="
+  bunx tsc --noEmit -p .
+  before=$(shasum app/assets/tensaku.js)
+  bun run --silent build >/dev/null
+  if [[ "$before" != "$(shasum app/assets/tensaku.js)" ]]; then
+    echo "app/assets/tensaku.js was out of date. It is rebuilt now; commit it." >&2
+    [[ "$fix" == true ]] || exit 1
+  fi
+}
+
 run_house() {
   echo "== Checking house rules =="
   bin/house-rules
 }
 
 steps=("$@")
-if [[ ${#steps[@]} -eq 0 ]]; then steps=(ruby house); fi
+if [[ ${#steps[@]} -eq 0 ]]; then steps=(ruby house js); fi
 
 for step in "${steps[@]}"; do
   case "$step" in
     ruby) run_ruby ;;
     house) run_house ;;
+    js) run_js ;;
     *)
       usage >&2
       exit 64

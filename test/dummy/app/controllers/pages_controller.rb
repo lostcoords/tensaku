@@ -12,6 +12,8 @@ class PagesController < ApplicationController
     render layout: "plain"
   end
 
+  def guide; end
+
   def frames; end
 
   def lazy_frame; end
