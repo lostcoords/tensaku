@@ -1,0 +1,552 @@
+/* The landing page: warm paper, dark ink, correction red, and a few hand-drawn marks. */
+
+.landing {
+  --paper: #fbf6ec;
+  --paper-deep: #f3ead8;
+  --card: #fffdf8;
+  --ink: #23201b;
+  --ink-soft: #5d574d;
+  --rule: #e4d9c4;
+  --akaji: #c41e3a;
+  --pen-blue: #2d5bd8;
+  --mint: #2f8f6b;
+  --highlighter: rgb(255 214 64 / 0.55);
+  --hand: "Shantell Sans", "Comic Sans MS", ui-rounded, sans-serif;
+
+  background: var(--paper);
+  color: var(--ink);
+}
+
+[data-theme="dark"] .landing {
+  --paper: #1b1915;
+  --paper-deep: #24211c;
+  --card: #2a2620;
+  --ink: #f1ebdf;
+  --ink-soft: #b9b0a1;
+  --rule: #3e3830;
+  --akaji: #ff6b7f;
+  --pen-blue: #8aa8ff;
+  --mint: #6fd3a9;
+  --highlighter: rgb(255 214 64 / 0.28);
+}
+
+.landing main {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.landing a {
+  color: inherit;
+}
+
+.landing code,
+.landing kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+}
+
+.landing kbd {
+  border: 1px solid var(--rule);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--card);
+  padding: 0 0.3em;
+}
+
+/* Hero ------------------------------------------------------------------------------------- */
+
+.hero {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 4.5rem 0 3rem;
+  text-align: center;
+}
+
+.hero__eyebrow {
+  font-family: var(--hand);
+  font-size: 1.15rem;
+  color: var(--akaji);
+}
+
+.hero__eyebrow span {
+  color: var(--ink-soft);
+}
+
+.hero__title {
+  margin: 0.75rem 0 1.25rem;
+  font-size: clamp(2.4rem, 7vw, 4.25rem);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+.pen-mark {
+  position: relative;
+  white-space: nowrap;
+}
+
+.pen-mark svg {
+  position: absolute;
+  left: -2%;
+  bottom: -0.18em;
+  width: 104%;
+  height: 0.32em;
+  overflow: visible;
+}
+
+.pen-mark path {
+  fill: none;
+  stroke: var(--akaji);
+  stroke-width: 4;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  stroke-dasharray: 260;
+  stroke-dashoffset: 260;
+  animation: draw 700ms 300ms ease-out forwards;
+}
+
+@keyframes draw {
+  to { stroke-dashoffset: 0; }
+}
+
+.hero__lead {
+  font-size: 1.2rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  text-wrap: pretty;
+}
+
+.hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin: 2rem 0 1rem;
+}
+
+.hero__fine {
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.75rem;
+  padding: 0 1.2rem;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  background: var(--card);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.button:hover {
+  transform: translateY(-2px) rotate(-0.6deg);
+  box-shadow: 0 3px 0 var(--ink);
+}
+
+.button:focus-visible {
+  outline: 3px solid var(--pen-blue);
+  outline-offset: 3px;
+}
+
+.button--ink {
+  background: var(--ink);
+  color: var(--paper) !important;
+}
+
+.button--small {
+  min-height: 2rem;
+  padding: 0 0.8rem;
+  font-size: 0.8rem;
+  margin-left: auto;
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Demo ------------------------------------------------------------------------------------- */
+
+.demo {
+  padding: 2rem 0 4rem;
+}
+
+.demo__intro {
+  max-width: 44rem;
+}
+
+.demo__intro h2,
+.install h2 {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.demo__intro p {
+  color: var(--ink-soft);
+  line-height: 1.6;
+  margin-top: 0.5rem;
+}
+
+.demo__live-note {
+  display: none;
+}
+
+[data-demo-live] .demo__live-note {
+  display: block;
+  font-family: var(--hand);
+  color: var(--akaji) !important;
+}
+
+.demo__steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.75rem 1.5rem;
+  margin: 1.75rem 0 0.5rem;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+  font-family: var(--hand);
+  font-size: 1.02rem;
+  line-height: 1.45;
+}
+
+.demo__steps li {
+  position: relative;
+  padding-left: 2.2rem;
+  counter-increment: step;
+}
+
+.demo__steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: -0.1rem;
+  display: grid;
+  place-items: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border: 2px solid var(--akaji);
+  border-radius: 50% 45% 55% 48%;
+  color: var(--akaji);
+  font-weight: 600;
+  transform: rotate(-6deg);
+}
+
+.demo__steps strong {
+  background: linear-gradient(transparent 55%, var(--highlighter) 55%);
+}
+
+.demo__touch {
+  display: none;
+  font-family: var(--hand);
+  color: var(--ink-soft);
+}
+
+@media (pointer: coarse) {
+  .demo__touch { display: block; }
+}
+
+.demo__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 56rem) {
+  .demo__grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+.demo__app {
+  position: relative;
+  margin: 0;
+  border: 1.5px solid var(--ink);
+  border-radius: 14px;
+  background: #fff;
+  color: #1f2328;
+  box-shadow: 6px 7px 0 var(--ink);
+  overflow: visible;
+}
+
+.window-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e5e7eb;
+  border-radius: 14px 14px 0 0;
+  background: #f6f7f9;
+}
+
+.window-bar span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #d4d7dd;
+}
+
+.window-bar code {
+  margin-left: 10px;
+  padding: 2px 10px;
+  border-radius: 6px;
+  background: #fff;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.demo__stage {
+  padding: 1.5rem;
+}
+
+.margin-note {
+  position: absolute;
+  font-family: var(--hand);
+  color: var(--akaji);
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+.margin-note--app {
+  right: 1rem;
+  bottom: -2rem;
+  transform: rotate(-2deg);
+}
+
+/* The sample app keeps a plain, ordinary look so Tensaku's overlay reads as the visitor. */
+.demo-app {
+  display: grid;
+  gap: 1rem;
+  font-family: system-ui, sans-serif;
+}
+
+.demo-app h3 {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.demo-app p {
+  color: #57606a;
+}
+
+.demo-app input {
+  width: 100%;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid #d0d7de;
+  border-radius: 8px;
+  font: inherit;
+}
+
+.demo-app__list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+}
+
+.demo-app__list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 0.9rem;
+}
+
+.demo-app__list li + li {
+  border-top: 1px solid #e5e7eb;
+}
+
+.demo-app__list span {
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.demo-app button {
+  justify-self: start;
+  padding: 0.55rem 1rem;
+  border: 0;
+  border-radius: 8px;
+  background: #1f6feb;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+}
+
+.demo__side {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.panel {
+  margin: 0;
+  border: 1.5px solid var(--rule);
+  border-radius: 12px;
+  background: var(--card);
+  overflow: hidden;
+}
+
+.panel__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper-deep);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.panel__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--akaji);
+}
+
+.panel__dot--agent {
+  background: var(--pen-blue);
+}
+
+.demo-code,
+.demo-agent {
+  margin: 0;
+  padding: 0.8rem 0;
+  max-height: 24rem;
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre;
+}
+
+.demo-agent {
+  padding: 0.8rem 0.9rem;
+  min-height: 6rem;
+  white-space: pre-wrap;
+  color: var(--ink-soft);
+}
+
+.demo-code__line {
+  display: block;
+  padding-right: 0.9rem;
+}
+
+.demo-code__number {
+  display: inline-block;
+  width: 2.6rem;
+  padding-right: 0.8rem;
+  text-align: right;
+  color: var(--ink-soft);
+  opacity: 0.6;
+  user-select: none;
+}
+
+.demo-code__line--changed {
+  background: color-mix(in srgb, var(--highlighter) 45%, transparent);
+}
+
+.demo-code mark {
+  background: var(--highlighter);
+  color: inherit;
+  border-radius: 3px;
+  box-shadow: 0 2px 0 var(--akaji);
+}
+
+/* Features and install --------------------------------------------------------------------- */
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1.25rem;
+  padding: 2rem 0 3rem;
+}
+
+.features article {
+  padding: 1.4rem;
+  border: 1.5px solid var(--rule);
+  border-radius: 14px;
+  background: var(--card);
+}
+
+.features h3 {
+  margin-bottom: 0.6rem;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.features p {
+  color: var(--ink-soft);
+  line-height: 1.6;
+}
+
+.ink-red,
+.ink-blue,
+.ink-green {
+  font-family: var(--hand);
+  font-weight: 600;
+}
+
+.ink-red { color: var(--akaji); }
+.ink-blue { color: var(--pen-blue); }
+.ink-green { color: var(--mint); }
+
+.install {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 2rem 0 4rem;
+}
+
+.install__code {
+  margin: 1rem 0;
+  padding: 1rem 1.2rem;
+  border-radius: 12px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  overflow-x: auto;
+}
+
+.install__code .comment {
+  opacity: 0.6;
+}
+
+.install p {
+  color: var(--ink-soft);
+  line-height: 1.6;
+}
+
+.landing-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 2rem 1rem 3rem;
+  border-top: 1px solid var(--rule);
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pen-mark path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
+  .button { transition: none; }
+  .button:hover { transform: none; }
+}

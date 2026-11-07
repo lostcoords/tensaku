@@ -13,5 +13,8 @@ module Docs
   class Application < Rails::Application
     config.load_defaults Rails::VERSION::STRING.to_f
     config.autoload_lib(ignore: %w[assets tasks])
+
+    # The landing page's demo runs Tensaku's own prebuilt overlay.
+    config.assets.paths << Rails.root.join("../app/assets")
   end
 end

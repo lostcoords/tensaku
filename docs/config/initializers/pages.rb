@@ -3,7 +3,7 @@ module Docs
 
   # The sidebar, in order. Each page is app/views/pages/<slug>.html.md.
   PAGES = [
-    Page.new("index", "Introduction", "Start"),
+    Page.new("introduction", "Introduction", "Start"),
     Page.new("installation", "Installation", "Start"),
     Page.new("editing", "Editing text", "Use"),
     Page.new("notes", "Notes", "Use"),

@@ -17,6 +17,10 @@ notes for coding agents. Use jj for version control; never use mutating Git comm
   lostcoords-ui). Its pages are `docs/app/views/pages/*.html.md`. Try overlay changes there in a
   browser before calling them done. `parcela up --detach` serves it at
     https://tensaku.localhost. `RAILS_ENV=production bin/rails kiln:build` in `docs/` must succeed.
+  - The landing page demo runs the built overlay against `docs/app/javascript/demo/server.js`, an
+    in-browser stand-in for the endpoints, playing back `demo/data.js`. After changing
+    `docs/app/views/demo/_inbox.html.erb` or the endpoints' replies, run `bin/rails runner
+    script/demo_data.rb` in `docs/` (CI checks it) and update the stand-in to match.
 - Run `bin/lint` and `bin/test` for code changes.
 - Never run `gem push`, create the GitHub repo, push, or tag without the user's approval.
 - No AI attribution in commits, pull requests or files.

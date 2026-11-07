@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <title><%= @page && @page.slug != "index" ? "#{@page.title} · " : "" %>Tensaku</title>
+    <title><%= @page ? "#{@page.title} · " : "" %>Tensaku</title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="description" content="Edit text and leave notes for your coding agent on a running Rails page, in development.">
     <script>
@@ -21,7 +21,7 @@
       <span class="brand-mark text-2xl leading-none" aria-hidden="true">添</span>
       <span class="text-sm">tensaku</span>
     <% end %>
-    <%= render layout: "shared/header", locals: { brand:, home_label: "Tensaku home", width: "max-w-330" } do %>
+    <%= render layout: "shared/header", locals: { brand:, home_label: "Tensaku home", width: "max-w-330", links: [ [ "Docs", "/introduction", true ] ] } do %>
       <%= lc_icon_button "Switch color theme", icon: "moon", size: :sm, data: { controller: "theme", action: "theme#toggle" }, aria: { pressed: false } %>
       <%= lc_button_link_to "https://github.com/davafons/tensaku", variant: :ghost, size: :sm, aria: { label: "Source on GitHub" } do %><%= render "shared/github_icon" %><% end %>
     <% end %>

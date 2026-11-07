@@ -395,6 +395,13 @@ listens on port 8592. Tensaku doesn't need debug mode, so the generator now writ
 `debug_mode = false`. A note on a Kiln paragraph also pointed at the stamped `<article>` around it,
 and its pin sat on the article; a Markdown block inside the nearest stamped element now replaces it.
 
+The landing page (2026-11-07) has a live demo: the real `tensaku.js` against an in-browser stand-in
+for the endpoints, which splices an in-memory copy of a demo partial by the offsets Tensaku itself
+reported (`script/demo_data.rb` records them in development). The page ships the stamps renamed,
+because Kiln refuses `data-herb-*` in its output. Writing the demo found an overlay assumption: the
+page refetch must not contain the overlay element, or the parser moves it into `<body>` and the morph
+adds a second one.
+
 - [ ] davafons.com on Rails + Kiln.
 - [ ] lostcoords-ui docs.
 - [ ] wariwari (server-rendered, no Kiln).

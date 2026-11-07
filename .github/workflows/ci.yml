@@ -61,6 +61,10 @@ jobs:
           ruby-version: "4.0"
           bundler-cache: true
           working-directory: docs
+      - name: The demo recording matches app/views/demo/_inbox.html.erb
+        run: |
+          bin/rails runner script/demo_data.rb
+          git diff --exit-code app/javascript/demo/data.js
       - name: Build the docs site (Kiln checks links, anchors and leftover dev markup)
         run: bin/rails kiln:build
         env:

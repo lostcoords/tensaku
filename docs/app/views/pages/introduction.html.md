@@ -4,7 +4,7 @@ Tensaku (添削, correcting a draft) lets you fix a running Rails app from the p
 
 Tensaku is built on [Herb](https://github.com/marcoroth/herb) through [ReActionView](https://github.com/marcoroth/reactionview), and only runs in development. Production doesn't change: it keeps rendering with Erubi and never loads Tensaku, ReActionView or Herb.
 
-Status: 0.0.1, unreleased. Requires Ruby 4.0+ and Rails 8.1+.
+Status: early. 0.0.1 is on RubyGems to reserve the name; nothing is stable yet. Requires Ruby 4.0+ and Rails 8.1+.
 
 ## Two things it does
 

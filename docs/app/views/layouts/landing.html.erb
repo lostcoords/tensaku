@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Tensaku: fix your Rails app on the page</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="description" content="Edit text on a running Rails page and Tensaku writes it back to the source. Leave notes, and your coding agent gets the exact file and line.">
+    <%# The demo's overlay stays on this page: arriving and leaving are full page loads. %>
+    <meta name="turbo-visit-control" content="reload">
+    <script>
+      try {
+        const theme = localStorage.getItem("tensaku-docs:theme")
+        if (theme === "dark" || (!theme && matchMedia("(prefers-color-scheme: dark)").matches)) document.documentElement.dataset.theme = "dark"
+      } catch {}
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shantell+Sans:wght@400;600&display=swap">
+    <%= stylesheet_link_tag "tailwind", "application_header", "landing" %>
+    <%= javascript_importmap_tags %>
+    <%= javascript_import_module_tag "demo" %>
+    <link rel="preload" href="<%= asset_path("tensaku.js") %>" as="script">
+  </head>
+  <body class="landing antialiased" data-turbo="false">
+    <%= lc_skip_link %>
+    <% brand = capture do %>
+      <span class="brand-mark text-2xl leading-none" aria-hidden="true">添</span>
+      <span class="text-sm">tensaku</span>
+    <% end %>
+    <%= render layout: "shared/header", locals: { brand:, home_label: "Tensaku home", width: "max-w-330", links: [ [ "Docs", "/introduction", false ], [ "Installation", "/installation", false ] ] } do %>
+      <%= lc_icon_button "Switch color theme", icon: "moon", size: :sm, data: { controller: "theme", action: "theme#toggle" }, aria: { pressed: false } %>
+      <%= lc_button_link_to "https://github.com/davafons/tensaku", variant: :ghost, size: :sm, aria: { label: "Source on GitHub" } do %><%= render "shared/github_icon" %><% end %>
+    <% end %>
+    <main id="main"><%= yield %></main>
+    <footer class="landing-footer">
+      <span>Tensaku · MIT license</span>
+      <span><a href="/introduction">Docs</a> · <a href="https://github.com/davafons/tensaku">GitHub</a> · <a href="https://rubygems.org/gems/tensaku">RubyGems</a></span>
+    </footer>
+  </body>
+</html>

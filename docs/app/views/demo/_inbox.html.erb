@@ -1,0 +1,17 @@
+<%# locals: (user:, messages:) %>
+<section class="demo-app">
+  <header class="demo-app__header">
+    <h3>Welcome back, <%= user.name %>!</h3>
+    <p>You have <%= messages.size %> new messages today.</p>
+  </header>
+  <input type="search" placeholder="Search your inbox" aria-label="Search">
+  <ul class="demo-app__list">
+    <% messages.each do |message| %>
+      <li>
+        <strong><%= message.subject %></strong>
+        <span>from <%= message.sender %></span>
+      </li>
+    <% end %>
+  </ul>
+  <button type="button">Open the inbox</button>
+</section>
