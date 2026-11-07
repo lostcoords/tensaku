@@ -12,13 +12,37 @@
 
 @import "../builds/tailwind/lostcoords_ui.css";
 
-/* Tensaku's ink: correction red on warm paper. */
-:root {
-  --tensaku-akaji: #c41e3a;
-}
+/* The site is dark only, in Sanzo Wada's combination 232 (A Dictionary of Color Combinations):
+   Carmine #cc1236, Pinkish Cinnamon #eeb480 and Deep Indigo #051230. Carmine is for marks, borders
+   and large type (3.3:1 on the background); small red text uses a lighter carmine (6.1:1). */
+html[data-theme="dark"] {
+  --wada-carmine: #cc1236;
+  --wada-carmine-light: #ff5a73;
+  --wada-cinnamon: #eeb480;
+  --wada-indigo: #051230;
 
-[data-theme="dark"] {
-  --tensaku-akaji: #ff5d73;
+  --tensaku-akaji: var(--wada-carmine);
+
+  --background: var(--wada-indigo);
+  --foreground: #f6ece2;
+  --card: #0b1a3d;
+  --card-foreground: #f6ece2;
+  --popover: #0b1a3d;
+  --popover-foreground: #f6ece2;
+  --primary: var(--wada-carmine);
+  --primary-foreground: #f6ece2;
+  --secondary: #10204a;
+  --secondary-foreground: #f6ece2;
+  --muted: #10204a;
+  --muted-foreground: #b7b0c4;
+  --accent: #162a58;
+  --accent-foreground: #f6ece2;
+  --destructive: var(--wada-carmine-light);
+  --success: #6fd3a9;
+  --warning: var(--wada-cinnamon);
+  --border: #22346a;
+  --input: #22346a;
+  --ring: var(--wada-carmine-light);
 }
 
 .brand-mark {

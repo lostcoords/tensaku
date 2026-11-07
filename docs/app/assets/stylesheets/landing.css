@@ -1,33 +1,23 @@
 /* The landing page: warm paper, dark ink, correction red, and a few hand-drawn marks. */
 
 .landing {
-  --paper: #fbf6ec;
-  --paper-deep: #f3ead8;
-  --card: #fffdf8;
-  --ink: #23201b;
-  --ink-soft: #5d574d;
-  --rule: #e4d9c4;
-  --akaji: #c41e3a;
-  --pen-blue: #2d5bd8;
-  --mint: #2f8f6b;
-  --highlighter: rgb(255 214 64 / 0.55);
+  /* Wada 232, from application.css: Deep Indigo paper, Pinkish Cinnamon and Carmine ink. */
+  --paper: var(--background);
+  --paper-deep: #0b1a3d;
+  --card: #0d1d44;
+  --ink: var(--foreground);
+  --ink-soft: var(--muted-foreground);
+  --rule: var(--border);
+  --akaji: var(--wada-carmine);
+  --akaji-text: var(--wada-carmine-light);
+  --cinnamon: var(--wada-cinnamon);
+  --pen-blue: #9aa3c4;
+  --mint: #6fd3a9;
+  --highlighter: rgb(238 180 128 / 0.3);
   --hand: "Shantell Sans", "Comic Sans MS", ui-rounded, sans-serif;
 
   background: var(--paper);
   color: var(--ink);
-}
-
-[data-theme="dark"] .landing {
-  --paper: #1b1915;
-  --paper-deep: #24211c;
-  --card: #2a2620;
-  --ink: #f1ebdf;
-  --ink-soft: #b9b0a1;
-  --rule: #3e3830;
-  --akaji: #ff6b7f;
-  --pen-blue: #8aa8ff;
-  --mint: #6fd3a9;
-  --highlighter: rgb(255 214 64 / 0.28);
 }
 
 .landing main {
@@ -66,11 +56,11 @@
 .hero__eyebrow {
   font-family: var(--hand);
   font-size: 1.15rem;
-  color: var(--akaji);
+  color: var(--akaji-text);
 }
 
 .hero__eyebrow span {
-  color: var(--ink-soft);
+  color: var(--cinnamon);
 }
 
 .hero__title {
@@ -148,7 +138,7 @@
 
 .button:hover {
   transform: translateY(-2px) rotate(-0.6deg);
-  box-shadow: 0 3px 0 var(--ink);
+  box-shadow: 0 3px 0 var(--akaji);
 }
 
 .button:focus-visible {
@@ -157,8 +147,9 @@
 }
 
 .button--ink {
-  background: var(--ink);
-  color: var(--paper) !important;
+  border-color: var(--akaji);
+  background: var(--akaji);
+  color: var(--ink) !important;
 }
 
 .button--small {
@@ -205,7 +196,7 @@
 [data-demo-live] .demo__live-note {
   display: block;
   font-family: var(--hand);
-  color: var(--akaji) !important;
+  color: var(--akaji-text) !important;
 }
 
 .demo__steps {
@@ -238,7 +229,7 @@
   height: 1.7rem;
   border: 2px solid var(--akaji);
   border-radius: 50% 45% 55% 48%;
-  color: var(--akaji);
+  color: var(--akaji-text);
   font-weight: 600;
   transform: rotate(-6deg);
 }
@@ -276,7 +267,7 @@
   border-radius: 14px;
   background: #fff;
   color: #1f2328;
-  box-shadow: 6px 7px 0 var(--ink);
+  box-shadow: 6px 7px 0 var(--akaji);
   overflow: visible;
 }
 
@@ -313,7 +304,7 @@
 .margin-note {
   position: absolute;
   font-family: var(--hand);
-  color: var(--akaji);
+  color: var(--cinnamon);
   font-size: 0.95rem;
   white-space: nowrap;
 }
@@ -331,7 +322,9 @@
   font-family: system-ui, sans-serif;
 }
 
+/* lostcoords-ui gives headings the site's light foreground; the sample app is a light page. */
 .demo-app h3 {
+  color: #1f2328;
   font-size: 1.5rem;
   font-weight: 700;
 }
@@ -498,8 +491,8 @@
   font-weight: 600;
 }
 
-.ink-red { color: var(--akaji); }
-.ink-blue { color: var(--pen-blue); }
+.ink-red { color: var(--akaji-text); }
+.ink-blue { color: var(--cinnamon); }
 .ink-green { color: var(--mint); }
 
 .install {
@@ -512,8 +505,9 @@
   margin: 1rem 0;
   padding: 1rem 1.2rem;
   border-radius: 12px;
-  background: var(--ink);
-  color: var(--paper);
+  border: 1.5px solid var(--rule);
+  background: var(--paper-deep);
+  color: var(--ink);
   font-size: 0.95rem;
   line-height: 1.6;
   overflow-x: auto;
