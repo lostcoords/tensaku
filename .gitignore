@@ -12,5 +12,6 @@
 /docs/tmp/
 /docs/dist/
 /docs/public/assets/
-/docs/app/assets/builds/
+/docs/app/assets/builds/*
+!/docs/app/assets/builds/.keep
 /docs/.bundle/
