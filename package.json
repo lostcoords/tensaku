@@ -1,0 +1,14 @@
+{
+  "name": "tensaku-overlay",
+  "private": true,
+  "description": "Source for Tensaku's in-page overlay. Apps never need this: the compiled file ships in the gem.",
+  "license": "MIT",
+  "scripts": {
+    "build": "bun build app/javascript/tensaku/index.ts --outfile app/assets/tensaku.js --format iife --target browser --minify-syntax --minify-whitespace",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "idiomorph": "0.7.4",
+    "typescript": "5.9.3"
+  }
+}

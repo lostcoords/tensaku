@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  bin/lint [--fix] [step...]
+
+Steps:
+  ruby       RuboCop
+  house      bin/house-rules
+
+With no steps, runs every linter. --fix autocorrects where the tool supports it.
+USAGE
+}
+
+fix=false
+if [[ "${1:-}" == "--fix" ]]; then
+  fix=true
+  shift
+fi
+
+case "${1:-}" in
+  --help | -h | help)
+    usage
+    exit
+    ;;
+esac
+
+run_ruby() {
+  echo "== Linting Ruby =="
+  if [[ "$fix" == true ]]; then bin/rubocop -a; else bin/rubocop; fi
+}
+
+run_house() {
+  echo "== Checking house rules =="
+  bin/house-rules
+}
+
+steps=("$@")
+if [[ ${#steps[@]} -eq 0 ]]; then steps=(ruby house); fi
+
+for step in "${steps[@]}"; do
+  case "$step" in
+    ruby) run_ruby ;;
+    house) run_house ;;
+    *)
+      usage >&2
+      exit 64
+      ;;
+  esac
+done

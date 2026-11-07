@@ -1,0 +1,9 @@
+/.bundle/
+/pkg/
+/tmp/
+/node_modules/
+/test/dummy/log/*.log
+/test/dummy/tmp/
+/test/dummy/public/assets/
+/test/dummy/storage/
+*.gem

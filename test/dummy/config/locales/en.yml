@@ -1,0 +1,13 @@
+# Dummy app copy. Comments and quoting must survive Tensaku's edits.
+en:
+  hello: "Hello world"
+  pages:
+    home:
+      title: Welcome home   # trailing comment
+      greeting: "Hi %{name}, welcome back"
+      search_placeholder: 'Search the site'
+      intro: >-
+        A folded paragraph
+        over two lines.
+  activerecord:
+    attributes: {}

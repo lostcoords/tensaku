@@ -1,0 +1,17 @@
+<section class="hero" data-controller="hello">
+  <h1><%= t(".title") %></h1>
+  <p class="greeting">Hello <%= @user.name %>!</p>
+  <p class="intro">Tensaku &amp; friends edit this text.</p>
+  <img src="/icon.svg" alt="A small icon" title="Icon title">
+  <input type="search" placeholder="<%= t(".search_placeholder") %>" aria-label="Search">
+</section>
+
+<ul class="items">
+  <% @items.each do |item| %>
+    <%= render "shared/item", item: item %>
+  <% end %>
+</ul>
+
+<%= render GreetingComponent.new(name: @user.name) %>
+
+<p class="welcome"><%= t(".greeting", name: @user.name) %></p>

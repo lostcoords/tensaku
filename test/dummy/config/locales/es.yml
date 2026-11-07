@@ -1,0 +1,7 @@
+es:
+  hello: "Hola mundo"
+  pages:
+    home:
+      title: Bienvenido
+      greeting: "Hola %{name}, bienvenido de nuevo"
+      search_placeholder: "Buscar en el sitio"
