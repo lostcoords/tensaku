@@ -5,7 +5,7 @@ Gem::Specification.new do |spec|
   spec.version     = Tensaku::VERSION
   spec.authors     = [ "David Afonso" ]
   spec.email       = [ "dav@davafons.com" ]
-  spec.homepage    = "https://github.com/davafons/tensaku"
+  spec.homepage    = "https://tensaku.lostcoords.com"
   spec.summary     = "Edit text and leave notes for your coding agent on a running Rails page, in development."
   spec.description = "Tensaku lets you click text on a Rails page in development and write the change back to the " \
     "ERB template, the locale YAML or the Markdown source, or leave notes on elements and areas that a coding " \
@@ -15,8 +15,8 @@ Gem::Specification.new do |spec|
   spec.required_ruby_version = ">= 4.0"
 
   spec.metadata["homepage_uri"] = spec.homepage
-  spec.metadata["source_code_uri"] = spec.homepage
-  spec.metadata["changelog_uri"] = "#{spec.homepage}/blob/main/CHANGELOG.md"
+  spec.metadata["source_code_uri"] = "https://github.com/lostcoords/tensaku"
+  spec.metadata["changelog_uri"] = "https://github.com/lostcoords/tensaku/blob/main/CHANGELOG.md"
   spec.metadata["rubygems_mfa_required"] = "true"
   spec.metadata["allowed_push_host"] = "https://rubygems.org"
 

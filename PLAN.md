@@ -254,7 +254,7 @@ chasing coverage.
 - [x] Minitest, Capybara with Cuprite for browser tests.
 - [x] TypeScript build for the overlay (esbuild or bun), compiled file committed.
 - [x] Lint (rubocop-rails-omakase) and GitHub Actions CI, actions pinned to commit SHAs.
-- [x] jj repo, colocated. Public repo at github.com/davafons/tensaku.
+- [x] jj repo, colocated. Public repo at github.com/lostcoords/tensaku.
 - [ ] Claim the `tensaku` name on RubyGems with a 0.0.1 placeholder (ask before `gem push`).
 
 Findings (2026-11-07):
@@ -454,7 +454,8 @@ adds a second one.
 - **Undo:** version control plus one-step undo in the overlay.
 - **Overlay:** TypeScript, compiled file committed.
 - **Tests:** Minitest and Capybara with Cuprite. Features first, tests for the splicing and main flows.
-- **Home:** public repo at github.com/davafons/tensaku, MIT.
+- **Home (changed 2026-11-07):** a Lostcoords product. Public repo at github.com/lostcoords/tensaku,
+  docs at tensaku.lostcoords.com, MIT.
 - **Upstream:** build independently, talk to the Herb maintainers after 0.1.
 - **Kiln:** done in Kiln 0.1.1: the build fails on `data-herb-*`/`data-tensaku-*`, and the
   content layer moved to commonmarker and emits `data-tensaku-md` in development when Tensaku is loaded.

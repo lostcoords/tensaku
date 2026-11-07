@@ -1,5 +1,7 @@
 # Tensaku
 
+[Website and docs](https://tensaku.lostcoords.com) · [Source](https://github.com/lostcoords/tensaku)
+
 Tensaku (添削, correcting a draft) lets you fix a running Rails app from the page itself, in
 development. Click a piece of text and edit it in place, and Tensaku writes the change back to the ERB
 template, the locale YAML or the Markdown source. Or leave a note on an element or an area of the page,
