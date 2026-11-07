@@ -3,7 +3,7 @@
 
 .landing {
   --hand: "Shantell Sans", "Comic Sans MS", ui-rounded, sans-serif;
-  --highlighter: color-mix(in oklab, var(--wada-accent) 30%, transparent);
+  --highlighter: color-mix(in oklab, var(--wada-yellow) 55%, transparent);
 
   position: relative;
   overflow-x: clip;
@@ -119,7 +119,7 @@
 }
 
 .try__steps strong {
-  background: linear-gradient(transparent 55%, var(--highlighter) 55%);
+  background: linear-gradient(transparent 68%, var(--highlighter) 68%, var(--highlighter) 92%, transparent 92%);
 }
 
 .try__touch {
@@ -225,7 +225,7 @@
 }
 
 .ink-red { color: var(--wada-red-text); }
-.ink-accent { color: var(--wada-accent); }
+.ink-accent { background: linear-gradient(transparent 68%, var(--highlighter) 68%, var(--highlighter) 92%, transparent 92%); }
 .ink-green { color: var(--success); }
 
 .install {
@@ -343,11 +343,11 @@
   padding: 0 0.4rem;
   border: 2px solid currentColor;
   border-radius: 3px 6px 4px 7px;
-  color: var(--wada-accent);
+  color: var(--muted-foreground);
 }
 
 .rk--red { color: var(--wada-red-text); }
-.rk--cinnamon { color: var(--wada-accent); }
+.rk--gray { color: var(--muted-foreground); }
 .rk--blue { color: var(--muted-foreground); }
 .rk--green { color: var(--success); }
 

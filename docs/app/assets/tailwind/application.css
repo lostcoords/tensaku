@@ -12,24 +12,17 @@
 
 @import "../builds/tailwind/lostcoords_ui.css";
 
-/* The site is dark only, in a combination from Sanzo Wada's A Dictionary of Color Combinations
-   (1933-34). A theme sets four colours: the ground, a red, an accent and the text. Everything else is
-   mixed from them. The default is combination 232: Carmine, Pinkish Cinnamon and Deep Indigo. */
+/* The site is dark only, in combination 313 of Sanzo Wada's A Dictionary of Color Combinations
+   (1933-34): Carmine, Yellow and Diamine Green on Black. They match what Tensaku does: the red pen
+   corrects, the highlighter marks, and green is a resolved note. Yellow is loud on black, so it is
+   only used, faintly, for highlighter marks. */
 html[data-theme="dark"] {
-  --wada-ground: #051230;
+  --wada-ground: #111314;
   --wada-red: #cc1236;
-  --wada-accent: #eeb480;
+  --wada-yellow: #fff200;
+  --wada-green: #1a7444;
   --wada-ink: #f6ece2;
 }
-
-/* Other combinations, picked from the development-only theme picker (shared/_theme_picker). */
-html[data-theme="dark"][data-wada="117"] { --wada-ground: #111314; --wada-red: #cc1236; --wada-accent: #e98a9b; }
-html[data-theme="dark"][data-wada="221"] { --wada-ground: #111314; --wada-red: #a62c37; --wada-accent: #b6bfc1; }
-html[data-theme="dark"][data-wada="313"] { --wada-ground: #111314; --wada-red: #cc1236; --wada-accent: #fff200; }
-html[data-theme="dark"][data-wada="216"] { --wada-ground: #111314; --wada-red: #eb5324; --wada-accent: #489b6e; }
-html[data-theme="dark"][data-wada="269"] { --wada-ground: #111314; --wada-red: #802626; --wada-accent: #bb7125; }
-html[data-theme="dark"][data-wada="298"] { --wada-ground: #111314; --wada-red: #f15a30; --wada-accent: #f8ed43; }
-html[data-theme="dark"][data-wada="340"] { --wada-ground: #111314; --wada-red: #f15a30; --wada-accent: #00b49b; }
 
 html[data-theme="dark"] {
   /* A lighter red for small text, which the darker reds can't carry on the ground. */
@@ -51,8 +44,9 @@ html[data-theme="dark"] {
   --accent: color-mix(in oklab, var(--wada-ground), white 12%);
   --accent-foreground: var(--wada-ink);
   --destructive: var(--wada-red-text);
-  --success: #6fd3a9;
-  --warning: var(--wada-accent);
+  /* Diamine Green is too dark for text on black (3.2:1); text uses a lighter mix of it. */
+  --success: color-mix(in oklab, var(--wada-green), white 45%);
+  --warning: var(--wada-yellow);
   --border: color-mix(in oklab, var(--wada-ground), white 16%);
   --input: color-mix(in oklab, var(--wada-ground), white 16%);
   --ring: var(--wada-red-text);
@@ -63,42 +57,3 @@ html[data-theme="dark"] {
   font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
 }
 
-/* The development-only theme picker (shared/_theme_picker). */
-.theme-picker {
-  position: fixed;
-  left: 1rem;
-  bottom: 1rem;
-  z-index: 60;
-  width: 15rem;
-  box-shadow: 0 1rem 2rem -1rem rgb(0 0 0 / 0.6);
-}
-
-.theme-picker__list {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.25rem;
-}
-
-.theme-picker__option {
-  justify-content: flex-start;
-  gap: 0.4rem;
-  padding-inline: 0.4rem;
-  font-family: var(--font-mono);
-}
-
-.theme-picker__option[aria-pressed="true"] {
-  outline: 2px solid var(--wada-red-text);
-}
-
-.theme-picker__swatches {
-  display: inline-flex;
-}
-
-.theme-picker__swatches i {
-  width: 0.7rem;
-  height: 1.1rem;
-  border: 1px solid rgb(255 255 255 / 0.15);
-}
-
-.theme-picker__swatches i:first-child { border-radius: 3px 0 0 3px; }
-.theme-picker__swatches i:last-child { border-radius: 0 3px 3px 0; }

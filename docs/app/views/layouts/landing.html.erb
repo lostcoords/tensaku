@@ -14,7 +14,6 @@
     <%= javascript_importmap_tags %>
     <%= javascript_import_module_tag "demo" %>
     <link rel="preload" href="<%= asset_path("tensaku.js") %>" as="script">
-    <%= render "shared/theme_restore" if Rails.env.development? %>
   </head>
   <body class="landing antialiased" data-turbo="false">
     <%= lc_skip_link %>
@@ -31,6 +30,5 @@
       <span>Tensaku · MIT license</span>
       <span><a href="/introduction">Docs</a> · <a href="https://github.com/davafons/tensaku">GitHub</a> · <a href="https://rubygems.org/gems/tensaku">RubyGems</a></span>
     </footer>
-    <%= render "shared/theme_picker" if Rails.env.development? %>
   </body>
 </html>
