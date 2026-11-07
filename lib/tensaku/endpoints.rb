@@ -7,6 +7,9 @@ module Tensaku
   class Endpoints
     ASSET = File.expand_path("../../app/assets/tensaku.js", __dir__)
 
+    # Edit mode asks about every stamp on the page at once.
+    EDITABLE_LIMIT = 5000
+
     def self.asset_digest
       Digest::SHA256.file(ASSET).hexdigest[0, 12]
     rescue Errno::ENOENT
@@ -54,6 +57,10 @@ module Tensaku
       in [ "GET", "/source" ]
         template, line, column = Source::Template.from_stamp(params["stamp"])
         json(template.describe(line, column))
+      in [ "POST", "/editable" ]
+        stamps = Array(params["stamps"]).map(&:to_s).uniq
+        raise Error, "Too many stamps (#{stamps.size}); the limit is #{EDITABLE_LIMIT}" if stamps.size > EDITABLE_LIMIT
+        json(editable: Source::Template.editable(stamps))
       in [ "POST", "/text" ]
         template, line, column = Source::Template.from_stamp(params["stamp"])
         edits = Array(params["edits"]).map { it.to_h.symbolize_keys }

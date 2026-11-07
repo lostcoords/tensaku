@@ -11,5 +11,7 @@
   Code skill.
 - In-place editing of template text and attributes, translations (with other locales) and Markdown
   blocks from producers, written back as byte splices with a stale-file check and one-step undo.
+- Edit mode outlines only elements with text written in the template, asked once from `POST /editable`.
+  Text that all comes from Ruby (`<%= %>`) is not outlined.
 - Page update after a save: same-source nodes right away, then refetch and idiomorph.
 - `bin/rails generate tensaku:install`.

@@ -44,6 +44,28 @@ class Tensaku::EndpointsTest < Tensaku::TestCase
     assert_equal 409, request("POST", "/text", body: edit.deep_merge(edits: [ edit[:edits][0].merge(text: "Again") ])).status
   end
 
+test "tells edit mode which stamped elements have text written in the template" do
+  tmp_root.join("app/views/pages/mixed.html.erb").write(<<~ERB)
+    <section>
+      <h1>Hello, <%= name %></h1>
+      <p><%= body %></p>
+      <img alt="A photo" src="a.png">
+    </section>
+  ERB
+  stamps = %w[2:3 3:3 4:3].map { "app/views/pages/mixed.html.erb:#{it}" }
+  response = request("POST", "/editable", body: { stamps: stamps + [ "config/database.yml:1:1", "app/views/pages/mixed.html.erb:40:1", "nonsense" ] })
+
+  assert_equal 200, response.status
+  assert_equal({
+    "app/views/pages/mixed.html.erb:2:3" => true,
+    "app/views/pages/mixed.html.erb:3:3" => false,
+    "app/views/pages/mixed.html.erb:4:3" => false,
+    "config/database.yml:1:1" => false,
+    "app/views/pages/mixed.html.erb:40:1" => false,
+    "nonsense" => false
+  }, json(response)["editable"])
+end
+
   test "writes outside the allow-list are refused" do
     tmp_root.join("config").mkpath
     tmp_root.join("config/x.html.erb").write("<p>x</p>")

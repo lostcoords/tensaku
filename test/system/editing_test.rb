@@ -46,6 +46,27 @@ class EditingTest < ApplicationSystemTestCase
     assert_includes view("app/views/pages/about.html.erb"), %(<p class="bio">I build small tools.</p>)
   end
 
+test "edit mode doesn't outline text that comes from Ruby" do
+  visit "/about"
+  wait_for_overlay
+
+  overlay.find(".corner").click
+  overlay.find(".toolbar button", text: "Edit").click
+  assert overlay.has_css?(".box.edit", minimum: 2)
+
+  outlined = ->(selector) do
+    page.evaluate_script(<<~JS)
+      (() => {
+        const r = document.querySelector(#{selector.to_json}).getBoundingClientRect()
+        const boxes = Array.from(document.querySelector("tensaku-overlay").shadowRoot.querySelectorAll(".box.edit"))
+        return boxes.some((b) => Math.abs(parseFloat(b.style.left) - (r.left + scrollX)) < 2 && Math.abs(parseFloat(b.style.top) - (r.top + scrollY)) < 2)
+      })()
+    JS
+  end
+  assert outlined.("p.bio")
+  assert_not outlined.("p.since")
+end
+
   test "a partial rendered in a loop says it edits every copy" do
     visit "/"
     wait_for_overlay

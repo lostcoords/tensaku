@@ -29,6 +29,7 @@ export class DemoServer {
     const path = url.pathname
     const params = url.searchParams
     if (method === "GET" && path === "/source") return this.describe(params.get("stamp"))
+    if (method === "POST" && path === "/editable") return [200, { editable: Object.fromEntries((body.stamps ?? []).map((stamp) => [stamp, Boolean(this.stamps[stamp]?.editable)])) }]
     if (method === "POST" && path === "/text") return this.editText(body)
     if (method === "POST" && path === "/attribute") return this.editAttribute(body)
     if (method === "POST" && path === "/selection") return [200, { ok: true }]

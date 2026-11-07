@@ -92,6 +92,11 @@ export function markdownTag(element: Element): string {
 const MARKDOWN_EDITABLE = new Set(["p", "h1", "h2", "h3", "h4", "h5", "h6", "li", "blockquote"])
 const ATTRIBUTES = ["alt", "title", "placeholder", "aria-label", "value"]
 
+// The server's answer to /editable: whether a stamp's element has text written in its template.
+// Text that all comes from Ruby (<%= %>) has nothing to edit. Stamps not asked about yet count as
+// editable, so Alt-click works before edit mode has asked.
+export const templateText = new Map<string, boolean>()
+
 export type EditKind = "translation" | "markdown" | "template" | "attributes" | null
 
 // What Alt-click (or a click in edit mode) edits. A translation wins over the template, since the
@@ -99,7 +104,7 @@ export type EditKind = "translation" | "markdown" | "template" | "attributes" | 
 export function editKind(element: Element): EditKind {
   if (translationOf(element)) return "translation"
   if (element.hasAttribute(MARKDOWN) && MARKDOWN_EDITABLE.has(markdownTag(element))) return "markdown"
-  if (element.hasAttribute(STAMP) && hasOwnText(element)) return "template"
+  if (element.hasAttribute(STAMP) && hasOwnText(element) && templateText.get(element.getAttribute(STAMP)!) !== false) return "template"
   if (editableAttributes(element).length) return "attributes"
   return null
 }

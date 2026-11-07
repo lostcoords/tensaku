@@ -2,7 +2,7 @@
 // the page and talks to the endpoints under /__tensaku.
 
 import { api, meta } from "./api"
-import { contextOf, documentRect, editKind, isUi, MARKDOWN, nearestStamp, sourceElement, STAMP, stampOf, tagLabel, translationOf, visibleText, copiesOf } from "./dom"
+import { contextOf, documentRect, editKind, hasOwnText, isUi, MARKDOWN, nearestStamp, sourceElement, STAMP, stampOf, tagLabel, templateText, translationOf, visibleText, copiesOf } from "./dom"
 import { closeEditor, edit, isEditing, undo, undoFor } from "./editor"
 import { watch as watchMarkers } from "./markers"
 import { drawPins, elementsInArea, load as loadNotes, noteForm, onCount, sidebarOpen, targetsFor, toggleSidebar } from "./notes"
@@ -126,11 +126,31 @@ function editableElements(): Element[] {
   return Array.from(elements)
 }
 
+// Edit mode asks the server once which stamped elements have template text, and draws after the
+// answer, so text that comes from Ruby is never outlined.
+let asking = false
+const EDITABLE_BATCH = 5000
+
 function drawEditBoxes() {
   editBoxes.forEach((b) => b.remove())
   editBoxes = []
   if (mode !== "edit") return
-  for (const element of editableElements()) editBoxes.push(...box(documentRect(element), "edit"))
+  const elements = editableElements()
+  const unknown = Array.from(new Set(elements
+    .filter((element) => element.hasAttribute(STAMP) && hasOwnText(element))
+    .map((element) => element.getAttribute(STAMP)!)
+    .filter((stamp) => !templateText.has(stamp)))).slice(0, EDITABLE_BATCH)
+  if (unknown.length) {
+    if (asking) return
+    asking = true
+    api<{ editable: Record<string, boolean> }>("POST", "/editable", { stamps: unknown })
+      .then(({ editable }) => unknown.forEach((stamp) => templateText.set(stamp, editable[stamp] ?? false)))
+      // Without an answer, outline them all, as before.
+      .catch(() => unknown.forEach((stamp) => templateText.set(stamp, true)))
+      .finally(() => { asking = false; drawEditBoxes() })
+    return
+  }
+  for (const element of elements) editBoxes.push(...box(documentRect(element), "edit"))
 }
 
 // Menu after a click in inspect mode ----------------------------------------------------------------
@@ -315,7 +335,8 @@ function pageChanged() {
 document.addEventListener("turbo:load", pageChanged)
 document.addEventListener("turbo:frame-load", scheduleRedraw)
 addEventListener("popstate", pageChanged)
-onRefresh(() => { scheduleRedraw(); loadNotes() })
+// A save can change what a template's elements contain.
+onRefresh(() => { templateText.clear(); scheduleRedraw(); loadNotes() })
 // Layout shifts (images loading, content changing) move elements; pins follow every second.
 setInterval(() => { if (location.pathname !== path) pageChanged(); else drawPins() }, 1000)
 

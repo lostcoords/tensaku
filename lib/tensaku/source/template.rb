@@ -32,6 +32,26 @@ module Tensaku
         [ new(path), line, column ]
       end
 
+      # Whether each stamped element has text written in its template, for edit mode's outlines. An
+      # element whose text all comes from Ruby (<%= %>) has nothing to edit. A stamp Tensaku can't read
+      # (a file outside the allow-list, a line that moved) counts as not editable.
+      def self.editable(stamps)
+        templates = {}
+        stamps.to_h do |stamp|
+          path, line, column = parse_stamp(stamp)
+          unless templates.key?(path)
+            templates[path] = begin
+              new(path)
+            rescue Error
+              nil
+            end
+          end
+          [ stamp, templates[path]&.describe(line, column)&.fetch(:editable) || false ]
+        rescue Error
+          [ stamp, false ]
+        end
+      end
+
       def initialize(relative_path)
         @relative_path = relative_path
         @path = Guard.writable_file!(relative_path, extensions: EXTENSIONS)
