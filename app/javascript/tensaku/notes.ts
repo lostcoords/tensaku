@@ -5,7 +5,7 @@ import { api, query } from "./api"
 import { contentRect, contextOf, MARKDOWN, nearestStamp, STAMP, tagLabel, translationOf, visibleText } from "./dom"
 import { textKeys } from "./markers"
 import { icon } from "./icons"
-import { copy, div, h, layer, fixed, panel, toast } from "./ui"
+import { activeInShadow, copy, div, h, layer, fixed, panel, toast } from "./ui"
 
 export interface Target {
   kind: "element" | "text" | "translation" | "markdown"
@@ -27,18 +27,41 @@ export interface Note {
   targets: Target[]
   rect?: { x: number; y: number; width: number; height: number }
   viewport?: string
-  status: "open" | "question" | "resolved"
+  status: "open" | "working" | "question" | "resolved"
   reply: string | null
   created_at: string
 }
 
+export interface Agent { connected: boolean; seen_at: string | null }
+
 let notes: Note[] = []
 let openCount = 0
+let agent: Agent = { connected: false, seen_at: null }
 const pinLayer = div("pins")
 layer.append(pinLayer)
 const countListeners: ((count: number) => void)[] = []
+const agentListeners: ((agent: Agent) => void)[] = []
 
 export const onCount = (listener: (count: number) => void) => countListeners.push(listener)
+export const onAgent = (listener: (agent: Agent) => void) => agentListeners.push(listener)
+
+export function setPinsHidden(hidden: boolean) {
+  pinLayer.hidden = hidden
+}
+
+// Deletes every note on this page. Returns how many were deleted.
+export async function deleteAll() {
+  const ids = notes.map((note) => note.id)
+  for (const id of ids) await api("DELETE", `/notes/${id}`)
+  await load({ force: true })
+  return ids.length
+}
+
+// Notes change from outside the page too (an agent starts or resolves one), so the overlay asks
+// again every few seconds while the tab is visible. Nothing is redrawn when the answer is the same.
+export function poll() {
+  setInterval(() => { if (document.visibilityState === "visible") load() }, 4000)
+}
 export const currentNotes = () => notes
 
 export function targetsFor(element: Element, selectedText?: string): Target[] {
@@ -88,7 +111,7 @@ export function elementsInArea(rect: DOMRect): Element[] {
   return fallback ? [fallback] : []
 }
 
-export function noteForm(anchor: DOMRect, targets: Target[], extra: Partial<Note> = {}, onDone?: () => void) {
+export function noteForm(anchor: DOMRect, targets: Target[], extra: Partial<Note> = {}, onDone?: () => void, heading?: string) {
   const textarea = h("textarea", { rows: 3, placeholder: "What should change?", "aria-label": "Note" })
   const where = targets.filter((t) => t.kind !== "translation" && t.kind !== "markdown").map((t) => t.stamp ?? t.tag).filter(Boolean)
   const close = () => { element.remove(); onDone?.() }
@@ -108,32 +131,39 @@ export function noteForm(anchor: DOMRect, targets: Target[], extra: Partial<Note
     if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); save() }
     if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close() }
   })
-const title = extra.rect ? `Area, ${targets.length} ${targets.length === 1 ? "element" : "elements"}` : targets[0]?.tag ?? "Note"
-const quoted = !extra.rect && targets[0]?.text ? `${title} · "${targets[0].text.slice(0, 48)}${targets[0].text.length > 48 ? "…" : ""}"` : title
-const saveButton = h("button", { type: "button", className: "primary", onclick: save }, "Save note")
-const element = panel(anchor, "postit note-form",
-  div("head",
-    div("what", div("title", quoted), div("where", where.slice(0, 3).join(", ") + (where.length > 3 ? ` and ${where.length - 3} more` : ""))),
-    h("button", { type: "button", className: "icon-button", onclick: close, "aria-label": "Cancel" }, icon("close"))),
-  textarea,
-  div("foot", h("span", { className: "hint" }, "⌘↵ saves"), h("button", { type: "button", className: "quiet", onclick: close }, "Cancel"), saveButton))
+  const title = heading ? heading : extra.rect ? `Area, ${targets.length} ${targets.length === 1 ? "element" : "elements"}` : targets[0]?.tag ?? "Note"
+  const quoted = !heading && !extra.rect && targets[0]?.text ? `${title} · "${targets[0].text.slice(0, 48)}${targets[0].text.length > 48 ? "…" : ""}"` : title
+  const element = panel(anchor, "postit note-form",
+    div("head",
+      div("what", div("title", quoted), div("where", where.slice(0, 3).join(", ") + (where.length > 3 ? ` and ${where.length - 3} more` : ""))),
+      h("button", { type: "button", className: "icon-button", onclick: close, "aria-label": "Cancel" }, icon("close"))),
+    textarea,
+    div("foot", h("span", { className: "hint" }, "⌘↵ saves"), h("button", { type: "button", className: "quiet", onclick: close }, "Cancel"), h("button", { type: "button", className: "primary", onclick: save }, "Save note")))
   textarea.focus()
   return element
 }
 
-export async function load() {
+let lastSignature = ""
+export async function load({ force = false } = {}) {
   try {
-    const data = await api<{ notes: Note[]; open: number }>("GET", "/notes" + query({ url: location.pathname }))
+    const data = await api<{ notes: Note[]; open: number; agent?: Agent }>("GET", "/notes" + query({ url: location.pathname }))
+    agent = data.agent ?? { connected: false, seen_at: null }
+    agentListeners.forEach((listener) => listener(agent))
+    const signature = location.pathname + JSON.stringify([data.notes, data.open])
+    if (signature === lastSignature) return
+    lastSignature = signature
     if (!primed) data.notes.forEach((note) => drawn.set(note.id, note.status))
     primed = true
     notes = data.notes
     openCount = data.open
   } catch {
     notes = []
+    lastSignature = ""
   }
   countListeners.forEach((listener) => listener(openCount))
   drawPins()
-  if (sidebar?.isConnected) renderSidebar()
+  // A card being edited or answered is left alone when the poll redraws.
+  if (sidebar?.isConnected && (force || !sidebar.contains(activeInShadow()))) renderSidebar()
 }
 
 function anchorFor(note: Note): DOMRect | null {
@@ -166,9 +196,33 @@ export function drawPins() {
 
 function noteCard(note: Note, onChange: () => void) {
   const actions = div("row")
-  const update = async (body: Record<string, unknown>) => { await api("PATCH", `/notes/${note.id}`, body); await load(); onChange() }
-  const remove = async () => { await api("DELETE", `/notes/${note.id}`); await load(); onChange() }
+  const update = async (body: Record<string, unknown>) => { await api("PATCH", `/notes/${note.id}`, body); await load({ force: true }); onChange() }
+  const remove = async () => { await api("DELETE", `/notes/${note.id}`); await load({ force: true }); onChange() }
   actions.append(h("button", { type: "button", onclick: async () => { await copy(await api<string>("GET", "/notes.md" + query({ id: note.id }))); toast("Copied note as Markdown") } }, "Copy"))
+  const comment = h("div", { className: "comment" }, note.comment)
+  // Editing a note sends it back to the agent: it becomes open again, and an old reply is cleared.
+  const startEditing = () => {
+    const field = h("textarea", { rows: 3, "aria-label": "Edit note" }, note.comment)
+    const saveEdit = async () => {
+      const value = field.value.trim()
+      if (!value) return field.focus()
+      if (value === note.comment) return stopEditing()
+      await update({ comment: value, status: "open", reply: "" })
+      toast("Note updated")
+    }
+    const stopEditing = () => { editing.replaceWith(comment); actions.hidden = false }
+    field.addEventListener("keydown", (event) => {
+      event.stopPropagation()
+      if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); saveEdit() }
+      if (event.key === "Escape") { event.preventDefault(); stopEditing() }
+    })
+    const editing = div("editing", field, div("row", h("button", { type: "button", className: "quiet", onclick: stopEditing }, "Cancel"), h("button", { type: "button", className: "primary", onclick: saveEdit }, "Save")))
+    comment.replaceWith(editing)
+    actions.hidden = true
+    field.focus()
+    field.setSelectionRange(field.value.length, field.value.length)
+  }
+  actions.append(h("button", { type: "button", onclick: startEditing }, "Edit"))
   if (note.status === "resolved") {
     actions.append(h("button", { type: "button", onclick: remove }, "Dismiss"), h("button", { type: "button", onclick: () => update({ status: "open" }) }, "Reopen"))
   } else {
@@ -180,8 +234,8 @@ function noteCard(note: Note, onChange: () => void) {
   }
   const files = note.targets.filter((t) => t.file).map((t) => `${t.file}${t.range ? ":" + t.range.split("-")[0] : ""}`)
   return div(`postit note-card ${note.status}`,
-    div("row", h("span", { className: `status ${note.status}` }, note.status === "resolved" ? icon("check") : null, note.status), h("span", { className: "meta" }, Array.from(new Set(files)).join(", "))),
-    h("div", { className: "comment" }, note.comment),
+    div("row", h("span", { className: `status ${note.status}` }, note.status === "resolved" ? icon("check") : null, note.status === "working" ? "agent working" : note.status), h("span", { className: "meta" }, Array.from(new Set(files)).join(", "))),
+    comment,
     note.reply ? h("div", { className: `reply ${note.status}` }, note.reply) : null,
     answer,
     actions)

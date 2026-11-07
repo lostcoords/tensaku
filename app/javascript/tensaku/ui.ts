@@ -103,17 +103,21 @@ kbd { font: 10.5px/1 var(--mono); padding: 2px 4px; border-radius: 4px; backgrou
 .menu button:hover, .menu button:focus-visible { background: var(--tray-raised); outline: none; }
 .menu button:hover .icon, .menu button:focus-visible .icon { color: var(--tray-ink); }
 
-/* The inline editor: paper with the red pen's edge. */
-.editor { padding: 0; min-width: 0; max-width: none; border: 1.5px solid var(--akaji); border-radius: 10px; overflow: hidden; animation: settle .18s var(--spring); }
-.editor .surface { padding: 8px 10px; white-space: pre-wrap; outline: none; min-height: 1.4em; }
-.editor .bar { display: flex; gap: 8px; align-items: center; justify-content: space-between; border-top: 1px solid var(--line); background: #f8f4ea; padding: 6px 8px 6px 10px; font: 11px/1.3 var(--sans); color: var(--muted); }
-.editor .bar .actions { display: flex; gap: 6px; }
-.editor .bar button { font-size: 12px; padding: 3px 10px; border-radius: 999px; }
+/* The inline editor: the page's own background, colour and type, outlined by the red pen. Lines and
+   muted text derive from the page's text colour, so it reads on light and dark pages. */
+.editor { --line: color-mix(in srgb, currentColor 18%, transparent); --muted: color-mix(in srgb, currentColor 62%, transparent); padding: 0; min-width: 0; max-width: none; border: 1.5px solid var(--akaji); border-radius: 8px; box-shadow: 0 0 0 4px var(--akaji-soft), 0 14px 32px -12px rgba(0, 0, 0, .45); animation: settle .16s var(--spring); }
+.editor .surface { padding: 8px 10px; white-space: pre-wrap; outline: none; min-height: 1.4em; max-height: 60vh; overflow: auto; caret-color: var(--akaji); }
+.editor .bar { position: absolute; left: -1.5px; top: calc(100% + 8px); display: flex; gap: 10px; align-items: center; background: var(--tray); color: var(--tray-muted); border: 1px solid var(--tray-line); border-radius: 999px; padding: 4px 4px 4px 12px; font: 11px/1.3 var(--mono); white-space: nowrap; box-shadow: 0 10px 26px -8px rgba(0, 0, 0, .45); }
+.editor .bar .actions { display: flex; gap: 4px; }
+.editor .bar button { font: 600 12px/1.2 var(--sans); padding: 5px 12px; border-radius: 999px; border-color: transparent; color: var(--tray-ink); }
+.editor .bar button:hover { background: var(--tray-raised); border-color: transparent; }
 .editor .bar button.primary { background: var(--akaji); border-color: var(--akaji); color: #fff; }
 .editor .bar button.primary:hover { background: #c41e3a; }
-.editable { outline: none; border-bottom: 1.5px dotted var(--akaji); min-width: .5em; display: inline; }
-.editable:focus { background: var(--akaji-soft); border-bottom-style: solid; }
-.chip { display: inline-block; font: 11px/1.6 var(--mono); color: var(--muted); background: #f1ece0; border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; margin: 0 1px; vertical-align: baseline; user-select: none; cursor: default; white-space: nowrap; }
+.editor .bar kbd { background: rgba(255, 255, 255, .1); }
+.editable { outline: none; text-decoration: underline dotted color-mix(in srgb, var(--akaji) 70%, transparent); text-decoration-thickness: 1.5px; text-underline-offset: .22em; min-width: .5em; display: inline; }
+.editable { text-decoration-color: color-mix(in srgb, var(--akaji) 45%, transparent); }
+.editable:focus { text-decoration-color: color-mix(in srgb, var(--akaji) 80%, transparent); }
+.chip { display: inline-block; font: .78em/1.5 var(--mono); color: var(--muted); background: color-mix(in srgb, currentColor 7%, transparent); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; margin: 0 1px; vertical-align: baseline; user-select: none; cursor: default; white-space: nowrap; }
 .locale { display: grid; grid-template-columns: 32px 1fr; gap: 4px 6px; align-items: start; padding: 6px 10px; border-top: 1px solid var(--line); font: 13px/1.4 var(--sans); }
 .locale .code { font: 11px var(--mono); color: var(--muted); padding-top: 2px; }
 .attr { display: grid; grid-template-columns: 90px 1fr; gap: 6px; align-items: baseline; margin-top: 6px; }
@@ -163,6 +167,40 @@ kbd { font: 10.5px/1 var(--mono); padding: 2px 4px; border-radius: 4px; backgrou
 .toast { background: var(--tray); color: var(--tray-ink); border: 1px solid var(--tray-line); border-radius: 999px; padding: 8px 14px; box-shadow: 0 10px 26px -8px rgba(0, 0, 0, .45); display: flex; gap: 10px; align-items: center; max-width: 560px; animation: settle .2s var(--spring); }
 .toast.error { background: var(--akaji); border-color: var(--akaji); color: #fff; border-radius: 12px; }
 .toast button { color: inherit; border-color: currentColor; padding: 1px 9px; font-size: 12px; border-radius: 999px; }
+
+/* An agent connected over MCP: a green light at the start of the tray and on the corner button. */
+.agent-light { position: relative; width: 10px; height: 10px; margin: 0 6px 0 8px; border-radius: 50%; background: var(--resolved); box-shadow: 0 0 0 3px rgba(47, 168, 114, .25); animation: breathe 2.4s ease-in-out infinite; }
+.agent-light .tip { bottom: calc(100% + 18px); }
+.agent-light:hover .tip { opacity: 1; transform: translateX(-50%); }
+.corner.agent::before { content: ""; position: absolute; left: -2px; bottom: -2px; width: 11px; height: 11px; border-radius: 50%; background: var(--resolved); border: 2px solid var(--tray); }
+.tool.confirm { background: var(--akaji); color: #fff; }
+.tool.confirm .tip { background: var(--akaji); border-color: var(--akaji); color: #fff; }
+
+.panel.pick { min-width: 220px; }
+.note-card .editing textarea { margin-top: 8px; }
+.note-card .editing .row { justify-content: flex-end; }
+.pin.working { background: var(--tray); box-shadow: 0 0 0 3px rgba(255, 225, 77, .55), 0 3px 8px rgba(0, 0, 0, .3); animation: breathe 2.4s ease-in-out infinite; }
+.status.working { color: #8a6a00; background: rgba(255, 225, 77, .55); }
+@keyframes breathe { 50% { box-shadow: 0 0 0 6px rgba(47, 168, 114, 0); } }
+.pin.working { animation-name: breathe-ink; }
+@keyframes breathe-ink { 50% { box-shadow: 0 0 0 7px rgba(255, 225, 77, 0), 0 3px 8px rgba(0, 0, 0, .3); } }
+
+/* An agent connected over MCP: a green light at the start of the tray and on the corner button. */
+.agent-light { position: relative; width: 10px; height: 10px; margin: 0 6px 0 8px; border-radius: 50%; background: var(--resolved); box-shadow: 0 0 0 3px rgba(47, 168, 114, .25); animation: breathe 2.4s ease-in-out infinite; }
+.agent-light .tip { bottom: calc(100% + 18px); }
+.agent-light:hover .tip { opacity: 1; transform: translateX(-50%); }
+.corner.agent::before { content: ""; position: absolute; left: -2px; bottom: -2px; width: 11px; height: 11px; border-radius: 50%; background: var(--resolved); border: 2px solid var(--tray); }
+.tool.confirm { background: var(--akaji); color: #fff; }
+.tool.confirm .tip { background: var(--akaji); border-color: var(--akaji); color: #fff; }
+
+.panel.pick { min-width: 220px; }
+.note-card .editing textarea { margin-top: 8px; }
+.note-card .editing .row { justify-content: flex-end; }
+.pin.working { background: var(--tray); box-shadow: 0 0 0 3px rgba(255, 225, 77, .55), 0 3px 8px rgba(0, 0, 0, .3); animation: breathe 2.4s ease-in-out infinite; }
+.status.working { color: #8a6a00; background: rgba(255, 225, 77, .55); }
+@keyframes breathe { 50% { box-shadow: 0 0 0 6px rgba(47, 168, 114, 0); } }
+.pin.working { animation-name: breathe-ink; }
+@keyframes breathe-ink { 50% { box-shadow: 0 0 0 7px rgba(255, 225, 77, 0), 0 3px 8px rgba(0, 0, 0, .3); } }
 
 @keyframes settle { from { opacity: 0; transform: translateY(6px) rotate(-1.2deg); } to { opacity: 1; transform: none; } }
 @keyframes slide-in { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }

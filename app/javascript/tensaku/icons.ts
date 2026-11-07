@@ -14,6 +14,9 @@ const PATHS = {
   code: `<path d="M8.5 7.5L4 12l4.5 4.5M15.5 7.5L20 12l-4.5 4.5"/>`,
   undo: `<path d="M9 14.5L4.5 10 9 5.5"/><path d="M4.5 10h9.2a5.8 5.8 0 0 1 0 11.6H11"/>`,
   tag: `<path d="M3.8 12.6V4.5a.7.7 0 0 1 .7-.7h8.1l7.6 7.6-8.8 8.8z"/><circle cx="8.3" cy="8.3" r="1.4"/>`,
+  eye: `<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/>`,
+  "eye-off": `<path d="M2.5 12S6 5.5 12 5.5c1.9 0 3.6.7 5 1.6M21.5 12s-3.5 6.5-9.5 6.5c-1.9 0-3.6-.7-5-1.6"/><path d="M4 20L20 4"/>`,
+  trash: `<path d="M4.5 7h15M9.5 7V4.8h5V7M6.5 7l.9 12.2a1.6 1.6 0 0 0 1.6 1.3h6a1.6 1.6 0 0 0 1.6-1.3L17.5 7"/><path d="M10 10.5v6M14 10.5v6"/>`,
   // A quick handwritten check, drawn on when a note is resolved.
   check: `<path class="stroke" d="M5 12.8c1.6 1.2 2.9 2.7 3.9 4.6C11 12.3 14.6 8 19.5 5"/>`,
 } as const

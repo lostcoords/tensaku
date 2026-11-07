@@ -21,7 +21,7 @@ class Tensaku::McpTest < Tensaku::TestCase
     assert_equal "2025-06-18", init.dig("result", "protocolVersion")
 
     _, tools = rpc("tools/list")
-    assert_equal %w[list_notes get_note resolve_note ask_question watch_notes current_selection], tools.dig("result", "tools").map { it["name"] }
+    assert_equal %w[list_notes get_note start_note resolve_note ask_question watch_notes current_selection], tools.dig("result", "tools").map { it["name"] }
   end
 
   test "notifications get 202 and no body" do
@@ -44,6 +44,24 @@ class Tensaku::McpTest < Tensaku::TestCase
     tool("resolve_note", id: note["id"], reply: "Renamed in about.html.erb:1")
     assert_equal [ "resolved", "Renamed in about.html.erb:1" ], Tensaku::Notes.find(note["id"]).values_at("status", "reply")
     assert_empty tool("list_notes").dig("structuredContent", "notes")
+  end
+
+  test "start_note marks a note as worked on, and it stays in the active list" do
+    note = Tensaku::Notes.create(url: "/about", comment: "Rename this section")
+
+    tool("start_note", id: note["id"])
+
+    assert_equal "working", Tensaku::Notes.find(note["id"])["status"]
+    assert_equal [ note["id"] ], tool("list_notes").dig("structuredContent", "notes").map { it["id"] }
+  end
+
+  test "a tool call marks the agent as connected for a short while" do
+    assert_not Tensaku::Notes.agent["connected"]
+
+    tool("list_notes")
+
+    assert Tensaku::Notes.agent["connected"]
+    travel_to(Time.now + Tensaku::Notes::AGENT_WINDOW + 1) { assert_not Tensaku::Notes.agent["connected"] }
   end
 
   test "watch_notes returns a note created while it waits" do

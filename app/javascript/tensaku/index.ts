@@ -5,10 +5,10 @@ import { api, meta } from "./api"
 import { contextOf, documentRect, editKind, hasOwnText, isUi, MARKDOWN, nearestStamp, sourceElement, STAMP, stampOf, tagLabel, templateText, translationOf, visibleText, copiesOf } from "./dom"
 import { closeEditor, edit, isEditing, undo, undoFor } from "./editor"
 import { watch as watchMarkers } from "./markers"
-import { drawPins, elementsInArea, load as loadNotes, noteForm, onCount, sidebarOpen, targetsFor, toggleSidebar } from "./notes"
+import { currentNotes, deleteAll, drawPins, elementsInArea, load as loadNotes, noteForm, onAgent, onCount, poll as pollNotes, setPinsHidden, sidebarOpen, targetsFor, toggleSidebar } from "./notes"
 import { onRefresh } from "./refresh"
 import { cursor, icon, type IconName } from "./icons"
-import { box, copy, div, fixed, h, layer, mount, panel, storage, store, toast } from "./ui"
+import { activeInShadow, box, copy, div, fixed, h, layer, mount, panel, storage, store, toast } from "./ui"
 
 declare global {
   interface Window { __tensaku?: boolean }
@@ -42,8 +42,20 @@ const buttons = {
 }
 const notesBadge = h("span", { className: "badge", hidden: true })
 buttons.notes.append(notesBadge)
-const closeTool = h("button", { type: "button", className: "tool", "aria-label": "Close Tensaku" }, icon("close"), h("span", { className: "tip", "aria-hidden": "true" }, "Close", h("kbd", {}, "Esc")))
-const toolbar = div("toolbar", buttons.inspect, buttons.edit, buttons.notes, div("sep"), closeTool)
+function action(name: IconName, text: string, shortcut?: string) {
+  return h("button", { type: "button", className: "tool", "aria-label": text }, icon(name), h("span", { className: "tip", "aria-hidden": "true" }, text, shortcut ? h("kbd", {}, shortcut) : null))
+}
+const setTip = (button: HTMLElement, text: string) => {
+  button.setAttribute("aria-label", text)
+  button.querySelector(".tip")!.firstChild!.textContent = text
+}
+const pinsTool = action("eye", "Hide pins")
+const clearTool = action("trash", "Delete this page's notes")
+const closeTool = action("close", "Close", "Esc")
+closeTool.setAttribute("aria-label", "Close Tensaku")
+// Lit while an agent is connected over MCP (it called a tool in the last few seconds).
+const agentLight = h("span", { className: "agent-light", role: "status", hidden: true }, h("span", { className: "tip" }, "Agent connected"))
+const toolbar = div("toolbar", agentLight, buttons.inspect, buttons.edit, buttons.notes, div("sep"), pinsTool, clearTool, div("sep"), closeTool)
 toolbar.hidden = true
 const dock = div("dock", toolbar, corner)
 fixed.append(dock)
@@ -86,6 +98,46 @@ corner.addEventListener("click", () => {
 buttons.inspect.addEventListener("click", () => setMode(mode === "inspect" ? "off" : "inspect"))
 buttons.edit.addEventListener("click", () => setMode(mode === "edit" ? "off" : "edit"))
 buttons.notes.addEventListener("click", () => { toggleSidebar(); syncButtons() })
+let pinsHidden = storage("pinsHidden", false)
+function syncPins() {
+  setPinsHidden(pinsHidden)
+  pinsTool.setAttribute("aria-pressed", String(pinsHidden))
+  pinsTool.replaceChild(icon(pinsHidden ? "eye-off" : "eye"), pinsTool.querySelector("svg")!)
+  setTip(pinsTool, pinsHidden ? "Show pins" : "Hide pins")
+}
+pinsTool.addEventListener("click", () => { pinsHidden = !pinsHidden; store("pinsHidden", pinsHidden); syncPins() })
+
+// Deleting every note on the page takes a second click within three seconds.
+let confirmClear = 0
+clearTool.addEventListener("click", async () => {
+  const total = currentNotes().length
+  if (!total) { toast("No notes on this page"); return }
+  if (!confirmClear) {
+    clearTool.classList.add("confirm")
+    setTip(clearTool, `Delete ${total} ${total === 1 ? "note" : "notes"}? Click again`)
+    confirmClear = window.setTimeout(resetClear, 3000)
+    return
+  }
+  resetClear()
+  try {
+    const deleted = await deleteAll()
+    toast(`Deleted ${deleted} ${deleted === 1 ? "note" : "notes"}`)
+  } catch (error) {
+    toast((error as Error).message, { error: true })
+  }
+})
+function resetClear() {
+  clearTimeout(confirmClear)
+  confirmClear = 0
+  clearTool.classList.remove("confirm")
+  setTip(clearTool, "Delete this page's notes")
+}
+
+onAgent((agent) => {
+  agentLight.hidden = !agent.connected
+  corner.classList.toggle("agent", agent.connected)
+})
+
 closeTool.addEventListener("click", () => { toggleSidebar(false); setMode("off"); toolbar.hidden = true; corner.setAttribute("aria-expanded", "false") })
 
 onCount((n) => {
@@ -106,6 +158,7 @@ function syncButtons() {
 
 function setMode(next: Mode) {
   mode = next
+  if (next !== "inspect" && picked.length) clearPicked()
   if (next !== "off") { toolbar.hidden = false; corner.setAttribute("aria-expanded", "true") }
   clearHover()
   closeMenu()
@@ -168,6 +221,54 @@ function drawEditBoxes() {
     return
   }
   for (const element of elements) editBoxes.push(...box(documentRect(element), "edit"))
+}
+
+// Shift-click in select mode picks several elements for one note --------------------------------
+
+let picked: Element[] = []
+let pickedBoxes: HTMLElement[] = []
+let pickBar: HTMLElement | null = null
+
+function clearPicked() {
+  picked = []
+  drawPicked()
+}
+
+function togglePicked(element: Element) {
+  clearHover()
+  const index = picked.indexOf(element)
+  if (index >= 0) picked.splice(index, 1)
+  else picked.push(element)
+  drawPicked()
+}
+
+function pickedRect() {
+  const rects = picked.map(documentRect)
+  const left = Math.min(...rects.map((r) => r.left))
+  const top = Math.min(...rects.map((r) => r.top))
+  return new DOMRect(left, top, Math.max(...rects.map((r) => r.right)) - left, Math.max(...rects.map((r) => r.bottom)) - top)
+}
+
+function notePicked() {
+  if (!picked.length) return
+  const elements = picked
+  const targets = elements.flatMap((element) => targetsFor(element).slice(0, 1))
+  pickBar?.remove()
+  pickBar = null
+  noteForm(pickedRect(), targets, {}, clearPicked, `${elements.length} ${elements.length === 1 ? "element" : "elements"}`)
+}
+
+function drawPicked() {
+  pickedBoxes.forEach((b) => b.remove())
+  pickBar?.remove()
+  pickBar = null
+  pickedBoxes = picked.flatMap((element, index) => box(documentRect(element), "selected", [`${index + 1}  ${tagLabel(element)}`, ""]))
+  if (!picked.length) return
+  pickBar = panel(documentRect(picked[picked.length - 1]), "menu pick",
+    h("h3", {}, `${picked.length} selected`, h("span", { className: "where" }, "Shift-click to add or remove")),
+    h("button", { type: "button", onclick: notePicked }, icon("pad"), h("span", {}, "Add note"), h("kbd", {}, "N")),
+    h("button", { type: "button", onclick: clearPicked }, icon("close"), h("span", {}, "Clear"), h("kbd", {}, "Esc")))
+  pickBar.dataset.tensakuMenu = ""
 }
 
 // Menu after a click in inspect mode ----------------------------------------------------------------
@@ -248,6 +349,8 @@ document.addEventListener("mousemove", (event) => {
 
 document.addEventListener("mousedown", (event) => {
   if (mode !== "inspect" || event.button !== 0 || isUi(event.target as Element) || menu || isEditing()) return
+  // Shift would extend the text selection; in select mode it picks elements instead.
+  if (event.shiftKey) { event.preventDefault(); return }
   drag = { x: event.pageX, y: event.pageY, area: null }
 }, true)
 
@@ -305,6 +408,8 @@ document.addEventListener("click", (event) => {
     if (kind) edit(element, kind)
     return
   }
+  if (event.shiftKey) { togglePicked(element); return }
+  if (picked.length) clearPicked()
   const selection = getSelection()?.toString().trim()
   openMenu(element, selection && element.contains(getSelection()!.anchorNode) ? selection : undefined)
 }, true)
@@ -324,6 +429,10 @@ document.addEventListener("keydown", (event) => {
     return
   }
   if (menu && menuKeys) menuKeys(event)
+  if (pickBar && !isEditing() && !activeInShadow()?.matches("textarea")) {
+    if (event.key.toLowerCase() === "n" && !event.metaKey && !event.ctrlKey && !event.altKey) { event.preventDefault(); notePicked(); return }
+    if (event.key === "Escape") { clearPicked(); return }
+  }
   if (event.key === "Escape") {
     if (menu) { closeMenu(); return }
     if (isEditing()) return
@@ -336,13 +445,14 @@ document.addEventListener("keydown", (event) => {
 let redraw = 0
 function scheduleRedraw() {
   cancelAnimationFrame(redraw)
-  redraw = requestAnimationFrame(() => { drawPins(); drawEditBoxes() })
+  redraw = requestAnimationFrame(() => { drawPins(); drawEditBoxes(); if (picked.length) drawPicked() })
 }
 addEventListener("resize", () => { placeDock(); scheduleRedraw() })
 
 let path = location.pathname
 function pageChanged() {
   closeMenu()
+  clearPicked()
   closeEditor()
   clearHover()
   if (location.pathname !== path) { path = location.pathname }
@@ -366,6 +476,8 @@ function boot() {
   mount()
   placeDock()
   loadNotes()
+  pollNotes()
+  syncPins()
   // Turbo replaces <body>, not <html>; put the overlay back if something removed it.
   new MutationObserver(() => mount()).observe(document.documentElement, { childList: true })
 }

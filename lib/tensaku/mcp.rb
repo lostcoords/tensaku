@@ -11,11 +11,11 @@ module Tensaku
     TOOLS = [
       {
         name: "list_notes",
-        description: "List Tensaku notes left on pages of this Rails app. Each note has a comment and targets with the exact file and line range that rendered the element. Defaults to notes that need work (open and question).",
+        description: "List Tensaku notes left on pages of this Rails app. Each note has a comment and targets with the exact file and line range that rendered the element. Defaults to notes that need work (open, working and question).",
         inputSchema: {
           type: "object",
           properties: {
-            status: { type: "string", enum: %w[open question resolved active all], description: "active (default) means open or question." },
+            status: { type: "string", enum: %w[open working question resolved active all], description: "active (default) means open, working or question." },
             url: { type: "string", description: "Only notes left on this path, for example /about." }
           }
         }
@@ -23,6 +23,11 @@ module Tensaku
       {
         name: "get_note",
         description: "Get one Tensaku note by id.",
+        inputSchema: { type: "object", properties: { id: { type: "string" } }, required: [ "id" ] }
+      },
+      {
+        name: "start_note",
+        description: "Mark a note as being worked on before you make the change. The pin on the page shows that an agent has picked it up. Resolve it with resolve_note when done.",
         inputSchema: { type: "object", properties: { id: { type: "string" } }, required: [ "id" ] }
       },
       {
@@ -76,7 +81,7 @@ module Tensaku
       when "initialize" then initialize_result(message.dig("params", "protocolVersion"))
       when "ping" then {}
       when "tools/list" then { tools: TOOLS }
-      when "tools/call" then call_tool(message.dig("params", "name"), message.dig("params", "arguments") || {})
+      when "tools/call" then Notes.agent_seen!.then { call_tool(message.dig("params", "name"), message.dig("params", "arguments") || {}) }
       else return error_payload(id, -32601, "Method not found: #{message["method"]}")
       end
       { jsonrpc: "2.0", id:, result: }
@@ -95,12 +100,15 @@ module Tensaku
       case name
       when "list_notes"
         status = arguments["status"].presence || "active"
-        statuses = { "active" => %w[open question], "all" => nil }.fetch(status, status)
+        statuses = { "active" => Notes::ACTIVE, "all" => nil }.fetch(status, status)
         notes = Notes.list(url: arguments["url"].presence, status: statuses)
         tool_result(Notes.to_markdown(notes), notes:, checked_at: Time.now.utc.iso8601)
       when "get_note"
         note = Notes.find(arguments["id"])
         tool_result(Notes.note_markdown(note), note:)
+      when "start_note"
+        note = Notes.update(arguments["id"], status: "working")
+        tool_result("Started note #{note["id"]}. Resolve it with resolve_note when the change is made.", note:)
       when "resolve_note"
         note = Notes.update(arguments["id"], status: "resolved", reply: arguments["reply"])
         tool_result("Resolved note #{note["id"]}.", note:)

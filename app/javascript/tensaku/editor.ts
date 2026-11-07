@@ -87,13 +87,26 @@ function chip(label: string, title?: string) {
   return h("span", { className: "chip", title, contenteditable: "false" }, label)
 }
 
-// The floating editor over the element, styled like it, with a status bar.
+// The colour behind an element: the first ancestor with a background that is mostly opaque.
+function backgroundOf(element: Element) {
+  for (let node: Element | null = element; node; node = node.parentElement) {
+    const color = getComputedStyle(node).backgroundColor
+    const alpha = color.match(/rgba?\([^)]*,\s*([\d.]+)\)/)?.[1]
+    if (color !== "transparent" && (alpha === undefined || Number(alpha) > 0.6)) return color
+  }
+  return "#fff"
+}
+
+// The editor sits over the element in the page's own colours and type, so the text looks edited in
+// place. Its padding is pulled out of the way so the source lines up with the rendered text. The
+// status bar floats below it, in the toolbar's material.
+const INSET = { x: 11.5, y: 9.5 }
 function frame(element: Element, surface: HTMLElement, info: string, save: () => Promise<void>, extra: Node[] = [], warning?: string) {
   const rect = contentRect(element)
   const computed = getComputedStyle(element)
   Object.assign(surface.style, {
     fontFamily: computed.fontFamily, fontSize: computed.fontSize, fontWeight: computed.fontWeight,
-    lineHeight: computed.lineHeight, letterSpacing: computed.letterSpacing, textAlign: computed.textAlign, color: "var(--ink)",
+    lineHeight: computed.lineHeight, letterSpacing: computed.letterSpacing, textAlign: computed.textAlign, color: computed.color,
   })
   surface.classList.add("surface")
 
@@ -119,10 +132,12 @@ function frame(element: Element, surface: HTMLElement, info: string, save: () =>
       div("actions", h("button", { onclick: close, type: "button" }, "Cancel"), h("button", { className: "primary", onclick: saveAndClose, type: "button" }, "Save"))))
   container.setAttribute("role", "dialog")
   container.setAttribute("aria-label", "Tensaku editor")
-  container.style.minWidth = `${Math.max(rect.width, 240)}px`
-  container.style.maxWidth = `${Math.max(rect.width + 40, 480)}px`
+  container.style.background = backgroundOf(element)
+  container.style.color = computed.color
+  container.style.minWidth = `${Math.max(rect.width + INSET.x * 2, 240)}px`
+  container.style.maxWidth = `${Math.max(rect.width + INSET.x * 2, 480)}px`
   layer.append(container)
-  place(container, rect, true)
+  place(container, new DOMRect(rect.left - INSET.x, rect.top - INSET.y, rect.width + INSET.x * 2, rect.height), true)
 
   const keys = (event: KeyboardEvent) => {
     if (!container.isConnected) return

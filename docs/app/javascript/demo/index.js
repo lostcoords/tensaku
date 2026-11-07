@@ -137,14 +137,20 @@ function renderAgent(window_, server) {
   if (button) button.disabled = !open.some((note) => note.status === "open")
 }
 
-// What a coding agent does through MCP's resolve_note: it replies, and the pin turns green.
-function resolveAsAgent(server) {
-  for (const note of server.notes.filter((n) => n.status === "open")) {
+// What a coding agent does through MCP: start_note (the pin shows it is being worked on), then
+// resolve_note with a reply, and the pin turns green.
+async function resolveAsAgent(server) {
+  const notes = server.notes.filter((n) => n.status === "open")
+  server.agentConnected = true
+  for (const note of notes) server.updateNote(note.id, { status: "working" })
+  // The overlay reloads its notes on Turbo's page load.
+  document.dispatchEvent(new Event("turbo:load"))
+  await new Promise((resolve) => setTimeout(resolve, 1400))
+  for (const note of notes) {
     const target = note.targets[0]
     const where = target?.file ? `${target.file}:${target.range}` : "the page"
     server.updateNote(note.id, { status: "resolved", reply: `Done. I changed ${where} (this is the demo, so nothing was written).` })
   }
-  // The overlay reloads its notes on Turbo's page load.
   document.dispatchEvent(new Event("turbo:load"))
 }
 

@@ -79,9 +79,9 @@ module Tensaku
         written(Source::Markdown.new(params["range"]).edit(original: params["original"], text: params["text"]), :markdown)
       in [ "GET", "/notes" ]
         Notes.prune!
-        json(notes: Notes.list(url: params["url"].presence, status: params["status"].presence), open: Notes.list(status: %w[open question]).size)
+        json(notes: Notes.list(url: params["url"].presence, status: params["status"].presence), open: Notes.list(status: Notes::ACTIVE).size, agent: Notes.agent)
       in [ "GET", "/notes.md" ]
-        notes = params["id"].present? ? [ Notes.find(params["id"]) ] : Notes.list(url: params["url"].presence, status: params["status"].presence || %w[open question])
+        notes = params["id"].present? ? [ Notes.find(params["id"]) ] : Notes.list(url: params["url"].presence, status: params["status"].presence || Notes::ACTIVE)
         [ 200, { "content-type" => "text/markdown; charset=utf-8" }, [ Notes.to_markdown(notes) ] ]
       in [ "POST", "/notes" ]
         json(Notes.create(params), 201)

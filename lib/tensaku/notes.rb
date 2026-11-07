@@ -1,13 +1,19 @@
 require "json"
 require "time"
+require "fileutils"
 
 module Tensaku
   # Notes are one JSON file each in tmp/tensaku/notes: local, ignored by git, cleared by tmp:clear.
   #
   # A note is open until an agent (or you) resolves it with a reply, or sets it to `question` with a
-  # reply asking for more detail. Resolved notes are deleted after Tensaku.config.prune_after.
+  # reply asking for more detail. An agent sets `working` when it picks a note up. Resolved notes are
+  # deleted after Tensaku.config.prune_after.
   module Notes
-    STATUSES = %w[open question resolved].freeze
+    STATUSES = %w[open working question resolved].freeze
+    # The statuses that still need something from an agent or from you.
+    ACTIVE = %w[open working question].freeze
+    # An agent counts as connected for this long after its last MCP call.
+    AGENT_WINDOW = 20
     ID = /\A[a-z0-9]{4,12}\z/
     TARGET_KINDS = %w[element text translation markdown].freeze
 
@@ -91,12 +97,32 @@ module Tensaku
     # notes that are new or changed. Polls the directory, which is plenty for one person and an agent.
     def watch(since:, timeout: 60, interval: 0.5)
       deadline = monotonic + timeout
+      touched = monotonic
       loop do
+        if monotonic - touched >= 5
+          agent_seen!
+          touched = monotonic
+        end
         fresh = all.select { it["status"] == "open" && Time.iso8601(it["updated_at"]) > since }
         return fresh if fresh.any? || monotonic >= deadline
 
         sleep interval
       end
+    end
+
+    # Every MCP call touches a file next to the notes, so the overlay can show that an agent is
+    # connected, whichever server process it talks to.
+    def agent_seen!
+      dir.mkpath
+      FileUtils.touch(dir.join(".agent"))
+    end
+
+    def agent
+      path = dir.join(".agent")
+      return { "connected" => false, "seen_at" => nil } unless path.file?
+
+      seen = path.mtime
+      { "connected" => Time.now - seen < AGENT_WINDOW, "seen_at" => seen.utc.iso8601 }
     end
 
     def to_markdown(notes)

@@ -14,7 +14,7 @@ one or more targets with the source position Herb stamped on the element.
 Use whichever is available, in this order:
 
 1. **MCP**: the `tensaku` server (`/__tensaku/mcp` on the dev server). Tools: `list_notes`, `get_note`,
-   `resolve_note`, `ask_question`, `watch_notes`, `current_selection`. The dev server must be running.
+   `start_note`, `resolve_note`, `ask_question`, `watch_notes`, `current_selection`. The dev server must be running.
 2. **Files**: `tmp/tensaku/notes/*.json`, one note per file. Read them directly when the server isn't
    running. Edit `status` and `reply` in the file to resolve one.
 
@@ -46,7 +46,7 @@ A note looks like this:
 ## Working through notes
 
 1. List the open notes (`list_notes`, or read the files with `"status": "open"`).
-2. For each note, open the target file at the range, read the comment, and make the change. Look at
+2. Call `start_note` on the note you take, so the person sees it's being worked on. Then open the target file at the range, read the comment, and make the change. Look at
    `context.partials` when the fix belongs in a parent template, and at the translation target when the
    text comes from a locale file (change every locale that needs it).
 3. If the comment is ambiguous, don't guess: call `ask_question` with a short, specific question. The

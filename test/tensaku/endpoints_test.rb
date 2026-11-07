@@ -87,6 +87,7 @@ end
 
     listed = json(request("GET", "/notes?url=/about"))
     assert_equal [ created["id"] ], listed["notes"].map { it["id"] }
+    assert_equal false, listed.dig("agent", "connected")
     assert_equal 1, listed["open"]
 
     markdown = request("GET", "/notes.md?url=/about").body

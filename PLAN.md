@@ -465,6 +465,11 @@ adds a second one.
   can't read it from the page. Loopback only, plus refusing a foreign `Origin` or non-local `Host`.
   It reads and updates notes, never source files. Every endpoint the overlay calls still needs the
   token.
+- **Agent feedback (added 2026-11-07):** no "send to agent" step: a saved note is already a file the
+  agent can read or wait for. Instead the page shows what the agent does: a `working` status set by
+  `start_note`, an "agent connected" light (any MCP call touches `tmp/tensaku/notes/.agent`; connected
+  means touched in the last 20 seconds), and a poll of the notes every four seconds while the tab is
+  visible. Editing a note sets it back to `open` and clears the reply.
 - **Stale check (refined 2026-11-07):** the server's byte comparison plus an overlay check that the
   file's static text still matches the rendered element when the editor opens.
 

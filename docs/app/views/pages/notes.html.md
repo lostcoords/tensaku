@@ -12,11 +12,17 @@ Click the corner button and choose **Select**, or press Alt+Shift+T. Hover to se
 
 Drag in select mode to note an area. The note collects every stamped element at least half inside it.
 
+Shift-click elements in select mode to put several of them in one note. Press **N** or **Add note** when they are all picked, or **Esc** to clear them.
+
 ## Follow up
 
-Each note shows as a pin on the element it points at. The **Notes** panel lists the notes on the current page. From there you can copy them as Markdown, resolve or delete them, and answer questions.
+Each note shows as a pin on the element it points at. The **Notes** panel lists the notes on the current page. From there you can copy them as Markdown, edit, resolve or delete them, and answer questions. Editing a note sets it back to `open` and clears the agent's reply, so the agent picks it up again.
 
-A note is `open`, `question` (the agent asked something back, and the question shows on the page) or `resolved`. A resolved note carries the agent's reply and its pin turns green, so you can check the change and dismiss it. Resolved notes are deleted after three days.
+The toolbar hides and shows the pins, and deletes every note on the page after a second click.
+
+A note is `open`, `working` (an agent picked it up), `question` (the agent asked something back, and the question shows on the page) or `resolved`. A resolved note carries the agent's reply and its pin turns green, so you can check the change and dismiss it. Resolved notes are deleted after three days.
+
+The page asks for the notes every four seconds while the tab is visible, so pins change as the agent works. A green light at the start of the toolbar, and on the corner button, shows that an agent called one of the MCP tools in the last 20 seconds.
 
 ## Where notes live
 

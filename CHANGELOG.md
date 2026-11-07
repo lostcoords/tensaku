@@ -17,5 +17,13 @@
   red pen to edit, sticky-note pad for notes) with tooltips, a dark element menu, notes on Post-it
   paper with a folded corner, and round pins that turn green with a drawn check when resolved. The page
   cursor shows the selected tool. Motion is off with `prefers-reduced-motion`.
+- Notes can be edited from their card. An edited note goes back to `open` and loses the old reply.
+- A `working` status and the `start_note` MCP tool, so the page shows when an agent picks a note up.
+  `GET /notes` returns `agent.connected`, true for 20 seconds after any MCP call, and the toolbar shows
+  it as a green light. The overlay polls the notes every four seconds while the tab is visible.
+- Shift-click in select mode picks several elements for one note.
+- Toolbar buttons to hide the pins and to delete the page's notes (after a second click).
+- The editor takes the page's background, text colour and type and sits over the element, with its
+  status bar floating below in the toolbar's dark material.
 - Page update after a save: same-source nodes right away, then refetch and idiomorph.
 - `bin/rails generate tensaku:install`.

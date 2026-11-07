@@ -26,8 +26,9 @@ Every note records the file and line of each element it points at, so an agent c
 
 | Tool | Does |
 |---|---|
-| `list_notes` | Lists notes by status: `open`, `question`, `resolved`, `active` or `all` |
+| `list_notes` | Lists notes by status: `open`, `working`, `question`, `resolved`, `active` or `all` |
 | `get_note` | Returns one note |
+| `start_note` | Marks a note as being worked on; the pin shows it |
 | `resolve_note` | Marks a note resolved, with a reply for the person |
 | `ask_question` | Asks the person something; the question shows on the page |
 | `watch_notes` | Waits up to 300 seconds for new or changed notes |

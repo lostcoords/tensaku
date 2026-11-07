@@ -44,9 +44,11 @@ anywhere). Click it for the toolbar, or press **Alt+Shift+T** to go straight to 
   - **Add note**: write what should change. Select some text first to note just that text.
   - **Edit text** / **Edit attributes**.
 - **Drag** in select mode to note an area. The note collects every stamped element inside it.
+- **Shift-click** elements in select mode to put several in one note.
 - **Alt/Option-click** any text to edit it right away, in any mode.
 - **Edit**: outlines every editable text on the page. A normal click edits.
-- **Notes**: the notes on this page, copy them as Markdown, resolve, delete or answer questions.
+- **Notes**: the notes on this page, copy them as Markdown, edit, resolve, delete or answer questions.
+- **Pins** hides and shows the pins; the bin deletes every note on the page after a second click.
 
 The editor shows the source, never the rendered text. In `Hello <%= user.name %>!` you edit `Hello ` and
 `!`; the Ruby shows as a locked chip. Translations show `%{name}` interpolations as chips, and
@@ -101,13 +103,15 @@ An agent gets them four ways:
 
 - **Files**: read `tmp/tensaku/notes/*.json`.
 - **MCP**: `http://localhost:3000/__tensaku/mcp` (Streamable HTTP). Tools: `list_notes`, `get_note`,
-  `resolve_note`, `ask_question`, `watch_notes` (waits for new notes) and `current_selection`. The
+  `start_note`, `resolve_note`, `ask_question`, `watch_notes` (waits for new notes) and `current_selection`. The
   generator adds it to `.mcp.json`.
 - **Clipboard**: copy one note or all open notes as Markdown from the page, for any chat.
 - **Claude Code skill**: `.claude/skills/tensaku/SKILL.md` explains how to find, act on and resolve notes.
 
-A note is `open`, `question` (the agent asked something back; the question shows on the page) or
-`resolved` (with a reply; the pin turns green so you can check the change, then dismiss it).
+A note is `open`, `working` (an agent called `start_note`), `question` (the agent asked something back;
+the question shows on the page) or `resolved` (with a reply; the pin turns green so you can check the
+change, then dismiss it). The page checks the notes every four seconds while it's visible, and a green
+light on the toolbar shows that an agent called an MCP tool in the last 20 seconds.
 
 ## Producers and attributes
 

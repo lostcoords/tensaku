@@ -109,7 +109,8 @@ export class DemoServer {
 
   listNotes(url) {
     const notes = this.notes.filter((note) => !url || note.url === url)
-    return { notes: clone(notes), open: this.notes.filter((n) => n.status === "open" || n.status === "question").length }
+    const open = this.notes.filter((n) => n.status !== "resolved").length
+    return { notes: clone(notes), open, agent: { connected: Boolean(this.agentConnected), seen_at: null } }
   }
 
   notesFor(params) {
