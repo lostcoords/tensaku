@@ -25,12 +25,11 @@ html[data-theme="dark"] {
 /* Other combinations, picked from the development-only theme picker (shared/_theme_picker). */
 html[data-theme="dark"][data-wada="117"] { --wada-ground: #111314; --wada-red: #cc1236; --wada-accent: #e98a9b; }
 html[data-theme="dark"][data-wada="221"] { --wada-ground: #111314; --wada-red: #a62c37; --wada-accent: #b6bfc1; }
-html[data-theme="dark"][data-wada="245"] { --wada-ground: #12354e; --wada-red: #a62c37; --wada-accent: #819238; }
-html[data-theme="dark"][data-wada="303"] { --wada-ground: #253122; --wada-red: #f15a30; --wada-accent: #fbe6a0; }
 html[data-theme="dark"][data-wada="313"] { --wada-ground: #111314; --wada-red: #cc1236; --wada-accent: #fff200; }
-html[data-theme="dark"][data-wada="325"] { --wada-ground: #112f2c; --wada-red: #da525d; --wada-accent: #e2b540; }
-html[data-theme="dark"][data-wada="331"] { --wada-ground: #1e0e3f; --wada-red: #c53c69; --wada-accent: #9a72aa; }
-html[data-theme="dark"][data-wada="332"] { --wada-ground: #253122; --wada-red: #cb2f43; --wada-accent: #f58e84; }
+html[data-theme="dark"][data-wada="216"] { --wada-ground: #111314; --wada-red: #eb5324; --wada-accent: #489b6e; }
+html[data-theme="dark"][data-wada="269"] { --wada-ground: #111314; --wada-red: #802626; --wada-accent: #bb7125; }
+html[data-theme="dark"][data-wada="298"] { --wada-ground: #111314; --wada-red: #f15a30; --wada-accent: #f8ed43; }
+html[data-theme="dark"][data-wada="340"] { --wada-ground: #111314; --wada-red: #f15a30; --wada-accent: #00b49b; }
 
 html[data-theme="dark"] {
   /* A lighter red for small text, which the darker reds can't carry on the ground. */
@@ -70,13 +69,13 @@ html[data-theme="dark"] {
   left: 1rem;
   bottom: 1rem;
   z-index: 60;
-  width: 18rem;
+  width: 15rem;
   box-shadow: 0 1rem 2rem -1rem rgb(0 0 0 / 0.6);
 }
 
 .theme-picker__list {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 0.25rem;
 }
 

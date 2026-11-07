@@ -10,6 +10,28 @@ whimsical wherever that makes an action clearer or more enjoyable.
 This is the direction for the design pass after the core editing workflow is
 usable. The examples below describe proposed behavior, not features already built.
 
+## Primary UI reference
+
+The selected annotation screenshot establishes the working overlay's structure:
+a floating toolbar, area selection, and a nearby comment editor, with more
+stationery character and Post-it notes for Tensaku.
+
+Keep that compact structure: a small rounded toolbar with grouped actions, a
+light translucent selection boundary, and a note editor beside the selected
+element or area. Soft shadows lift the floating controls above the page. The
+comment editor has one clear field and an obvious primary action. Give the
+selection room to remain visible while the note is open.
+
+Explore a dark, neutral toolbar that makes the ink colors and active tool easy
+to recognize. Note cards can bring in warm Post-it yellow, muted pink, or mint,
+with a small folded corner or a slightly lifted paper edge. A fresh note can
+settle into place; a resolved note can receive a handwritten check. Keep editing
+fields and text aligned even when a decorative corner or paper edge is irregular.
+
+The pencil-case idea lives in the tool silhouettes, ink, note cards, and small
+physical responses within this compact interface. A large illustrated desk or
+worktable belongs in marketing artwork rather than taking over the working page.
+
 ## The pencil case
 
 Give the tools the shapes and materials of real stationery. A fine pen has a

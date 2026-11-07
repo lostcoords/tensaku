@@ -35,31 +35,43 @@ Click an element on the page to find or open the code that rendered it.
 ## Agent toolbars and notes
 
 Point at something on the page, write what should change, and an agent gets the context.
+This shortlist includes permissively licensed implementation references. Licenses and
+documented features were checked on 2026-11-07; these tools have not been tested locally.
+The borrowing suggestions are proposals for Tensaku.
 
 | Project | Stack | How it works | License | For Tensaku |
 |---|---|---|---|---|
-| [Agentation](https://github.com/benjitaylor/agentation) + `agentation-mcp` | React | Click, select text or drag an area, write a note. MCP: pending notes, resolve, watch; the agent can acknowledge or ask a question. | PolyForm Shield (no competing products, so no forking) | 🔧 Note model and MCP tools (`watch`, question status). Code not reused. |
-| [agentation-rails](https://github.com/yakschuss/agentation-rails) | Rails | Agentation port injected by Rack. Selectors, partial paths from Rails' filename comments, Stimulus controllers. Copy as Markdown. | PolyForm Shield | 🔧 Proof that Rack injection works. Stimulus and Turbo Frame context in references. |
-| [agentation gem](https://github.com/c-sonnier/agentation_gem) | Rails | Ruby port of the toolbar, selectors only | — | ❌ |
-| [Tidewave](https://tidewave.ai) | Rails, Phoenix, JS | Browser toolbar: click adds an element to the prompt for Tidewave's own agent, Ctrl-click opens the template. [tidewave_rails](https://github.com/tidewave-ai/tidewave_rails) is an MCP server (eval, logs, SQL, docs, source locations). | Toolbar paid, MCP gem Apache-2.0 | 🔧 Safety model (dev only, local only, error outside reloading environments). The MCP gem works next to Tensaku. |
-| [Vibe Annotations](https://github.com/RaphaelRegnier/vibe-annotations) | Any (Chrome extension) | Notes on localhost pages, local MCP server, "watch mode" loop | PolyForm Shield | 🔧 Watch loop. |
-| [ui-annotator-mcp](https://github.com/mcpware/ui-annotator-mcp) | Any | Reverse proxy injects an annotation script, MCP tools to read elements | MIT | — |
-| [Pinagent](https://github.com/Pinagent/pinagent) | Vite, Next | Comment on an element, the agent gets `file:line` and a screenshot | Apache-2.0 | — |
-| Pinpoint ([Cursor forum](https://forum.cursor.com/t/pinpoint-click-the-element-say-what-should-change-and-cursor-gets-the-context/173643)) | Any (extension) | Selector, styles, component chain, a cropped screenshot, MCP | — | — Several products share the name. |
-| [Pointa](https://www.pointa.dev/), [annotaKit](https://github.com/nodestarQ/annotaKit) | Any, Svelte | Similar point-and-annotate tools | — | — |
-| [Stagewise](https://github.com/stagewise-io/stagewise) | Any | Started as a toolbar sending element context to Cursor or Windsurf, now its own IDE | AGPL-3.0 | ❌ |
-| [Windsurf Previews](https://docs.windsurf.com/windsurf/previews), [Codex browser](https://developers.openai.com/codex/app/browser), [Cursor Design Mode](https://cursor.com/changelog/3-0) | Any | Select or comment on elements inside the agent's own browser | Paid | 👀 Where the big tools are going. |
+| [Pinagent](https://github.com/Pinagent/pinagent) | React, Vue, and Svelte through Vite, Next.js, Nuxt, and SvelteKit; also React Native and Expo | Tags web elements with source positions. Captures comments with `file:line` and screenshots, stores them in local SQLite, and exposes a feedback queue over MCP. | [Apache-2.0](https://github.com/Pinagent/pinagent/blob/main/LICENSE) for `packages/`, `apps/cli/`, and `examples/` | 🔧 First reference for source-aware feedback records, persistence, screenshots, and resolution. Use the local packages as the implementation reference. |
+| [AnnotaKit](https://github.com/nodestarQ/annotaKit) | Svelte 5 | Floating toolbar, element and text selection, multi-select, comments, animation freeze, component context, Markdown export, and an MCP bridge. Agents can acknowledge, reply, resolve, dismiss, and watch. | [MIT](https://github.com/nodestarQ/annotaKit/blob/main/LICENSE) | 🔧 First reference for the annotation interaction: select, comment, preview, edit, and resolve. Also study its compact and detailed export formats. |
+| [Pointa](https://github.com/AmElmo/pointa) ([website](https://www.pointa.dev/)) | Framework-independent Chrome extension for localhost | Captures annotations, element structure, styles, screenshots, and bug timelines. An MCP server gives agents access to the feedback. Its design mode previews visual changes for an agent to apply. | [MIT](https://github.com/AmElmo/pointa/blob/main/LICENSE) | 🔧 Context capture and batch review. Keep feedback capture separate from applying an edit to source. |
+| [UI Annotator MCP](https://github.com/mcpware/ui-annotator-mcp) | Framework-independent reverse proxy | Injects hover labels into a page and exposes element inspection through MCP without a browser extension. | [MIT](https://github.com/mcpware/ui-annotator-mcp/blob/main/LICENSE) | 🔧 Lightweight element identification and inspection. Useful context alongside source locations. |
+
+For fast source capture, also study [React Grab](https://github.com/aidenybai/react-grab)
+and its [MIT license](https://github.com/aidenybai/react-grab/blob/main/LICENSE).
+Hover an element, press Cmd+C or Ctrl+C, and paste its element and component source
+context into an agent. Its selection primitives cover hit testing, source context,
+page freezing, clipboard access, and editor navigation. This is a reference for a
+low-friction "copy reference" action.
+
+For Vue, Svelte, React, Astro, Solid, and other source inspectors, study
+[Code Inspector](https://github.com/zh-lx/code-inspector)
+([MIT](https://github.com/zh-lx/code-inspector/blob/main/LICENSE)) and
+[LocatorJS](https://github.com/infi-pc/locatorjs)
+([MIT](https://github.com/infi-pc/locatorjs/blob/master/LICENSE)). Both connect a
+rendered element to its source. Borrow hover outlines, keyboard activation, and
+editor navigation, while retaining Herb's source stamps in Tensaku.
 
 ## Editing in the page, written back to source
 
-| Project | Stack | How it works | For Tensaku |
-|---|---|---|---|
-| [Onlook](https://github.com/onlook-dev/onlook) | React, Next, Tailwind | Visual editor that writes changes to code. Elements carry a `data-oid` ([LogRocket](https://blog.logrocket.com/onlook-react-visual-editor)). | 🔧 Proof that attribute-based write-back works. Much bigger scope (layout, styles). |
-| [TinaCMS](https://tina.io/docs/contextual-editing/tinafield) | React, Markdown/JSON in git | `data-tina-field` on rendered elements, a click opens the field | 🔧 Explicit attribute for cases the automatic mapping misses (`data-tensaku-group`). |
-| [Sanity Presentation](https://www.sanity.io/docs/visual-editing/stega) | Any frontend, Sanity content | Source location hidden in each string as zero-width characters ("stega"). `stegaClean` before comparing values. | 🔧 Idea for translation markers. Tensaku uses the simpler i18n_proofreading markers. |
-| [Vercel Content Link](https://payloadcms.com/docs/integrations/vercel-content-link) | Any, CMS content | Same stega technique. `data-vercel-edit-target` widens a highlight. | 🔧 Highlight grouping. |
-| [Builder.io Projects](https://builder.io/c/docs/projects-local-repo) | React | Visual editor on a local repo, AI applies the change | ❌ Paid, AI regenerates instead of splicing. |
-| [v0 Design Mode](https://community.vercel.com/t/edit-ui-with-v0s-design-mode/17477) | v0 projects | Edit text and styles, the agent regenerates code | ❌ Same. |
+| Project | Stack | How it works | License | For Tensaku |
+|---|---|---|---|---|
+| [Onlook](https://github.com/onlook-dev/onlook) | Open-source edition focuses on Next.js and Tailwind | Instruments code to map rendered elements to source. Previews visual edits in an iframe and applies them to code. Includes element selection, layout and style editing, code navigation, and checkpoints. | [Apache-2.0](https://github.com/onlook-dev/onlook/blob/main/LICENSE.md) | 🔧 First reference for selection, edit feedback, preview, and undo. Adapt the interaction to Tensaku's byte splices rather than adopting its full editor scope. |
+| [TinaCMS](https://tina.io/docs/contextual-editing/tinafield) ([source](https://github.com/tinacms/tinacms)) | React, Markdown and JSON content | `data-tina-field` maps rendered content to an editable field in a sidebar. | [Apache-2.0](https://github.com/tinacms/tinacms/blob/main/LICENSE) | 🔧 Clear "this text belongs to this field" feedback and explicit grouping when automatic source mapping is insufficient. |
+| [Sanity Visual Editing](https://github.com/sanity-io/visual-editing) | React, Vue, Svelte, Astro, and vanilla JavaScript | Clickable preview overlays navigate to a document and field. Includes a standalone build for non-React environments. | [MIT](https://github.com/sanity-io/visual-editing/blob/main/LICENSE) | 🔧 Overlay placement and field targeting. Its [stega technique](https://www.sanity.io/docs/visual-editing/stega) is background for translation markers; Tensaku uses the simpler i18n_proofreading markers. |
+
+Start with Pinagent for source-aware feedback, AnnotaKit for annotation interactions,
+React Grab for quick capture, and Onlook for direct-editing feedback. Keep Tensaku's
+template, translation, and Markdown writes deterministic and limited to their source pieces.
 
 ## Translations in the page
 
@@ -74,7 +86,7 @@ Point at something on the page, write what should change, and an agent gets the 
 
 | Project | What it is |
 |---|---|
-| [tidewave_rails](https://github.com/tidewave-ai/tidewave_rails) | MCP server for a running Rails app: eval, logs, SQL, docs, source locations |
+| [tidewave_rails](https://github.com/tidewave-ai/tidewave_rails) | [Apache-2.0](https://github.com/tidewave-ai/tidewave_rails/blob/main/LICENSE) MCP server for a running Rails app: eval, logs, SQL, docs, source locations. Study the open-source server's development-only integration and runtime context. |
 | [rails-mcp-server](https://github.com/maquina-app/rails-mcp-server) | MCP server for Rails projects |
 | [rails-ai-context](https://github.com/crisnahine/rails-ai-context) | Rails context for agents |
 | [herb#1755 Herb MCP proposal](https://github.com/marcoroth/herb/issues/1755) | Proposed static-analysis MCP tools for ERB (render graph, partial interfaces). Not accepted yet. |
