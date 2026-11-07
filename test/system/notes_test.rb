@@ -11,7 +11,7 @@ class NotesTest < ApplicationSystemTestCase
 
   def select_mode
     overlay.find(".corner").click
-    overlay.find(".toolbar button", text: "Select").click
+    overlay.find(".toolbar button[aria-label='Select']").click
   end
 
   test "the overlay loads with a corner button and the shortcut toggles select mode" do
@@ -21,7 +21,7 @@ class NotesTest < ApplicationSystemTestCase
     assert overlay.has_css?(".corner", text: "添")
     assert overlay.has_no_css?(".toolbar", visible: true)
     find("body").send_keys([ :alt, :shift, "T" ])
-    assert overlay.has_css?(".toolbar button[aria-pressed=true]", text: "Select")
+    assert overlay.has_css?(".toolbar button[aria-pressed=true][aria-label=Select]")
   end
 
   test "copy reference gives the file, line, partial chain, Stimulus controller" do
@@ -117,7 +117,7 @@ class NotesTest < ApplicationSystemTestCase
     wait_for_overlay
     stub_clipboard
     overlay.find(".corner").click
-    overlay.find(".toolbar button", text: "Notes (2)").click
+    overlay.find(".toolbar button[aria-label='Notes (2)']").click
 
     assert overlay.has_css?(".sidebar .note-card", count: 2)
     assert overlay.has_css?(".pin.question")

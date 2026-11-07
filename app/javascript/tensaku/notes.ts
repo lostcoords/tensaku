@@ -4,6 +4,7 @@
 import { api, query } from "./api"
 import { contentRect, contextOf, MARKDOWN, nearestStamp, STAMP, tagLabel, translationOf, visibleText } from "./dom"
 import { textKeys } from "./markers"
+import { icon } from "./icons"
 import { copy, div, h, layer, fixed, panel, toast } from "./ui"
 
 export interface Target {
@@ -107,11 +108,15 @@ export function noteForm(anchor: DOMRect, targets: Target[], extra: Partial<Note
     if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); save() }
     if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close() }
   })
-  const element = panel(anchor, "note-form",
-    h("h3", {}, extra.rect ? `Note on an area (${targets.length} ${targets.length === 1 ? "element" : "elements"})` : "Note"),
-    textarea,
-    div("meta", where.slice(0, 3).join(", ") + (where.length > 3 ? ` and ${where.length - 3} more` : "")),
-    div("row end", h("button", { type: "button", onclick: close }, "Cancel"), h("button", { type: "button", className: "primary", onclick: save }, "Save note")))
+const title = extra.rect ? `Area, ${targets.length} ${targets.length === 1 ? "element" : "elements"}` : targets[0]?.tag ?? "Note"
+const quoted = !extra.rect && targets[0]?.text ? `${title} · "${targets[0].text.slice(0, 48)}${targets[0].text.length > 48 ? "…" : ""}"` : title
+const saveButton = h("button", { type: "button", className: "primary", onclick: save }, "Save note")
+const element = panel(anchor, "postit note-form",
+  div("head",
+    div("what", div("title", quoted), div("where", where.slice(0, 3).join(", ") + (where.length > 3 ? ` and ${where.length - 3} more` : ""))),
+    h("button", { type: "button", className: "icon-button", onclick: close, "aria-label": "Cancel" }, icon("close"))),
+  textarea,
+  div("foot", h("span", { className: "hint" }, "⌘↵ saves"), h("button", { type: "button", className: "quiet", onclick: close }, "Cancel"), saveButton))
   textarea.focus()
   return element
 }
@@ -119,6 +124,8 @@ export function noteForm(anchor: DOMRect, targets: Target[], extra: Partial<Note
 export async function load() {
   try {
     const data = await api<{ notes: Note[]; open: number }>("GET", "/notes" + query({ url: location.pathname }))
+    if (!primed) data.notes.forEach((note) => drawn.set(note.id, note.status))
+    primed = true
     notes = data.notes
     openCount = data.open
   } catch {
@@ -139,12 +146,18 @@ function anchorFor(note: Note): DOMRect | null {
   return null
 }
 
+// Pins drop in when a note is added or changes status after the first load.
+const drawn = new Map<string, Note["status"]>()
+let primed = false
 export function drawPins() {
   pinLayer.replaceChildren()
   notes.forEach((note, index) => {
     const rect = anchorFor(note)
     if (!rect) return
-    const pin = h("button", { className: `pin ${note.status}`, title: note.comment, "aria-label": `Note ${index + 1}: ${note.comment}`, "data-note": note.id }, String(index + 1))
+    const fresh = drawn.get(note.id) !== note.status
+    drawn.set(note.id, note.status)
+    const pin = h("button", { className: `pin ${note.status}${fresh ? " fresh" : ""}`, title: note.comment, "aria-label": `Note ${index + 1}: ${note.comment}`, "data-note": note.id },
+      note.status === "resolved" ? icon("check") : String(index + 1))
     Object.assign(pin.style, { left: `${rect.right}px`, top: `${rect.top}px` })
     pin.addEventListener("click", (event) => { event.stopPropagation(); showNote(note, rect) })
     pinLayer.append(pin)
@@ -166,9 +179,9 @@ function noteCard(note: Note, onChange: () => void) {
     actions.append(h("button", { type: "button", className: "primary", onclick: () => answer.value.trim() && update({ status: "open", comment: `${note.comment}\n\nAnswer: ${answer.value.trim()}`, reply: "" }) }, "Answer"))
   }
   const files = note.targets.filter((t) => t.file).map((t) => `${t.file}${t.range ? ":" + t.range.split("-")[0] : ""}`)
-  return div("note-card",
-    div("row", h("span", { className: `status ${note.status}` }, note.status), h("span", { className: "meta" }, Array.from(new Set(files)).join(", "))),
-    h("div", { className: "comment", style: "margin-top: 6px" }, note.comment),
+  return div(`postit note-card ${note.status}`,
+    div("row", h("span", { className: `status ${note.status}` }, note.status === "resolved" ? icon("check") : null, note.status), h("span", { className: "meta" }, Array.from(new Set(files)).join(", "))),
+    h("div", { className: "comment" }, note.comment),
     note.reply ? h("div", { className: `reply ${note.status}` }, note.reply) : null,
     answer,
     actions)
@@ -177,7 +190,7 @@ function noteCard(note: Note, onChange: () => void) {
 let shown: HTMLElement | null = null
 function showNote(note: Note, rect: DOMRect) {
   shown?.remove()
-  shown = panel(rect, "", noteCard(note, () => shown?.remove()))
+  shown = panel(rect, "note-pop", noteCard(note, () => shown?.remove()))
   const close = (event: Event) => {
     if (!event.composedPath().includes(shown!)) { shown?.remove(); document.removeEventListener("pointerdown", close, true) }
   }
@@ -205,7 +218,7 @@ function renderSidebar() {
     toast(all ? "Copied all open notes" : "Copied this page's open notes")
   }
   sidebar.replaceChildren(
-    h("header", {}, h("strong", {}, `Notes on ${location.pathname}`), h("button", { type: "button", onclick: () => toggleSidebar(false), "aria-label": "Close notes" }, "×")),
+    h("header", {}, h("strong", {}, `Notes on ${location.pathname}`), h("button", { type: "button", className: "icon-button", onclick: () => toggleSidebar(false), "aria-label": "Close notes" }, icon("close"))),
     div("row", h("button", { type: "button", onclick: () => copyAll(false) }, "Copy page notes"), h("button", { type: "button", onclick: () => copyAll(true) }, `Copy all open (${openCount})`)),
     ...(notes.length ? notes.map((note) => noteCard(note, () => {})) : [div("empty", "No notes on this page. Select an element or drag over an area to add one.")]))
 }

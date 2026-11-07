@@ -23,7 +23,7 @@ class MarkdownTest < ApplicationSystemTestCase
     visit "/guide"
     wait_for_overlay
     overlay.find(".corner").click
-    overlay.find(".toolbar button", text: "Select").click
+    overlay.find(".toolbar button[aria-label='Select']").click
 
     find(".guide p").click
     overlay.find(".menu button", text: "Add note").click

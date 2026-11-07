@@ -36,7 +36,7 @@ class EditingTest < ApplicationSystemTestCase
     wait_for_overlay
 
     overlay.find(".corner").click
-    overlay.find(".toolbar button", text: "Edit").click
+    overlay.find(".toolbar button[aria-label='Edit']").click
     assert overlay.has_css?(".box.edit", minimum: 2)
     find("p.bio").click
     type_in_editor "I build small tools."
@@ -51,7 +51,7 @@ test "edit mode doesn't outline text that comes from Ruby" do
   wait_for_overlay
 
   overlay.find(".corner").click
-  overlay.find(".toolbar button", text: "Edit").click
+  overlay.find(".toolbar button[aria-label='Edit']").click
   assert overlay.has_css?(".box.edit", minimum: 2)
 
   outlined = ->(selector) do

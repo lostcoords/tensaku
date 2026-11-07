@@ -7,6 +7,7 @@ import { closeEditor, edit, isEditing, undo, undoFor } from "./editor"
 import { watch as watchMarkers } from "./markers"
 import { drawPins, elementsInArea, load as loadNotes, noteForm, onCount, sidebarOpen, targetsFor, toggleSidebar } from "./notes"
 import { onRefresh } from "./refresh"
+import { cursor, icon, type IconName } from "./icons"
 import { box, copy, div, fixed, h, layer, mount, panel, storage, store, toast } from "./ui"
 
 declare global {
@@ -25,12 +26,24 @@ let suppressClick = false
 
 const count = h("span", { className: "count", hidden: true })
 const corner = h("button", { className: "corner", type: "button", title: "Tensaku", "aria-label": "Tensaku", "aria-expanded": "false" }, "添", count)
-const buttons = {
-  inspect: h("button", { type: "button", "aria-pressed": "false", title: "Select an element or drag an area" }, "Select"),
-  edit: h("button", { type: "button", "aria-pressed": "false", title: "Show and edit every editable text" }, "Edit"),
-  notes: h("button", { type: "button", "aria-pressed": "false" }, "Notes"),
+// Each tool is a drawing from the pencil case, in the colour it marks the page with.
+const INK = { highlighter: "#ffe14d", pen: "#e0344f", pad: "#fff1a1" }
+function tool(name: IconName, ink: string, text: string, shortcut?: string) {
+  const tip = h("span", { className: "tip", "aria-hidden": "true" }, text, shortcut ? h("kbd", {}, shortcut) : null)
+  const button = h("button", { type: "button", className: "tool", "aria-pressed": "false", "aria-label": text }, icon(name, ink), tip)
+  button.style.setProperty("--ink-color", ink)
+  return button
 }
-const toolbar = div("toolbar", buttons.inspect, buttons.edit, buttons.notes)
+const shortcutLabel = () => meta().shortcut.replace(/Key(\w)/, "$1").replace(/Alt/i, "⌥").replace(/Shift/i, "⇧").replace(/Ctrl/i, "⌃").replace(/Meta|Cmd/i, "⌘").replace(/\+/g, "")
+const buttons = {
+  inspect: tool("highlighter", INK.highlighter, "Select", shortcutLabel()),
+  edit: tool("pen", INK.pen, "Edit"),
+  notes: tool("pad", INK.pad, "Notes"),
+}
+const notesBadge = h("span", { className: "badge", hidden: true })
+buttons.notes.append(notesBadge)
+const closeTool = h("button", { type: "button", className: "tool", "aria-label": "Close Tensaku" }, icon("close"), h("span", { className: "tip", "aria-hidden": "true" }, "Close", h("kbd", {}, "Esc")))
+const toolbar = div("toolbar", buttons.inspect, buttons.edit, buttons.notes, div("sep"), closeTool)
 toolbar.hidden = true
 const dock = div("dock", toolbar, corner)
 fixed.append(dock)
@@ -73,11 +86,15 @@ corner.addEventListener("click", () => {
 buttons.inspect.addEventListener("click", () => setMode(mode === "inspect" ? "off" : "inspect"))
 buttons.edit.addEventListener("click", () => setMode(mode === "edit" ? "off" : "edit"))
 buttons.notes.addEventListener("click", () => { toggleSidebar(); syncButtons() })
+closeTool.addEventListener("click", () => { toggleSidebar(false); setMode("off"); toolbar.hidden = true; corner.setAttribute("aria-expanded", "false") })
 
 onCount((n) => {
   count.hidden = n === 0
   count.textContent = String(n)
-  buttons.notes.textContent = n ? `Notes (${n})` : "Notes"
+  notesBadge.hidden = n === 0
+  notesBadge.textContent = String(n)
+  buttons.notes.setAttribute("aria-label", n ? `Notes (${n})` : "Notes")
+  buttons.notes.querySelector(".tip")!.firstChild!.textContent = n ? `Notes (${n})` : "Notes"
 })
 
 function syncButtons() {
@@ -93,7 +110,7 @@ function setMode(next: Mode) {
   clearHover()
   closeMenu()
   drawEditBoxes()
-  document.documentElement.style.cursor = next === "inspect" ? "crosshair" : ""
+  document.documentElement.style.cursor = next === "inspect" ? cursor("highlighter", INK.highlighter) : next === "edit" ? cursor("pen", INK.pen) : ""
   syncButtons()
 }
 
@@ -109,7 +126,7 @@ function label(element: Element) {
   const md = element.getAttribute(MARKDOWN)
   const key = translationOf(element)
   const where = key ? `${key.locale}.${key.key}` : md ? md.split(/:(?=\d+:\d+-)/)[0] + ":" + md.split(/:(?=\d+:\d+-)/)[1].split(":")[0] : stamp ? `${stamp.file}:${stamp.line}` : ""
-  return `${tagLabel(element)}  ${where}`
+  return [tagLabel(element), where] as const
 }
 
 function highlight(element: Element) {
@@ -182,16 +199,16 @@ function openMenu(element: Element, selectedText?: string) {
   closeMenu()
   const rect = documentRect(element)
   const kind = editKind(element)
-  const item = (text: string, action: () => void, shortcut?: string) =>
-    h("button", { type: "button", onclick: () => { closeMenu(); action() } }, text, shortcut ? h("kbd", {}, shortcut) : null)
+  const item = (name: IconName, text: string, action: () => void, shortcut?: string) =>
+    h("button", { type: "button", onclick: () => { closeMenu(); action() } }, icon(name), h("span", {}, text), shortcut ? h("kbd", {}, shortcut) : null)
   const undoable = undoFor(element)
   menu = panel(rect, "menu",
-    h("h3", {}, label(element)),
-    item("Copy reference", async () => { await copy(reference(element)); toast("Copied reference") }, "C"),
-    item(selectedText ? "Note on selected text" : "Add note", () => noteForm(rect, targetsFor(element, selectedText)), "N"),
-    kind ? item(kind === "attributes" ? "Edit attributes" : "Edit text", () => edit(element, kind), "E") : null,
-    kind && kind !== "attributes" && editKind(element) !== "attributes" && hasAttributes(element) ? item("Edit attributes", () => edit(element, "attributes")) : null,
-    undoable ? item(undoable.label, () => undo(element), "U") : null)
+    h("h3", {}, label(element)[0], h("span", { className: "where" }, label(element)[1])),
+    item("copy", "Copy reference", async () => { await copy(reference(element)); toast("Copied reference") }, "C"),
+    item("pad", selectedText ? "Note on selected text" : "Add note", () => noteForm(rect, targetsFor(element, selectedText)), "N"),
+    kind ? item(kind === "attributes" ? "tag" : "pen", kind === "attributes" ? "Edit attributes" : "Edit text", () => edit(element, kind), "E") : null,
+    kind && kind !== "attributes" && editKind(element) !== "attributes" && hasAttributes(element) ? item("tag", "Edit attributes", () => edit(element, "attributes")) : null,
+    undoable ? item("undo", undoable.label, () => undo(element), "U") : null)
   menu.dataset.tensakuMenu = ""
   menu.addEventListener("keydown", (event) => event.stopPropagation())
   ;(menu.querySelector("button") as HTMLElement | null)?.focus()

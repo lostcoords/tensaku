@@ -13,5 +13,9 @@
   blocks from producers, written back as byte splices with a stale-file check and one-step undo.
 - Edit mode outlines only elements with text written in the template, asked once from `POST /editable`.
   Text that all comes from Ruby (`<%= %>`) is not outlined.
+- The overlay has one look on light and dark pages: a dark toolbar of drawn tools (highlighter to select,
+  red pen to edit, sticky-note pad for notes) with tooltips, a dark element menu, notes on Post-it
+  paper with a folded corner, and round pins that turn green with a drawn check when resolved. The page
+  cursor shows the selected tool. Motion is off with `prefers-reduced-motion`.
 - Page update after a save: same-source nodes right away, then refetch and idiomorph.
 - `bin/rails generate tensaku:install`.
