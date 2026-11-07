@@ -1,40 +1,37 @@
-# Writes app/javascript/demo/data.js, the recording the landing page's demo plays back: the demo
-# partial rendered by Herb with its source stamps, and what Tensaku's /source endpoint answers for
-# each stamped element. Run it after changing app/views/demo/_inbox.html.erb:
+# Writes app/javascript/demo/data.js, the recording the landing page's demo plays back: the landing
+# page rendered by Herb with its source stamps, and what Tensaku's /source endpoint answers for each
+# stamped element. Run it after changing app/views/pages/landing.html.erb:
 #
 #   bin/rails runner script/demo_data.rb
 #
 # It needs the development environment, where Tensaku and Herb are loaded.
 abort "Run this in development, where Tensaku is loaded" unless defined?(Tensaku::Source::Template)
 
-FILE = "app/views/demo/_inbox.html.erb"
-User = Data.define(:name)
-Message = Data.define(:subject, :sender)
-
+FILE = "app/views/pages/landing.html.erb"
 source = Rails.root.join(FILE).read
-# The demo edits the source in the browser with string offsets, which match Tensaku's byte offsets
-# only for ASCII.
-abort "#{FILE} must be ASCII" unless source.ascii_only?
-
-html = ApplicationController.render(partial: "demo/inbox", locals: {
-  user: User.new("Ada"),
-  messages: [
-    Message.new("Lunch on Friday?", "Grace"),
-    Message.new("Draft of the talk", "Linus"),
-    Message.new("Your invoice", "Billing")
-  ]
-})
+html = ApplicationController.render(template: "pages/landing", layout: false)
 html = html.gsub(/<!--.*?-->\n?/m, "").strip
 
 template = Tensaku::Source::Template.new(FILE)
-stamps = html.scan(/data-herb-source="([^"]+)"/).flatten.uniq.to_h do |stamp|
+stamps = html.scan(/data-herb-source="([^"]+)"/).flatten.uniq.select { it.start_with?("#{FILE}:") }.to_h do |stamp|
   _, line, column = Tensaku::Source::Template.parse_stamp(stamp)
   [ stamp, template.describe(line, column).merge(element: template.element_range(line, column)) ]
 end
 
-# Kiln refuses a build that contains data-herb-* attributes, so the page ships them renamed and the
-# demo restores the name in the browser.
-html = html.gsub("data-herb-source=", "data-demo-source=")
+# Tensaku's offsets count bytes; the demo edits a JavaScript string, which counts UTF-16 code units.
+# The overlay only sends back the offsets it was given, so converting them here is enough.
+units = ->(bytes) { source.byteslice(0, bytes).encode("UTF-16LE").bytesize / 2 }
+stamps.each_value do |description|
+  (description[:pieces] + description[:attributes].flat_map { it[:pieces] }).each do |piece|
+    next unless piece[:kind] == "text"
+    piece[:start] = units.(piece[:start])
+    piece[:end] = units.(piece[:end])
+  end
+end
+
+# Only this page is editable in the demo: the source window's partial loses its stamps. Kiln refuses
+# a build that contains data-herb-* attributes, so the rest ship renamed and the demo restores them.
+html = html.gsub(/ data-herb-source="([^"]+)"/) { stamps.key?($1) ? %( data-demo-source="#{$1}") : "" }
 
 data = { file: FILE, source:, html:, stamps: }
 Rails.root.join("app/javascript/demo/data.js").write(<<~JS)

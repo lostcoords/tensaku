@@ -1,5 +1,5 @@
 // A stand-in for Tensaku's Rails endpoints, for the landing page's demo. It answers the overlay's
-// requests from the recording in data.js and splices an in-memory copy of the demo ERB file the
+// requests from the recording in data.js and splices an in-memory copy of the landing page's ERB file the
 // same way Tensaku splices the real one: by byte range, after checking the bytes are still the ones
 // the editor loaded.
 
@@ -20,8 +20,8 @@ export class DemoServer {
     this.listeners.add(listener)
   }
 
-  changed() {
-    this.listeners.forEach((listener) => listener(this))
+  changed(kind) {
+    this.listeners.forEach((listener) => listener(kind))
   }
 
   // The overlay's requests, by method and path. Returns [status, body].
@@ -38,7 +38,7 @@ export class DemoServer {
     const id = path.match(/^\/notes\/([a-z0-9]+)$/)?.[1]
     if (id && method === "PATCH") return this.updateNote(id, body)
     if (id && method === "DELETE") return this.deleteNote(id)
-    if (path === "/translation" || path === "/markdown") return [404, { error: "The demo only has an ERB template." }]
+    if (path === "/translation" || path === "/markdown") return [404, { error: "This demo only edits an ERB template." }]
     return [404, { error: "Not found" }]
   }
 
@@ -95,11 +95,12 @@ export class DemoServer {
       piece.text = unescape(raw).replace(/\s+/g, " ")
       if (piece.trim_start) piece.text = piece.text.trimStart()
       if (piece.trim_end) piece.text = piece.text.trimEnd()
-      first = Math.min(first, start)
-      last = Math.max(last, start + raw.length)
+      // The change, without the whitespace kept around it.
+      first = Math.min(first, start + raw.match(/^\s*/)[0].length)
+      last = Math.max(last, start + raw.trimEnd().length)
     }
     this.lastChange = { start: first, end: last }
-    this.changed()
+    this.changed("source")
     return [200, { changed: true, file: data.file }]
   }
 
@@ -130,7 +131,7 @@ export class DemoServer {
       reply: null,
     }
     this.notes.push(note)
-    this.changed()
+    this.changed("notes")
     return [201, clone(note)]
   }
 
@@ -149,13 +150,13 @@ export class DemoServer {
     if (reply !== undefined) note.reply = reply
     if (status) note.status = status
     note.updated_at = new Date().toISOString()
-    this.changed()
+    this.changed("notes")
     return [200, clone(note)]
   }
 
   deleteNote(id) {
     this.notes = this.notes.filter((n) => n.id !== id)
-    this.changed()
+    this.changed("notes")
     return [200, { deleted: true }]
   }
 

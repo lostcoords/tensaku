@@ -9,20 +9,24 @@ const ROOT = "/__tensaku"
 function start() {
   const demo = document.querySelector("[data-demo]")
   if (!demo || window.__tensakuDemo) return
-  // In development the real Tensaku is on the page already, editing the real partial.
-  if (document.querySelector('meta[name="tensaku"]')) return demo.setAttribute("data-demo-live", "")
+  // In development the real Tensaku is on the page already, editing the real file.
+  if (document.querySelector('meta[name="tensaku"]')) {
+    demo.querySelector("[data-demo-static]")?.setAttribute("hidden", "")
+    demo.querySelector("[data-demo-live-only]")?.removeAttribute("hidden")
+    return
+  }
   window.__tensakuDemo = true
 
+  // The page as Herb rendered it in development, with the stamps Tensaku reads.
   const server = new DemoServer()
-  const stage = demo.querySelector("[data-demo-stage]")
-  stage.innerHTML = data.html
-  stage.querySelectorAll("[data-demo-source]").forEach((element) => {
+  demo.innerHTML = data.html
+  demo.querySelectorAll("[data-demo-source]").forEach((element) => {
     element.setAttribute("data-herb-source", element.getAttribute("data-demo-source"))
     element.removeAttribute("data-demo-source")
   })
 
-  // The source and agent panels belong to the demo, not to the sample app: the overlay leaves
-  // clicks there alone, even in select mode.
+  // The source window belongs to the demo, not to the page: the overlay leaves it alone, even in
+  // select mode.
   demo.querySelectorAll("[data-demo-chrome]").forEach((element) => element.setAttribute("data-tensaku-ui", ""))
 
   const meta = document.createElement("meta")
@@ -31,10 +35,18 @@ function start() {
   document.head.append(meta)
 
   routeFetch(server)
-  renderSource(demo, server)
-  renderAgent(demo, server)
-  server.onChange(() => { renderSource(demo, server); renderAgent(demo, server) })
-  demo.querySelector("[data-demo-agent-resolve]")?.addEventListener("click", () => resolveAsAgent(server))
+  const window_ = demo.querySelector("[data-demo-chrome]")
+  window_.querySelectorAll("[data-demo-tab]").forEach((tab) => tab.addEventListener("click", () => showTab(window_, tab.dataset.demoTab)))
+  window_.querySelector("[data-demo-agent-resolve]").addEventListener("click", () => resolveAsAgent(server))
+  renderSource(window_, server)
+  renderAgent(window_, server)
+server.onChange((kind) => {
+  renderSource(window_, server)
+  renderAgent(window_, server)
+  // Show what just changed: the file after an edit, or the notes after a new one.
+  if (kind === "source") showTab(window_, "source")
+  else if (server.notes.some((note) => note.status === "open")) showTab(window_, "agent")
+})
 
   const script = document.createElement("script")
   script.src = demo.dataset.demoOverlay
@@ -42,6 +54,17 @@ function start() {
   document.body.append(script)
   demo.setAttribute("data-demo-ready", "")
 }
+
+function showTab(window_, name) {
+  window_.querySelectorAll("[data-demo-tab]").forEach((tab) => tab.setAttribute("aria-selected", String(tab.dataset.demoTab === name)))
+  window_.querySelectorAll("[data-demo-panel]").forEach((panel) => { panel.hidden = panel.dataset.demoPanel !== name })
+  window_.querySelector("[data-demo-agent-resolve]").hidden = name !== "agent"
+// Scrolls the code, not the page, so the changed line is in view.
+const changed = window_.querySelector(".demo-code__line--changed")
+const code = window_.querySelector("[data-demo-source-code]")
+if (name === "source" && changed) code.scrollTo({ top: changed.offsetTop - code.clientHeight / 2, behavior: "smooth" })
+}
+
 
 // The overlay calls fetch for its endpoints, and fetches the page again after a save to morph it.
 // Both are answered here; nothing leaves the browser.
@@ -61,17 +84,18 @@ function routeFetch(server) {
     }
     if (new Headers(init.headers).get("X-Tensaku-Refresh")) {
       // The page as it is now: the stand-in already changed the text, so the morph keeps it. Without
-      // the overlay, which a server's page never contains.
+      // the overlay element, which a server's page never contains. The source window stays: the
+      // morph keeps overlay UI as it is, and pairs the elements around it by position.
       const page = document.documentElement.cloneNode(true)
-      page.querySelectorAll("tensaku-overlay, [data-tensaku-ui]").forEach((element) => element.remove())
+      page.querySelectorAll("tensaku-overlay").forEach((element) => element.remove())
       return new Response("<!DOCTYPE html>" + page.outerHTML, { headers: { "content-type": "text/html" } })
     }
     return original(input, init)
   }
 }
 
-function renderSource(demo, server) {
-  const target = demo.querySelector("[data-demo-source-code]")
+function renderSource(window_, server) {
+  const target = window_.querySelector("[data-demo-source-code]")
   if (!target) return
   const { start, end } = server.lastChange ?? { start: -1, end: -1 }
   const lines = []
@@ -102,12 +126,15 @@ function renderSource(demo, server) {
   target.replaceChildren(...lines)
 }
 
-function renderAgent(demo, server) {
-  const target = demo.querySelector("[data-demo-agent]")
+function renderAgent(window_, server) {
+  const target = window_.querySelector("[data-demo-agent]")
   if (!target) return
   const open = server.notes.filter((note) => note.status !== "resolved")
-  target.textContent = open.length ? server.markdown(open) : "No open notes. Leave one on the demo, and it shows up here the way your agent reads it."
-  const button = demo.querySelector("[data-demo-agent-resolve]")
+  target.textContent = open.length ? server.markdown(open) : "No open notes yet. Leave one on the page, and it shows up here the way your agent reads it."
+  const count = window_.querySelector("[data-demo-count]")
+  count.textContent = open.length
+  count.hidden = !open.length
+  const button = window_.querySelector("[data-demo-agent-resolve]")
   if (button) button.disabled = !open.some((note) => note.status === "open")
 }
 

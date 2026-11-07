@@ -20,7 +20,14 @@
   color: var(--ink);
 }
 
+.landing {
+  position: relative;
+  overflow-x: clip;
+}
+
 .landing main {
+  position: relative;
+  z-index: 1;
   max-width: 72rem;
   margin: 0 auto;
   padding: 0 1rem;
@@ -49,18 +56,8 @@
 .hero {
   max-width: 46rem;
   margin: 0 auto;
-  padding: 4.5rem 0 3rem;
+  padding: 6rem 0 2.5rem;
   text-align: center;
-}
-
-.hero__eyebrow {
-  font-family: var(--hand);
-  font-size: 1.15rem;
-  color: var(--akaji-text);
-}
-
-.hero__eyebrow span {
-  color: var(--cinnamon);
 }
 
 .hero__title {
@@ -102,7 +99,7 @@
 }
 
 .hero__lead {
-  font-size: 1.2rem;
+  font-size: 1.3rem;
   line-height: 1.6;
   color: var(--ink-soft);
   text-wrap: pretty;
@@ -114,11 +111,6 @@
   justify-content: center;
   gap: 0.75rem;
   margin: 2rem 0 1rem;
-}
-
-.hero__fine {
-  font-size: 0.9rem;
-  color: var(--ink-soft);
 }
 
 .button {
@@ -166,67 +158,40 @@
   box-shadow: none;
 }
 
-/* Demo ------------------------------------------------------------------------------------- */
+/* Try it ----------------------------------------------------------------------------------- */
 
-.demo {
-  padding: 2rem 0 4rem;
+.try {
+  padding: 1rem 0 1.5rem;
 }
 
-.demo__intro {
-  max-width: 44rem;
-}
-
-.demo__intro h2,
-.install h2 {
-  font-size: 2rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-
-.demo__intro p {
-  color: var(--ink-soft);
-  line-height: 1.6;
-  margin-top: 0.5rem;
-}
-
-.demo__live-note {
-  display: none;
-}
-
-[data-demo-live] .demo__live-note {
-  display: block;
-  font-family: var(--hand);
-  color: var(--akaji-text) !important;
-}
-
-.demo__steps {
+.try__steps {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
-  gap: 0.75rem 1.5rem;
-  margin: 1.75rem 0 0.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 0.75rem 2rem;
+  margin: 0;
   padding: 0;
   list-style: none;
   counter-reset: step;
   font-family: var(--hand);
-  font-size: 1.02rem;
+  font-size: 1.08rem;
   line-height: 1.45;
 }
 
-.demo__steps li {
+.try__steps li {
   position: relative;
-  padding-left: 2.2rem;
+  padding-left: 2.3rem;
   counter-increment: step;
 }
 
-.demo__steps li::before {
+.try__steps li::before {
   content: counter(step);
   position: absolute;
   left: 0;
   top: -0.1rem;
   display: grid;
   place-items: center;
-  width: 1.7rem;
-  height: 1.7rem;
+  width: 1.75rem;
+  height: 1.75rem;
   border: 2px solid var(--akaji);
   border-radius: 50% 45% 55% 48%;
   color: var(--akaji-text);
@@ -234,228 +199,256 @@
   transform: rotate(-6deg);
 }
 
-.demo__steps strong {
+.try__steps strong {
   background: linear-gradient(transparent 55%, var(--highlighter) 55%);
 }
 
-.demo__touch {
+.try__touch {
   display: none;
+  margin-top: 0.75rem;
   font-family: var(--hand);
   color: var(--ink-soft);
 }
 
 @media (pointer: coarse) {
-  .demo__touch { display: block; }
+  .try__touch { display: block; }
 }
 
-.demo__grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
-  gap: 1.5rem;
-  margin-top: 1.5rem;
-  align-items: start;
-}
+/* The source window: the file this page is rendered from, and the notes as the agent reads them. */
 
-@media (max-width: 56rem) {
-  .demo__grid { grid-template-columns: minmax(0, 1fr); }
-}
-
-.demo__app {
-  position: relative;
-  margin: 0;
-  border: 1.5px solid var(--ink);
-  border-radius: 14px;
-  background: #fff;
-  color: #1f2328;
-  box-shadow: 6px 7px 0 var(--akaji);
-  overflow: visible;
-}
-
-.window-bar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 14px;
-  border-bottom: 1px solid #e5e7eb;
-  border-radius: 14px 14px 0 0;
-  background: #f6f7f9;
-}
-
-.window-bar span {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #d4d7dd;
-}
-
-.window-bar code {
-  margin-left: 10px;
-  padding: 2px 10px;
-  border-radius: 6px;
-  background: #fff;
-  color: #6b7280;
-  font-size: 12px;
-}
-
-.demo__stage {
-  padding: 1.5rem;
-}
-
-.margin-note {
-  position: absolute;
-  font-family: var(--hand);
-  color: var(--cinnamon);
-  font-size: 0.95rem;
-  white-space: nowrap;
-}
-
-.margin-note--app {
-  right: 1rem;
-  bottom: -2rem;
-  transform: rotate(-2deg);
-}
-
-/* The sample app keeps a plain, ordinary look so Tensaku's overlay reads as the visitor. */
-.demo-app {
-  display: grid;
-  gap: 1rem;
-  font-family: system-ui, sans-serif;
-}
-
-/* lostcoords-ui gives headings the site's light foreground; the sample app is a light page. */
-.demo-app h3 {
-  color: #1f2328;
-  font-size: 1.5rem;
-  font-weight: 700;
-}
-
-.demo-app p {
-  color: #57606a;
-}
-
-.demo-app input {
-  width: 100%;
-  padding: 0.55rem 0.8rem;
-  border: 1px solid #d0d7de;
-  border-radius: 8px;
-  font: inherit;
-}
-
-.demo-app__list {
-  display: grid;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-}
-
-.demo-app__list li {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.7rem 0.9rem;
-}
-
-.demo-app__list li + li {
-  border-top: 1px solid #e5e7eb;
-}
-
-.demo-app__list span {
-  color: #6b7280;
-  font-size: 0.9rem;
-}
-
-.demo-app button {
-  justify-self: start;
-  padding: 0.55rem 1rem;
-  border: 0;
-  border-radius: 8px;
-  background: #1f6feb;
-  color: #fff;
-  font: inherit;
-  font-weight: 600;
-}
-
-.demo__side {
-  display: grid;
-  gap: 1.25rem;
-}
-
-.panel {
-  margin: 0;
+.window {
+  margin: 0.5rem 0 3rem;
   border: 1.5px solid var(--rule);
-  border-radius: 12px;
-  background: var(--card);
+  border-radius: 14px;
+  background: #020a1f;
+  box-shadow: 0 1.5rem 3rem -1.5rem rgb(0 0 0 / 0.7), 6px 7px 0 var(--akaji);
   overflow: hidden;
 }
 
-.panel__title {
+.window__bar {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.6rem 0.9rem;
+  align-items: stretch;
+  gap: 0.25rem;
+  padding: 0 0.75rem 0 1rem;
   border-bottom: 1px solid var(--rule);
   background: var(--paper-deep);
-  font-size: 0.85rem;
-  font-weight: 600;
+  overflow-x: auto;
 }
 
-.panel__dot {
-  width: 9px;
-  height: 9px;
+.window__dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 0.75rem;
+}
+
+.window__dots i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--rule);
+}
+
+.window__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 0.9rem;
+  border-bottom: 2px solid transparent;
+  color: var(--ink-soft);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.window__tab[aria-selected="true"] {
+  border-bottom-color: var(--akaji);
+  color: var(--ink);
+}
+
+.window__dot {
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--akaji);
 }
 
-.panel__dot--agent {
-  background: var(--pen-blue);
+.window__count {
+  min-width: 1.25rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: var(--akaji);
+  color: var(--ink);
+  font-size: 0.7rem;
+  text-align: center;
 }
 
-.demo-code,
-.demo-agent {
+.window__count[hidden] { display: none; }
+
+.window .button--small {
+  align-self: center;
+  margin-left: auto;
+}
+
+.window__code,
+.window__agent {
+  position: relative;
   margin: 0;
-  padding: 0.8rem 0;
-  max-height: 24rem;
+  padding: 1rem 0;
+  height: 26rem;
   overflow: auto;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12.5px;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.65;
   white-space: pre;
+  color: #d9d3e3;
 }
 
-.demo-agent {
-  padding: 0.8rem 0.9rem;
-  min-height: 6rem;
+.window__agent {
+  padding: 1rem 1.25rem;
   white-space: pre-wrap;
-  color: var(--ink-soft);
+}
+
+.window__note {
+  padding: 0.6rem 1rem;
+  border-top: 1px solid var(--rule);
+  font-family: var(--hand);
+  font-size: 0.9rem;
+  color: var(--cinnamon);
 }
 
 .demo-code__line {
   display: block;
-  padding-right: 0.9rem;
+  padding-right: 1rem;
 }
 
 .demo-code__number {
   display: inline-block;
-  width: 2.6rem;
-  padding-right: 0.8rem;
+  width: 3.25rem;
+  padding-right: 1rem;
   text-align: right;
   color: var(--ink-soft);
-  opacity: 0.6;
+  opacity: 0.45;
   user-select: none;
 }
 
 .demo-code__line--changed {
-  background: color-mix(in srgb, var(--highlighter) 45%, transparent);
+  background: rgb(204 18 54 / 0.16);
 }
 
-.demo-code mark {
-  background: var(--highlighter);
-  color: inherit;
+.demo-code__line--changed .demo-code__number {
+  color: var(--akaji-text);
+  opacity: 1;
+}
+
+.window__code mark {
   border-radius: 3px;
+  background: var(--highlighter);
+  color: var(--ink);
   box-shadow: 0 2px 0 var(--akaji);
 }
+
+/* Rakugaki: the doodles in the margins. They sit behind the content and only show where the margins
+   have room for them. */
+
+.rakugaki {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  display: none;
+}
+
+@media (min-width: 80rem) {
+  .rakugaki { display: block; }
+}
+
+.rk {
+  position: absolute;
+  top: var(--top);
+  width: 5.5rem;
+  transform: rotate(var(--rot, 0deg));
+  opacity: 0.55;
+  color: var(--ink-soft);
+  font-family: var(--hand);
+}
+
+.rk--left { left: max(0.5rem, calc((100% - 72rem) / 4 - 2.75rem)); }
+.rk--right { right: max(0.5rem, calc((100% - 72rem) / 4 - 2.75rem)); }
+
+.rk path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.rk text {
+  fill: currentColor;
+  stroke: none;
+}
+
+.rk__kanji {
+  font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
+  font-size: 34px;
+}
+
+.rk__hand {
+  font-family: var(--hand);
+  font-size: 17px;
+}
+
+.rk--word {
+  width: auto;
+  font-size: 1.15rem;
+  white-space: nowrap;
+}
+
+.rk--word s {
+  text-decoration-color: var(--akaji);
+  text-decoration-thickness: 2px;
+}
+
+.rk__caret {
+  position: relative;
+  color: var(--akaji-text);
+}
+
+.rk__caret em {
+  position: absolute;
+  left: 50%;
+  bottom: 1.1em;
+  transform: translateX(-50%) rotate(-4deg);
+  font-size: 0.85em;
+}
+
+.rk--mark {
+  width: auto;
+  font-size: 2.5rem;
+  font-family: Georgia, serif;
+}
+
+.rk--circled {
+  width: auto;
+  padding: 0.1rem 0.6rem;
+  border: 2px solid var(--akaji);
+  border-radius: 50% 45% 55% 48%;
+  font-size: 1.1rem;
+  color: var(--akaji-text);
+}
+
+.rk--boxed {
+  padding: 0 0.4rem;
+  border: 2px solid currentColor;
+  border-radius: 3px 6px 4px 7px;
+  color: var(--cinnamon);
+}
+
+.rk--red { color: var(--akaji-text); }
+.rk--cinnamon { color: var(--cinnamon); }
+.rk--blue { color: var(--pen-blue); }
+.rk--green { color: var(--mint); }
 
 /* Features and install --------------------------------------------------------------------- */
 
@@ -499,6 +492,18 @@
   max-width: 44rem;
   margin: 0 auto;
   padding: 2rem 0 4rem;
+}
+
+.install h2 {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.install a {
+  color: var(--akaji-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .install__code {

@@ -61,7 +61,7 @@ jobs:
           ruby-version: "4.0"
           bundler-cache: true
           working-directory: docs
-      - name: The demo recording matches app/views/demo/_inbox.html.erb
+      - name: The demo recording matches app/views/pages/landing.html.erb
         run: |
           bin/rails runner script/demo_data.rb
           git diff --exit-code app/javascript/demo/data.js

@@ -1,0 +1,14 @@
+<section class="window" aria-label="The source of this page" data-demo-chrome>
+  <div class="window__bar" role="tablist">
+    <span class="window__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+    <button type="button" class="window__tab" role="tab" aria-selected="true" data-demo-tab="source"><span class="window__dot"></span>app/views/pages/landing.html.erb</button>
+    <button type="button" class="window__tab" role="tab" aria-selected="false" data-demo-tab="agent">What your agent reads <span class="window__count" data-demo-count hidden>0</span></button>
+    <button type="button" class="button button--small" data-demo-agent-resolve hidden disabled>Resolve as the agent</button>
+  </div>
+  <pre class="window__code" role="tabpanel" data-demo-panel="source" data-demo-source-code><%= File.read(Rails.root.join("app/views/pages/landing.html.erb")) %></pre>
+  <pre class="window__agent" role="tabpanel" data-demo-panel="agent" data-demo-agent hidden>No open notes yet.</pre>
+  <p class="window__note">
+    <span data-demo-static>This runs in your browser: the file above changes here, not on a server.</span>
+    <span data-demo-live-only hidden>You're in development, so edits are written to the real file.</span>
+  </p>
+</section>

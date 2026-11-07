@@ -24,7 +24,8 @@
     <%= render layout: "shared/header", locals: { brand:, home_label: "Tensaku home", width: "max-w-330", links: [ [ "Docs", "/introduction", false ], [ "Installation", "/installation", false ] ] } do %>
       <%= lc_button_link_to "https://github.com/davafons/tensaku", variant: :ghost, size: :sm, aria: { label: "Source on GitHub" } do %><%= render "shared/github_icon" %><% end %>
     <% end %>
-    <main id="main"><%= yield %></main>
+    <%= render "demo/rakugaki" %>
+    <main id="main" data-demo data-demo-overlay="<%= asset_path("tensaku.js") %>"><%= yield %></main>
     <footer class="landing-footer">
       <span>Tensaku · MIT license</span>
       <span><a href="/introduction">Docs</a> · <a href="https://github.com/davafons/tensaku">GitHub</a> · <a href="https://rubygems.org/gems/tensaku">RubyGems</a></span>

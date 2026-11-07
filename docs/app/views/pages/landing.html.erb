@@ -1,96 +1,44 @@
 <section class="hero">
-  <p class="hero__eyebrow">添削 <span>· correcting a draft, for Rails</span></p>
   <h1 class="hero__title">
     Fix your Rails app
     <span class="pen-mark">on the page<svg viewBox="0 0 240 14" preserveAspectRatio="none" aria-hidden="true"><path d="M3 9 C 45 3, 92 12, 138 7 S 214 4, 237 8"/></svg></span>.
   </h1>
-  <p class="hero__lead">
-    Click any text on a running page and edit it in place. Tensaku writes the change back to the ERB
-    template, the locale YAML or the Markdown file, byte for byte. Or leave a note, and your coding
-    agent gets it with the exact file and line.
-  </p>
+  <p class="hero__lead">Edit the text where you see it. Tensaku writes it back to the source.</p>
   <div class="hero__actions">
-    <a class="button button--ink" href="#demo">Try it below</a>
+    <a class="button button--ink" href="#try">Try it on this page</a>
     <a class="button" href="/installation">Install it</a>
   </div>
-  <p class="hero__fine">Development only. Production keeps rendering with Erubi and never loads Tensaku.</p>
 </section>
 
-<section class="demo" id="demo" data-demo data-demo-overlay="<%= asset_path("tensaku.js") %>">
-  <div class="demo__intro">
-    <h2>Try it on this page</h2>
-    <p>
-      This is Tensaku's real overlay, running on a small sample app. Here it talks to a stand-in for
-      your Rails server, so the source file on the right changes in your browser instead of on disk.
-    </p>
-    <p class="demo__live-note">You're running the docs in development, so this is the real thing: edits are written to <code>app/views/demo/_inbox.html.erb</code>.</p>
-  </div>
-
-  <ol class="demo__steps">
-    <li><strong>Alt-click</strong> (⌥-click on a Mac) the heading. Change <em>Welcome back</em>, then press Enter.</li>
-    <li>Edit <em>from</em> in one message. All three change: it's one line in a loop.</li>
-    <li>Press <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd>, click a message and choose <strong>Add note</strong>.</li>
-    <li>Let the agent pick it up, and watch the pin turn green.</li>
+<section class="try" id="try">
+  <ol class="try__steps">
+    <li><strong>Alt-click</strong> the big heading, change a word and press Enter.</li>
+    <li>Press <kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>T</kbd>, click a card below and choose <strong>Add note</strong>.</li>
+    <li>Press <strong>Resolve as the agent</strong> and watch the pin turn green.</li>
   </ol>
-  <p class="demo__touch">On a touch screen, tap the 添 button in the corner, then <strong>Edit</strong>.</p>
-
-  <div class="demo__grid">
-    <figure class="demo__app">
-      <div class="window-bar" aria-hidden="true"><span></span><span></span><span></span><code>localhost:3000/inbox</code></div>
-      <div class="demo__stage" data-demo-stage>
-        <%= render "demo/inbox", user: @user, messages: @messages %>
-      </div>
-      <figcaption class="margin-note margin-note--app">your app, in development</figcaption>
-    </figure>
-
-    <div class="demo__side" data-demo-chrome>
-      <figure class="panel">
-        <figcaption class="panel__title"><span class="panel__dot"></span><code>app/views/demo/_inbox.html.erb</code></figcaption>
-        <pre class="demo-code" data-demo-source-code><%= File.read(Rails.root.join("app/views/demo/_inbox.html.erb")) %></pre>
-      </figure>
-      <figure class="panel">
-        <figcaption class="panel__title">
-          <span class="panel__dot panel__dot--agent"></span>What your agent reads
-          <button type="button" class="button button--small" data-demo-agent-resolve disabled>Resolve as the agent</button>
-        </figcaption>
-        <pre class="demo-agent" data-demo-agent>No open notes. Leave one on the demo, and it shows up here the way your agent reads it.</pre>
-      </figure>
-    </div>
-  </div>
+  <p class="try__touch">On a touch screen, tap 添 in the corner, then Edit.</p>
 </section>
+
+<%= render "demo/window" %>
 
 <section class="features">
   <article>
     <h3><span class="ink-red">Edit</span> text in place</h3>
-    <p>
-      The editor shows the source, never the rendered text. Ruby stays as a locked chip, so you change
-      the words around <code>&lt;%= user.name %&gt;</code> and nothing else. Translations, attributes
-      and Markdown blocks work the same way.
-    </p>
+    <p>The editor shows the source. Ruby stays a locked chip, so you only change the words around it.</p>
   </article>
   <article>
-    <h3><span class="ink-blue">Notes</span> with a file and line</h3>
-    <p>
-      Point at an element or drag over an area, and say what should change. Your agent reads the note
-      through MCP, the note files or the clipboard, already knowing where to look.
-    </p>
+    <h3><span class="ink-blue">Notes</span> for your agent</h3>
+    <p>Point at anything and say what should change. Your agent gets the note with the file and line.</p>
   </article>
   <article>
-    <h3><span class="ink-green">Production</span> doesn't change</h3>
-    <p>
-      Tensaku lives in the development group. Every write is a splice of exactly the bytes you edited,
-      checked against what the page was rendered from. YAML is never loaded and dumped.
-    </p>
+    <h3><span class="ink-green">Production</span> stays the same</h3>
+    <p>Tensaku only loads in development, and every write touches only the bytes you edited.</p>
   </article>
 </section>
 
 <section class="install">
   <h2>Two commands</h2>
-  <pre class="install__code"><code><span class="comment"># Gemfile</span>
-group :development do
-  gem "tensaku"
-end</code></pre>
-  <pre class="install__code"><code>bundle install
+  <pre class="install__code"><code>bundle add tensaku --group development
 bin/rails generate tensaku:install</code></pre>
-  <p>Requires Ruby 4.0 and Rails 8.1 or later. Built on <a href="https://github.com/marcoroth/herb">Herb</a> through <a href="https://github.com/marcoroth/reactionview">ReActionView</a>. <a href="/introduction">Read the docs →</a></p>
+  <p>Ruby 4.0 and Rails 8.1 or later. <a href="/introduction">Read the docs</a></p>
 </section>
