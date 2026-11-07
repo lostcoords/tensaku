@@ -36,7 +36,6 @@ function start() {
 
   routeFetch(server)
   const window_ = demo.querySelector("[data-demo-chrome]")
-  window_.querySelectorAll("[data-demo-tab]").forEach((tab) => tab.addEventListener("click", () => showTab(window_, tab.dataset.demoTab)))
   window_.querySelector("[data-demo-agent-resolve]").addEventListener("click", () => resolveAsAgent(server))
   renderSource(window_, server)
   renderAgent(window_, server)
@@ -55,14 +54,14 @@ server.onChange((kind) => {
   demo.setAttribute("data-demo-ready", "")
 }
 
+// lc_tabs owns the tabs; selecting one is a click on it.
 function showTab(window_, name) {
-  window_.querySelectorAll("[data-demo-tab]").forEach((tab) => tab.setAttribute("aria-selected", String(tab.dataset.demoTab === name)))
-  window_.querySelectorAll("[data-demo-panel]").forEach((panel) => { panel.hidden = panel.dataset.demoPanel !== name })
-  window_.querySelector("[data-demo-agent-resolve]").hidden = name !== "agent"
-// Scrolls the code, not the page, so the changed line is in view.
-const changed = window_.querySelector(".demo-code__line--changed")
-const code = window_.querySelector("[data-demo-source-code]")
-if (name === "source" && changed) code.scrollTo({ top: changed.offsetTop - code.clientHeight / 2, behavior: "smooth" })
+  const tab = window_.querySelector(`[role="tab"][data-value="${name}"]`)
+  if (tab && tab.getAttribute("aria-selected") !== "true") tab.click()
+  // Scrolls the code, not the page, so the changed line is in view.
+  const changed = window_.querySelector(".demo-code__line--changed")
+  const code = window_.querySelector("[data-demo-source-code]")
+  if (name === "source" && changed) requestAnimationFrame(() => code.scrollTo({ top: changed.offsetTop - code.clientHeight / 2, behavior: "smooth" }))
 }
 
 

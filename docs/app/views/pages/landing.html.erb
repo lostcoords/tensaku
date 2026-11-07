@@ -1,44 +1,43 @@
 <section class="hero">
-  <h1 class="hero__title">
+  <h1 class="<%= lc_heading_class(size: :display, extra: "hero__title") %>">
     Fix your Rails app
     <span class="pen-mark">on the page<svg viewBox="0 0 240 14" preserveAspectRatio="none" aria-hidden="true"><path d="M3 9 C 45 3, 92 12, 138 7 S 214 4, 237 8"/></svg></span>.
   </h1>
-  <p class="hero__lead">Edit the text where you see it. Tensaku writes it back to the source.</p>
+  <p class="<%= lc_text_class(tone: :muted, extra: "hero__lead") %>">Edit the text where you see it. Tensaku writes it back to the source.</p>
   <div class="hero__actions">
-    <a class="button button--ink" href="#try">Try it on this page</a>
-    <a class="button" href="/installation">Install it</a>
+    <a class="<%= lc_button_class(size: :lg) %>" href="#try">Try it on this page</a>
+    <a class="<%= lc_button_class(variant: :outline, size: :lg) %>" href="/installation">Install it</a>
   </div>
 </section>
 
 <section class="try" id="try">
   <ol class="try__steps">
     <li><strong>Alt-click</strong> the big heading, change a word and press Enter.</li>
-    <li>Press <kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>T</kbd>, click a card below and choose <strong>Add note</strong>.</li>
+    <li>Press <kbd class="<%= lc_kbd_class %>">Alt</kbd> <kbd class="<%= lc_kbd_class %>">Shift</kbd> <kbd class="<%= lc_kbd_class %>">T</kbd>, click a card below and choose <strong>Add note</strong>.</li>
     <li>Press <strong>Resolve as the agent</strong> and watch the pin turn green.</li>
   </ol>
-  <p class="try__touch">On a touch screen, tap 添 in the corner, then Edit.</p>
+  <p class="<%= lc_text_class(size: :small, tone: :muted, extra: "try__touch") %>">On a touch screen, tap 添 in the corner, then Edit.</p>
 </section>
 
 <%= render "demo/window" %>
 
 <section class="features">
-  <article>
-    <h3><span class="ink-red">Edit</span> text in place</h3>
-    <p>The editor shows the source. Ruby stays a locked chip, so you only change the words around it.</p>
+  <article class="<%= lc_card_class %>">
+    <h3 class="<%= lc_heading_class(size: :subheading) %>"><span class="ink-red">Edit</span> text in place</h3>
+    <p class="<%= lc_text_class(tone: :muted) %>">The editor shows the source. Ruby stays a locked chip, so you only change the words around it.</p>
   </article>
-  <article>
-    <h3><span class="ink-blue">Notes</span> for your agent</h3>
-    <p>Point at anything and say what should change. Your agent gets the note with the file and line.</p>
+  <article class="<%= lc_card_class %>">
+    <h3 class="<%= lc_heading_class(size: :subheading) %>"><span class="ink-accent">Notes</span> for your agent</h3>
+    <p class="<%= lc_text_class(tone: :muted) %>">Point at anything and say what should change. Your agent gets the note with the file and line.</p>
   </article>
-  <article>
-    <h3><span class="ink-green">Production</span> stays the same</h3>
-    <p>Tensaku only loads in development, and every write touches only the bytes you edited.</p>
+  <article class="<%= lc_card_class %>">
+    <h3 class="<%= lc_heading_class(size: :subheading) %>"><span class="ink-green">Production</span> stays the same</h3>
+    <p class="<%= lc_text_class(tone: :muted) %>">Tensaku only loads in development, and every write touches only the bytes you edited.</p>
   </article>
 </section>
 
 <section class="install">
-  <h2>Two commands</h2>
-  <pre class="install__code"><code>bundle add tensaku --group development
-bin/rails generate tensaku:install</code></pre>
-  <p>Ruby 4.0 and Rails 8.1 or later. <a href="/introduction">Read the docs</a></p>
+  <h2 class="<%= lc_heading_class(size: :title) %>">Two commands</h2>
+  <%= lc_code_block "bundle add tensaku --group development\nbin/rails generate tensaku:install", id: "install-commands", language: "shell", max_lines: nil %>
+  <p class="<%= lc_text_class(tone: :muted) %>">Ruby 4.0 and Rails 8.1 or later. <a class="<%= lc_link_class(extra: "text-primary") %>" href="/introduction">Read the docs</a></p>
 </section>

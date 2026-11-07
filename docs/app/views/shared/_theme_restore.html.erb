@@ -1,0 +1,7 @@
+<%# Development only: applies the theme picked in shared/_theme_picker before the page paints. %>
+<script>
+  try {
+    const wada = localStorage.getItem("tensaku-docs:wada")
+    if (wada && wada !== "232") document.documentElement.dataset.wada = wada
+  } catch {}
+</script>

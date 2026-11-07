@@ -1,0 +1,40 @@
+<%# Development only: compares Wada combinations on the real pages. The colours are defined in
+    app/assets/tailwind/application.css; 232 is the default the site ships with. %>
+<% themes = [
+  [ "232", "Deep Indigo, Carmine, Pinkish Cinnamon", %w[#051230 #cc1236 #eeb480] ],
+  [ "117", "Black, Carmine", %w[#111314 #cc1236] ],
+  [ "221", "Black, Carmine Red, Neutral Gray", %w[#111314 #a62c37 #b6bfc1] ],
+  [ "245", "Dark Tyrian Blue, Carmine Red, Oil Green", %w[#12354e #a62c37 #819238] ],
+  [ "303", "Deep Slate Olive, Peach Red, Naples Yellow", %w[#253122 #f15a30 #fbe6a0] ],
+  [ "313", "Black, Carmine, Yellow", %w[#111314 #cc1236 #fff200] ],
+  [ "325", "Deep Slate Green, Eugenia Red, Yellow Ocher", %w[#112f2c #da525d #e2b540] ],
+  [ "331", "Dull Violet Black, Indian Lake, Light Mauve", %w[#1e0e3f #c53c69 #9a72aa] ],
+  [ "332", "Deep Slate Olive, Scarlet, Coral Red", %w[#253122 #cb2f43 #f58e84] ]
+] %>
+<aside class="<%= lc_card_class(padding: :sm, extra: "theme-picker") %>" aria-label="Wada theme" data-tensaku-ui data-theme-picker>
+  <p class="<%= lc_text_class(size: :label) %>">Wada theme <span class="<%= lc_text_class(size: :caption, tone: :muted, extra: "inline") %>">development only</span></p>
+  <div class="theme-picker__list">
+    <% themes.each do |id, name, swatches| %>
+      <button type="button" class="<%= lc_button_class(variant: :ghost, size: :sm, extra: "theme-picker__option") %>" title="<%= id %>: <%= name %>" aria-pressed="false" data-wada="<%= id %>">
+        <span class="theme-picker__swatches" aria-hidden="true"><% swatches.each do |color| %><i style="background: <%= color %>"></i><% end %></span>
+        <%= id %>
+      </button>
+    <% end %>
+  </div>
+</aside>
+<script>
+  (() => {
+    const picker = document.querySelector("[data-theme-picker]")
+    const current = () => document.documentElement.dataset.wada || "232"
+    const mark = () => picker.querySelectorAll("[data-wada]").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.wada === current())))
+    picker.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-wada]")
+      if (!button) return
+      if (button.dataset.wada === "232") delete document.documentElement.dataset.wada
+      else document.documentElement.dataset.wada = button.dataset.wada
+      try { localStorage.setItem("tensaku-docs:wada", button.dataset.wada) } catch {}
+      mark()
+    })
+    mark()
+  })()
+</script>

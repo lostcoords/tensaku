@@ -1,26 +1,10 @@
-/* The landing page: warm paper, dark ink, correction red, and a few hand-drawn marks. */
+/* The landing page. lostcoords-ui draws the components; this file adds what is the landing's own:
+   the hero, the pen mark, the handwritten steps, the source window and the doodles. */
 
 .landing {
-  /* Wada 232, from application.css: Deep Indigo paper, Pinkish Cinnamon and Carmine ink. */
-  --paper: var(--background);
-  --paper-deep: #0b1a3d;
-  --card: #0d1d44;
-  --ink: var(--foreground);
-  --ink-soft: var(--muted-foreground);
-  --rule: var(--border);
-  --akaji: var(--wada-carmine);
-  --akaji-text: var(--wada-carmine-light);
-  --cinnamon: var(--wada-cinnamon);
-  --pen-blue: #9aa3c4;
-  --mint: #6fd3a9;
-  --highlighter: rgb(238 180 128 / 0.3);
   --hand: "Shantell Sans", "Comic Sans MS", ui-rounded, sans-serif;
+  --highlighter: color-mix(in oklab, var(--wada-accent) 30%, transparent);
 
-  background: var(--paper);
-  color: var(--ink);
-}
-
-.landing {
   position: relative;
   overflow-x: clip;
 }
@@ -33,24 +17,6 @@
   padding: 0 1rem;
 }
 
-.landing a {
-  color: inherit;
-}
-
-.landing code,
-.landing kbd {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.9em;
-}
-
-.landing kbd {
-  border: 1px solid var(--rule);
-  border-bottom-width: 2px;
-  border-radius: 4px;
-  background: var(--card);
-  padding: 0 0.3em;
-}
-
 /* Hero ------------------------------------------------------------------------------------- */
 
 .hero {
@@ -61,12 +27,25 @@
 }
 
 .hero__title {
-  margin: 0.75rem 0 1.25rem;
+  margin-bottom: 1.25rem;
   font-size: clamp(2.4rem, 7vw, 4.25rem);
-  font-weight: 700;
   line-height: 1.05;
   letter-spacing: -0.03em;
   text-wrap: balance;
+}
+
+.hero__lead {
+  font-size: 1.3rem;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+.hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 2rem;
 }
 
 .pen-mark {
@@ -85,7 +64,7 @@
 
 .pen-mark path {
   fill: none;
-  stroke: var(--akaji);
+  stroke: var(--wada-red);
   stroke-width: 4;
   stroke-linecap: round;
   vector-effect: non-scaling-stroke;
@@ -96,66 +75,6 @@
 
 @keyframes draw {
   to { stroke-dashoffset: 0; }
-}
-
-.hero__lead {
-  font-size: 1.3rem;
-  line-height: 1.6;
-  color: var(--ink-soft);
-  text-wrap: pretty;
-}
-
-.hero__actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.75rem;
-  margin: 2rem 0 1rem;
-}
-
-.button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  min-height: 2.75rem;
-  padding: 0 1.2rem;
-  border: 1.5px solid var(--ink);
-  border-radius: 999px;
-  background: var(--card);
-  font-weight: 600;
-  text-decoration: none;
-  cursor: pointer;
-  transition: transform 150ms ease, box-shadow 150ms ease;
-}
-
-.button:hover {
-  transform: translateY(-2px) rotate(-0.6deg);
-  box-shadow: 0 3px 0 var(--akaji);
-}
-
-.button:focus-visible {
-  outline: 3px solid var(--pen-blue);
-  outline-offset: 3px;
-}
-
-.button--ink {
-  border-color: var(--akaji);
-  background: var(--akaji);
-  color: var(--ink) !important;
-}
-
-.button--small {
-  min-height: 2rem;
-  padding: 0 0.8rem;
-  font-size: 0.8rem;
-  margin-left: auto;
-}
-
-.button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
 }
 
 /* Try it ----------------------------------------------------------------------------------- */
@@ -174,7 +93,7 @@
   counter-reset: step;
   font-family: var(--hand);
   font-size: 1.08rem;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
 .try__steps li {
@@ -192,9 +111,9 @@
   place-items: center;
   width: 1.75rem;
   height: 1.75rem;
-  border: 2px solid var(--akaji);
+  border: 2px solid var(--wada-red);
   border-radius: 50% 45% 55% 48%;
-  color: var(--akaji-text);
+  color: var(--wada-red-text);
   font-weight: 600;
   transform: rotate(-6deg);
 }
@@ -206,115 +125,57 @@
 .try__touch {
   display: none;
   margin-top: 0.75rem;
-  font-family: var(--hand);
-  color: var(--ink-soft);
 }
 
 @media (pointer: coarse) {
   .try__touch { display: block; }
 }
 
-/* The source window: the file this page is rendered from, and the notes as the agent reads them. */
+/* The source window ------------------------------------------------------------------------ */
 
 .window {
   margin: 0.5rem 0 3rem;
-  border: 1.5px solid var(--rule);
-  border-radius: 14px;
-  background: #020a1f;
-  box-shadow: 0 1.5rem 3rem -1.5rem rgb(0 0 0 / 0.7), 6px 7px 0 var(--akaji);
   overflow: hidden;
 }
 
-.window__bar {
-  display: flex;
-  align-items: stretch;
-  gap: 0.25rem;
-  padding: 0 0.75rem 0 1rem;
-  border-bottom: 1px solid var(--rule);
-  background: var(--paper-deep);
-  overflow-x: auto;
+.window [data-slot="tabs"] {
+  gap: 0;
 }
 
-.window__dots {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-right: 0.75rem;
-}
-
-.window__dots i {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--rule);
-}
-
-.window__tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.7rem 0.9rem;
-  border-bottom: 2px solid transparent;
-  color: var(--ink-soft);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.8rem;
-  white-space: nowrap;
-}
-
-.window__tab[aria-selected="true"] {
-  border-bottom-color: var(--akaji);
-  color: var(--ink);
-}
-
-.window__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--akaji);
-}
-
-.window__count {
-  min-width: 1.25rem;
-  padding: 0 0.35rem;
-  border-radius: 999px;
-  background: var(--akaji);
-  color: var(--ink);
-  font-size: 0.7rem;
-  text-align: center;
-}
-
-.window__count[hidden] { display: none; }
-
-.window .button--small {
-  align-self: center;
-  margin-left: auto;
+.window__tabs {
+  margin: 0.75rem 0.75rem 0;
 }
 
 .window__code,
-.window__agent {
+.window__agent pre {
   position: relative;
   margin: 0;
   padding: 1rem 0;
   height: 26rem;
   overflow: auto;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.65;
-  white-space: pre;
-  color: #d9d3e3;
 }
 
 .window__agent {
-  padding: 1rem 1.25rem;
+  display: grid;
+  gap: 0.75rem;
+  justify-items: start;
+  padding: 1rem 1.25rem 0;
+}
+
+.window__agent pre {
+  width: 100%;
+  height: 22rem;
+  padding: 0;
   white-space: pre-wrap;
+  color: var(--muted-foreground);
 }
 
 .window__note {
   padding: 0.6rem 1rem;
-  border-top: 1px solid var(--rule);
-  font-family: var(--hand);
-  font-size: 0.9rem;
-  color: var(--cinnamon);
+  border-top: 1px solid var(--border);
 }
 
 .demo-code__line {
@@ -327,25 +188,65 @@
   width: 3.25rem;
   padding-right: 1rem;
   text-align: right;
-  color: var(--ink-soft);
-  opacity: 0.45;
+  color: var(--muted-foreground);
+  opacity: 0.5;
   user-select: none;
 }
 
 .demo-code__line--changed {
-  background: rgb(204 18 54 / 0.16);
+  background: color-mix(in oklab, var(--wada-red) 16%, transparent);
 }
 
 .demo-code__line--changed .demo-code__number {
-  color: var(--akaji-text);
+  color: var(--wada-red-text);
   opacity: 1;
 }
 
 .window__code mark {
   border-radius: 3px;
   background: var(--highlighter);
-  color: var(--ink);
-  box-shadow: 0 2px 0 var(--akaji);
+  color: var(--foreground);
+  box-shadow: 0 2px 0 var(--wada-red);
+}
+
+/* Features and install --------------------------------------------------------------------- */
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1.25rem;
+  padding: 1rem 0 3rem;
+}
+
+.ink-red,
+.ink-accent,
+.ink-green {
+  font-family: var(--hand);
+}
+
+.ink-red { color: var(--wada-red-text); }
+.ink-accent { color: var(--wada-accent); }
+.ink-green { color: var(--success); }
+
+.install {
+  display: grid;
+  gap: 1rem;
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 2rem 0 5rem;
+}
+
+.landing-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 2rem 1rem 3rem;
+  border-top: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: 0.85rem;
 }
 
 /* Rakugaki: the doodles in the margins. They sit behind the content and only show where the margins
@@ -369,7 +270,7 @@
   width: 5.5rem;
   transform: rotate(var(--rot, 0deg));
   opacity: 0.55;
-  color: var(--ink-soft);
+  color: var(--muted-foreground);
   font-family: var(--hand);
 }
 
@@ -406,13 +307,13 @@
 }
 
 .rk--word s {
-  text-decoration-color: var(--akaji);
+  text-decoration-color: var(--wada-red);
   text-decoration-thickness: 2px;
 }
 
 .rk__caret {
   position: relative;
-  color: var(--akaji-text);
+  color: var(--wada-red-text);
 }
 
 .rk__caret em {
@@ -432,120 +333,27 @@
 .rk--circled {
   width: auto;
   padding: 0.1rem 0.6rem;
-  border: 2px solid var(--akaji);
+  border: 2px solid var(--wada-red);
   border-radius: 50% 45% 55% 48%;
   font-size: 1.1rem;
-  color: var(--akaji-text);
+  color: var(--wada-red-text);
 }
 
 .rk--boxed {
   padding: 0 0.4rem;
   border: 2px solid currentColor;
   border-radius: 3px 6px 4px 7px;
-  color: var(--cinnamon);
+  color: var(--wada-accent);
 }
 
-.rk--red { color: var(--akaji-text); }
-.rk--cinnamon { color: var(--cinnamon); }
-.rk--blue { color: var(--pen-blue); }
-.rk--green { color: var(--mint); }
-
-/* Features and install --------------------------------------------------------------------- */
-
-.features {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-  gap: 1.25rem;
-  padding: 2rem 0 3rem;
-}
-
-.features article {
-  padding: 1.4rem;
-  border: 1.5px solid var(--rule);
-  border-radius: 14px;
-  background: var(--card);
-}
-
-.features h3 {
-  margin-bottom: 0.6rem;
-  font-size: 1.2rem;
-  font-weight: 700;
-}
-
-.features p {
-  color: var(--ink-soft);
-  line-height: 1.6;
-}
-
-.ink-red,
-.ink-blue,
-.ink-green {
-  font-family: var(--hand);
-  font-weight: 600;
-}
-
-.ink-red { color: var(--akaji-text); }
-.ink-blue { color: var(--cinnamon); }
-.ink-green { color: var(--mint); }
-
-.install {
-  max-width: 44rem;
-  margin: 0 auto;
-  padding: 2rem 0 4rem;
-}
-
-.install h2 {
-  font-size: 2rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-
-.install a {
-  color: var(--akaji-text);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.install__code {
-  margin: 1rem 0;
-  padding: 1rem 1.2rem;
-  border-radius: 12px;
-  border: 1.5px solid var(--rule);
-  background: var(--paper-deep);
-  color: var(--ink);
-  font-size: 0.95rem;
-  line-height: 1.6;
-  overflow-x: auto;
-}
-
-.install__code .comment {
-  opacity: 0.6;
-}
-
-.install p {
-  color: var(--ink-soft);
-  line-height: 1.6;
-}
-
-.landing-footer {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 1rem;
-  max-width: 72rem;
-  margin: 0 auto;
-  padding: 2rem 1rem 3rem;
-  border-top: 1px solid var(--rule);
-  color: var(--ink-soft);
-  font-size: 0.85rem;
-}
+.rk--red { color: var(--wada-red-text); }
+.rk--cinnamon { color: var(--wada-accent); }
+.rk--blue { color: var(--muted-foreground); }
+.rk--green { color: var(--success); }
 
 @media (prefers-reduced-motion: reduce) {
   .pen-mark path {
     animation: none;
     stroke-dashoffset: 0;
   }
-
-  .button { transition: none; }
-  .button:hover { transform: none; }
 }
