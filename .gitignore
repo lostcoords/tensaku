@@ -7,3 +7,10 @@
 /test/dummy/public/assets/
 /test/dummy/storage/
 *.gem
+/vendor/bundle/
+/docs/log/
+/docs/tmp/
+/docs/dist/
+/docs/public/assets/
+/docs/app/assets/builds/
+/docs/.bundle/

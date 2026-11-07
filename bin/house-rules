@@ -18,7 +18,7 @@ Violation = Data.define(:path, :line, :message)
 ALLOW = "house-rules:allow"
 PROSE = /\.(md|markdown)\z/
 # Files we generate or receive rather than write.
-SKIPPED = %r{\A(app/assets/tensaku\.js|bun\.lock|Gemfile\.lock|test/dummy/public/|test/dummy/log/|test/dummy/tmp/|tmp/)}
+SKIPPED = %r{\A(app/assets/tensaku\.js|bun\.lock|Gemfile\.lock|test/dummy/public/|test/dummy/log/|test/dummy/tmp/|tmp/|vendor/|node_modules/|docs/(log|tmp|dist|public/assets)/)}
 
 def tracked_files
   command = File.directory?(".jj") ? %w[jj file list] : %w[git ls-files --cached --others --exclude-standard]
