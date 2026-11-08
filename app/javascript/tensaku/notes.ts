@@ -8,7 +8,7 @@ import { icon } from "./icons"
 import { settings } from "./settings"
 import { activeInShadow, copy, div, h, layer, fixed, panel, toast } from "./ui"
 
-export interface Target {
+interface Target {
   kind: "element" | "text" | "translation" | "markdown"
   stamp?: string
   text?: string
@@ -35,7 +35,7 @@ export interface Note {
   created_at: string
 }
 
-export interface Agent { connected: boolean; seen_at: string | null; names?: string[] }
+interface Agent { connected: boolean; seen_at: string | null; names?: string[] }
 
 let notes: Note[] = []
 let openCount = 0
@@ -192,7 +192,7 @@ const normalized = (list: Note[]) => list.map((note) => ({ ...note, targets: not
 let lastSignature = ""
 // Polls and forced loads can overlap; only the newest request's answer is used.
 let loadSequence = 0
-// A 403 means the page's token no longer matches the server's (it restarted). Said once, not on every
+// A 403 means the page's token no longer matches the server's (tmp/tensaku/token changed). Said once, not on every
 // poll; the notes already drawn stay.
 let tokenWarned = false
 export async function load({ force = false } = {}) {

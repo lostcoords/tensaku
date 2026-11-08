@@ -65,8 +65,6 @@ module Tensaku
         "rect" => rect(attributes["rect"]),
         "viewport" => attributes["viewport"]&.to_s,
         "status" => "open",
-        "reply" => nil,
-        "thread" => [],
         "created_at" => now,
         "updated_at" => now
       }.compact_blank.merge("reply" => nil, "thread" => [])

@@ -7,14 +7,14 @@ export const STAMP = "data-herb-source"
 export const MARKDOWN = "data-md-source"
 const SOURCE_SELECTOR = `[${STAMP}], [${MARKDOWN}]`
 
-export interface Stamp {
+interface Stamp {
   file: string
   line: number
   column: number
   value: string
 }
 
-export function parseStamp(value: string | null | undefined): Stamp | null {
+function parseStamp(value: string | null | undefined): Stamp | null {
   const match = value?.match(/^(.+):(\d+):(\d+)$/)
   return match ? { file: match[1], line: Number(match[2]), column: Number(match[3]), value: value! } : null
 }
@@ -48,7 +48,7 @@ export function copiesOf(element: Element): number {
   return value ? document.querySelectorAll(`[${STAMP}="${CSS.escape(value)}"]`).length : 1
 }
 
-export function partialChain(element: Element): string[] {
+function partialChain(element: Element): string[] {
   const files: string[] = []
   for (let node: Element | null = element; node; node = node.parentElement) {
     const stamp = parseStamp(node.getAttribute(STAMP))
@@ -85,10 +85,6 @@ export function hasOwnText(element: Element): boolean {
   return false
 }
 
-export function markdownTag(element: Element): string {
-  return element.tagName.toLowerCase()
-}
-
 const MARKDOWN_EDITABLE = new Set(["p", "h1", "h2", "h3", "h4", "h5", "h6", "li", "blockquote"])
 const ATTRIBUTES = ["alt", "title", "placeholder", "aria-label", "value"]
 
@@ -97,13 +93,13 @@ const ATTRIBUTES = ["alt", "title", "placeholder", "aria-label", "value"]
 // editable, so Alt-click works before edit mode has asked.
 export const templateText = new Map<string, boolean>()
 
-export type EditKind = "translation" | "markdown" | "template" | "attributes" | null
+type EditKind = "translation" | "markdown" | "template" | "attributes" | null
 
 // What Alt-click (or a click in edit mode) edits. A translation wins over the template, since the
 // template only holds the t() call; Markdown blocks come from their producer's source.
 export function editKind(element: Element): EditKind {
   if (translationOf(element)) return "translation"
-  if (element.hasAttribute(MARKDOWN) && MARKDOWN_EDITABLE.has(markdownTag(element))) return "markdown"
+  if (element.hasAttribute(MARKDOWN) && MARKDOWN_EDITABLE.has(element.tagName.toLowerCase())) return "markdown"
   if (element.hasAttribute(STAMP) && hasOwnText(element) && templateText.get(element.getAttribute(STAMP)!) !== false) return "template"
   if (editableAttributes(element).length) return "attributes"
   return null

@@ -1,7 +1,7 @@
 // Talks to Tensaku's endpoints. The token and the request method come from the meta tag the
 // middleware writes into every HTML page, read fresh each time because Turbo swaps the head.
 
-export interface PageMeta {
+interface PageMeta {
   token: string
   root: string
   method: string

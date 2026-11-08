@@ -1,2 +1,2 @@
 # The stand-in Markdown producer's source directory.
-Tensaku.register_writable_path("content") if defined?(Tensaku)
+Tensaku.register_writable_path("content")

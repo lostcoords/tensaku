@@ -55,7 +55,7 @@ function readRecord<T>(element: Element, name: string): T[] {
 }
 
 // Fills the maps for nodes that have a record but no entry, after Turbo renders a cached snapshot.
-export function restore(root: ParentNode = document) {
+function restore(root: ParentNode = document) {
   root.querySelectorAll(`[${TEXT_KEYS}]`).forEach((element) => {
     const texts = textNodesOf(element)
     for (const [index, locale, key] of readRecord<[number, string, string]>(element, TEXT_KEYS)) {
@@ -122,7 +122,7 @@ function stripAttributes(element: Element) {
   if (element instanceof HTMLTextAreaElement && element.value.includes(FENCE)) element.value = extract(element.value).text
 }
 
-export function strip(root: Node) {
+function strip(root: Node) {
   if (root.nodeType === Node.TEXT_NODE) return stripText(root as Text)
   if (!(root instanceof Element || root instanceof Document || root instanceof DocumentFragment)) return
   if (root instanceof Element) stripAttributes(root)

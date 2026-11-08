@@ -77,9 +77,9 @@ module Tensaku
         written(:markdown) { Source::Markdown.new(params["range"]).edit(original: params["original"], text: params["text"], tag: params["tag"]) }
       in [ "GET", "/notes" ]
         Notes.prune!
-        json(notes: Notes.list(url: params["url"].presence, status: params["status"].presence), open: Notes.list(status: Notes::ACTIVE).size, agent: Notes.agent)
+        json(notes: Notes.list(url: params["url"].presence), open: Notes.list(status: Notes::ACTIVE).size, agent: Notes.agent)
       in [ "GET", "/notes.md" ]
-        notes = params["id"].present? ? [ Notes.find(params["id"]) ] : Notes.list(url: params["url"].presence, status: params["status"].presence || Notes::ACTIVE)
+        notes = params["id"].present? ? [ Notes.find(params["id"]) ] : Notes.list(url: params["url"].presence, status: Notes::ACTIVE)
         markdown = params["format"] == "short" ? Notes.to_short_markdown(notes) : Notes.to_markdown(notes)
         [ 200, { "content-type" => "text/markdown; charset=utf-8" }, [ markdown ] ]
       in [ "POST", "/notes" ]
@@ -87,7 +87,7 @@ module Tensaku
       in [ "PATCH", %r{\A/notes/([a-z0-9]+)\z} ]
         id = path.split("/").last
         json(Notes.update(id, status: params["status"], reply: params["reply"], comment: params["comment"],
-          message: params["message"], from: params["from"] || "you", targets: params["targets"]))
+          message: params["message"], from: "you", targets: params["targets"]))
       in [ "DELETE", %r{\A/notes/([a-z0-9]+)\z} ]
         Notes.delete(path.split("/").last)
         json({ deleted: true })

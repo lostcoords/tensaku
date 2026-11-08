@@ -19,7 +19,7 @@ function permanent(node: Node) {
   return node instanceof Element && (node.hasAttribute("data-turbo-permanent") || node.hasAttribute("data-tensaku-permanent") || node.hasAttribute("data-tensaku-ui"))
 }
 
-export function herbDevServer(): boolean {
+function herbDevServer(): boolean {
   return Boolean(document.querySelector('meta[name="herb-dev-server-port"]'))
 }
 

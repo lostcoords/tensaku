@@ -34,7 +34,7 @@ module Tensaku
 
       def describe(tag: nil)
         raw = block_source
-        prefix = WHOLE.include?(tag.to_s.downcase) ? "" : raw[PREFIX].to_s
+        prefix = prefix_of(raw, tag)
         {
           file: relative_path,
           range: "#{@start_line}:#{@start_column}-#{@end_line}:#{@end_column}",
@@ -52,7 +52,7 @@ module Tensaku
         raw = block_source
         raise StaleSource, "#{relative_path} changed since the page was rendered. Reload the page and try again." unless raw == original.to_s
 
-        prefix = WHOLE.include?(tag.to_s.downcase) ? "" : raw[PREFIX].to_s
+        prefix = prefix_of(raw, tag)
         replacement = prefix + merge(raw.delete_prefix(prefix), text.to_s)
         return { changed: false, file: relative_path } if replacement == raw
 
@@ -62,6 +62,11 @@ module Tensaku
       end
 
       private
+
+      # The block syntax that stays locked, or nothing when a whole list is edited as source.
+      def prefix_of(raw, tag)
+        WHOLE.include?(tag.to_s.downcase) ? "" : raw[PREFIX].to_s
+      end
 
       # The new block text, keeping the old characters where the text didn't change: a non-breaking space
       # typed in the browser reads as a plain space, so an untouched one in the file survives, and only

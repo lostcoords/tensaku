@@ -69,7 +69,7 @@ module Tensaku
 
       def self.attribute_escaper(quote)
         lambda do |text|
-          escaped = text.gsub("&", "&amp;").gsub("<", "&lt;").gsub(">", "&gt;")
+          escaped = escape_text(text)
           quote == "'" ? escaped.gsub("'", "&#39;") : escaped.gsub('"', "&quot;")
         end
       end

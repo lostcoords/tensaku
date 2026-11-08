@@ -19,12 +19,10 @@ module Tensaku
 
     # Whether the request came from this machine and from a page of this app, not another site.
     def local_request?(request)
-      return false unless loopback?(request)
-
-      origin = request.get_header("HTTP_ORIGIN")
-      return false if origin && !local_url?(origin)
-
-      allowed_host?(raw_host(request))
+      check_local_client!(request)
+      true
+    rescue Forbidden
+      false
     end
 
     def check_request!(request)

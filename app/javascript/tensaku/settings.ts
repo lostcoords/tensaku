@@ -2,7 +2,7 @@
 
 import { storage, store } from "./ui"
 
-export interface Settings {
+interface Settings {
   // Copied Markdown: every target and the thread, or one line per note.
   copyFormat: "detailed" | "short"
   // A browser notification when an agent answers while the tab is in the background.

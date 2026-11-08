@@ -259,11 +259,11 @@ kbd { font: 10.5px/1 var(--mono); padding: 2px 4px; border-radius: 4px; backgrou
 }
 `
 
-export const host = document.createElement("tensaku-overlay")
+const host = document.createElement("tensaku-overlay")
 host.id = "tensaku-overlay"
 host.setAttribute("data-tensaku-ui", "")
 host.setAttribute("data-turbo-permanent", "")
-export const shadow = host.attachShadow({ mode: "open" })
+const shadow = host.attachShadow({ mode: "open" })
 
 // A constructed stylesheet, so a page with a strict Content-Security-Policy (no 'unsafe-inline' for
 // styles) still styles the overlay. Browsers without constructable stylesheets get a <style> element.
