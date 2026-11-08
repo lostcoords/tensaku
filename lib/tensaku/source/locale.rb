@@ -67,14 +67,13 @@ module Tensaku
       end
 
       def candidates(locale)
-        allowed = Guard.writable_dirs.map(&:to_s)
         root = Tensaku.root.realpath
         I18n.load_path.flatten.filter_map do |entry|
           path = Pathname(entry.to_s).expand_path
           next unless EXTENSIONS.include?(path.extname) && path.file?
 
           path = path.realpath
-          next unless allowed.any? { path.to_s.start_with?("#{it}/") }
+          next unless Guard.writable?(path)
 
           [ path.relative_path_from(root).to_s, path ]
         end.uniq.select { |_, path| File.read(path).include?(locale.to_s) }

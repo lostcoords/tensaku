@@ -50,8 +50,7 @@ module Tensaku
       raise Forbidden, "#{relative} does not exist" unless path.file?
 
       real = path.realpath
-      inside = writable_dirs.any? { real.to_s.start_with?("#{it}/") }
-      raise Forbidden, "#{relative} is outside Tensaku's writable paths (#{Tensaku.config.writable_paths.join(", ")})" unless inside
+      raise Forbidden, "#{relative} is outside Tensaku's writable paths (#{Tensaku.config.writable_paths.join(", ")})" unless writable?(real)
 
       unless extensions.any? { real.basename.to_s.end_with?(it) }
         raise Forbidden, "#{relative} is not a #{extensions.join(" or ")} file"
@@ -60,10 +59,20 @@ module Tensaku
       real
     end
 
+    # True for a real path inside a writable directory or equal to a writable file.
+    def writable?(real)
+      writable_dirs.any? { real.to_s.start_with?("#{it}/") } || writable_files.include?(real)
+    end
+
     # The configured directories that exist.
     def writable_dirs
       dirs = Tensaku.config.writable_paths.map { Tensaku.root.join(it) }
       dirs.select(&:directory?).map(&:realpath)
+    end
+
+    # Single files from the configured paths, such as a README outside the app.
+    def writable_files
+      Tensaku.config.writable_paths.map { Tensaku.root.join(it) }.select(&:file?).map(&:realpath)
     end
 
     def secure_compare(a, b)

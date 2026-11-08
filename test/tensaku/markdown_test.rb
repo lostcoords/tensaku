@@ -83,6 +83,21 @@ class Tensaku::MarkdownTest < Tensaku::TestCase
     assert_raises(Tensaku::Forbidden) { Markdown.new("README.md:1:1-1:4") }
   end
 
+  test "a single file in the writable paths is writable, and only that file" do
+    outside = tmp_root.join("../#{tmp_root.basename}-CONTRIBUTING.md")
+    outside.write("# Hi\n")
+    tmp_root.join("NOTES.md").write("# No\n")
+    Tensaku.config.writable_paths << outside.relative_path_from(tmp_root).to_s
+
+    block = Markdown.new("#{outside.relative_path_from(tmp_root)}:1:1-1:4")
+    block.edit(original: block.describe[:original], text: "Hello")
+    assert_equal "# Hello\n", outside.read
+    assert_raises(Tensaku::Forbidden) { Markdown.new("NOTES.md:1:1-1:4") }
+  ensure
+    Tensaku.config.writable_paths.delete(outside.relative_path_from(tmp_root).to_s)
+    FileUtils.rm_f(outside)
+  end
+
   test "an edit keeps untouched non-breaking spaces and the file's CRLF line endings" do
     @file.write("A\u00A0paragraph with\r\ntwo lines.\r\n\r\nNext.\r\n")
     block = Markdown.new("app/views/pages/menu.md:1:1-2:10")

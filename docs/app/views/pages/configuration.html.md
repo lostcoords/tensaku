@@ -15,9 +15,11 @@ end
 
 | Option | Default | |
 |---|---|---|
-| `writable_paths` | `app/views`, `app/components`, `config/locales` | Directories Tensaku may write to, relative to the app root |
+| `writable_paths` | `app/views`, `app/components`, `config/locales` | Directories and single files Tensaku may write to, relative to the app root |
 | `shortcut` | `"alt+shift+KeyT"` | Modifiers and a `KeyboardEvent#code` for select mode |
 | `prune_after` | 3 days | Seconds before resolved notes are deleted |
 | `notes_path` | `tmp/tensaku/notes` | Where note files are written |
+
+A file in `writable_paths` allows only that file, so a Markdown file outside the app, such as `../CONTRIBUTING.md`, can be edited without opening its whole directory.
 
 Other gems can call `Tensaku.register_writable_path("their/dir")`.

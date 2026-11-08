@@ -32,7 +32,7 @@ module Tensaku
   class Forbidden < Error; end
 
   class Config
-    # Directories, relative to Rails.root, that Tensaku may write to.
+    # Directories and files, relative to Rails.root, that Tensaku may write to.
     attr_reader :writable_paths
 
     # Where note files live, relative to Rails.root.
@@ -68,7 +68,7 @@ module Tensaku
       yield config
     end
 
-    # Lets another gem allow writes to its own source directory.
+    # Lets another gem allow writes to its own source directory or file.
     def register_writable_path(path)
       config.writable_paths << path.to_s unless config.writable_paths.include?(path.to_s)
     end
