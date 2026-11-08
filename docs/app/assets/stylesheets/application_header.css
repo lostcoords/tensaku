@@ -7,7 +7,34 @@
   opacity: 1;
 }
 
+/* On the landing page the bar pulls in on scroll. The header's own padding makes up for the lost
+   height, so the page below doesn't move. */
+.landing .header-example {
+  transition: padding-bottom 500ms ease;
+}
+
+.landing .header-example > div {
+  transition: max-width 500ms ease, min-height 500ms ease, padding-block 500ms ease;
+}
+
+.landing .header-example[data-scrolled] {
+  padding-bottom: 1.75rem;
+}
+
+.landing .header-example[data-scrolled] > div {
+  min-height: 3.25rem;
+  padding-block: 0.25rem;
+}
+
+@media (min-width: 48rem) {
+  .landing .header-example[data-scrolled] > div {
+    max-width: 56rem;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .landing .header-example,
+  .landing .header-example > div,
   .header-example__glass {
     transition: none;
   }

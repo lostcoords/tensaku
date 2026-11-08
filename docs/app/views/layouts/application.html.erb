@@ -15,16 +15,20 @@
       <span class="brand-mark text-2xl leading-none" aria-hidden="true">添</span>
       <span class="text-sm">tensaku</span>
     <% end %>
-    <%= render layout: "shared/header", locals: { brand:, home_label: "Tensaku home", width: "max-w-330", links: [ [ "Docs", introduction_page_path, true ] ] } do %>
+    <%= render layout: "shared/header", locals: { brand:, home_label: "Tensaku home", width: "max-w-none", floating: false, links: [ [ "Docs", introduction_page_path, true ] ] } do %>
+      <%= render "shared/search" %>
       <%= lc_button_link_to "https://github.com/lostcoords/tensaku", variant: :ghost, size: :sm, aria: { label: "Source on GitHub" } do %><%= render "shared/github_icon" %><% end %>
     <% end %>
-    <%= render layout: "shared/docs_shell", locals: { navigation: render("shared/navigation"), menu_label: "Pages", width: "max-w-3xl" } do %>
+    <% page = yield %>
+    <% outline = Docs.outline(page) %>
+    <%= render layout: "shared/docs_shell", locals: { navigation: render("shared/navigation"), contents: (render("shared/outline", outline:) if outline.size > 1), menu_label: "Pages", width: "max-w-3xl" } do %>
       <article class="<%= lc_prose_class %>">
-        <%= yield %>
+        <%= page %>
       </article>
+      <%# Inside the shell, so the sticky sidebars have the whole page to stay in and never slide up under the header. %>
+      <footer class="mt-16 flex flex-wrap items-center justify-between gap-4 border-t border-border pt-6 text-xs text-muted-foreground">
+        <span>Tensaku by <a href="https://lostcoords.com">Lostcoords</a> · MIT license</span><%= lc_link "Source on GitHub ↗", "https://github.com/lostcoords/tensaku", tone: :muted, class: "no-underline hover:underline" %>
+      </footer>
     <% end %>
-    <footer class="mx-auto flex max-w-360 flex-wrap items-center justify-between gap-4 px-5 py-10 text-xs text-muted-foreground sm:px-8 lg:px-10">
-      <span>Tensaku by <a href="https://lostcoords.com">Lostcoords</a> · MIT license</span><%= lc_link "Source on GitHub ↗", "https://github.com/lostcoords/tensaku", tone: :muted, class: "no-underline hover:underline" %>
-    </footer>
   </body>
 </html>

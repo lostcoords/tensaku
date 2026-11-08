@@ -14,4 +14,9 @@ module Docs
   ].freeze
 
   def self.page(slug) = PAGES.find { it.slug == slug }
+
+  # Headings for "On this page": [level, id, text] for each h2 and h3.
+  def self.outline(html)
+    Nokogiri::HTML5.fragment(html).css("h2[id], h3[id]").map { [ it.name[1].to_i, it["id"], it.text.squish ] }
+  end
 end
