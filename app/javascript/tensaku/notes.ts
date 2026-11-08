@@ -1,7 +1,7 @@
 // Notes: comments on elements or areas that an agent reads with the file and line attached. Stored
 // by the server in tmp/tensaku/notes; this module draws pins, the note form and the notes panel.
 
-import { api, ApiError, query } from "./api"
+import { api, ApiError, isApple, query } from "./api"
 import { contentRect, contextOf, MARKDOWN, nearestStamp, STAMP, tagLabel, translationOf, visibleText } from "./dom"
 import { textKeys } from "./markers"
 import { icon } from "./icons"
@@ -181,7 +181,7 @@ export function noteForm(anchor: DOMRect, targets: Target[], extra: Partial<Note
       div("what", div("title", quoted), div("where", where.slice(0, 3).join(", ") + (where.length > 3 ? ` and ${where.length - 3} more` : ""))),
       h("button", { type: "button", className: "icon-button", onclick: close, "aria-label": "Cancel" }, icon("close"))),
     textarea,
-    div("foot", h("span", { className: "hint" }, "⌘↵ saves"), h("button", { type: "button", className: "quiet", onclick: close }, "Cancel"), h("button", { type: "button", className: "primary", onclick: save }, "Save note")))
+    div("foot", h("span", { className: "hint" }, isApple ? "⌘↵ saves" : "Ctrl+Enter saves"), h("button", { type: "button", className: "quiet", onclick: close }, "Cancel"), h("button", { type: "button", className: "primary", onclick: save }, "Save note")))
   textarea.focus()
   return element
 }

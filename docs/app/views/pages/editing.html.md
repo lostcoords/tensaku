@@ -19,13 +19,15 @@ Text from Ruby data (`@post.title`), the output of `form_with` or custom helpers
 
 ## The editor shows the source
 
-Ruby in a template shows as a locked chip, so you edit the text around it. Translations show `%{name}` interpolations as chips, and **Other locales** updates the same key in every locale at once. In Markdown, the heading hashes and list markers are locked and the rest is edited as Markdown. **Edit the whole list**, in a list item's menu, edits the list's source with its markers. There Enter starts a new line and Cmd+Enter (Ctrl+Enter) saves. Tables and code blocks only get notes.
+Ruby in a template shows as a locked chip, so you edit the text around it. A child element shows as it looks on the page: a line break breaks, an element's text is dimmed and opens its own editor when you click it, and an element without text, like an icon, is a small mark. Translations show `%{name}` interpolations as chips, and **Other locales** updates the same key in every locale at once. In Markdown, the heading hashes and list markers are locked and the rest is edited as Markdown. **Edit the whole list**, in a list item's menu, edits the list's source with its markers. There Enter starts a new line and Cmd+Enter (Ctrl+Enter) saves. Tables and code blocks only get notes.
 
 Elements rendered in a loop share one stamp, so the editor says "this edits all 3 copies".
 
 ## How a save works
 
 Every write is a splice. Tensaku re-reads the file, checks that the bytes it's about to replace are still what the page was rendered from, and replaces exactly those bytes through a temp file and a rename. YAML is never loaded and dumped, so comments, ordering and quoting stay. If the file changed since the page rendered, the edit is refused. Nothing is merged or guessed.
+
+After a save, the message at the bottom of the page shows the file and line, with the old and new text of the lines that changed. The server reads those lines from the file before and after the write. Up to three changed lines are shown, then a count of the rest.
 
 ## How the page updates
 

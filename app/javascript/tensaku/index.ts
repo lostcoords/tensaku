@@ -1,7 +1,7 @@
 // Tensaku's overlay. Injected by the middleware in development; reads the stamps producers wrote into
 // the page and talks to the endpoints under /__tensaku.
 
-import { api, meta, query } from "./api"
+import { api, isApple, meta, query } from "./api"
 import { contextOf, documentRect, editKind, hasOwnText, isUi, MARKDOWN, nearestStamp, sourceElement, STAMP, stampOf, tagLabel, templateText, translationOf, visibleText, copiesOf } from "./dom"
 import { closeEditor, edit, editHistory, isEditing, undo, undoFor } from "./editor"
 import { watch as watchMarkers } from "./markers"
@@ -48,7 +48,15 @@ function tool(name: IconName, ink: string, text: string, shortcut?: string) {
   button.style.setProperty("--ink-color", ink)
   return button
 }
-const shortcutLabel = () => meta().shortcut.replace(/Key(\w)/, "$1").replace(/Alt/i, "⌥").replace(/Shift/i, "⇧").replace(/Ctrl/i, "⌃").replace(/Meta|Cmd/i, "⌘").replace(/\+/g, "")
+const APPLE_KEYS: Record<string, string> = { alt: "⌥", shift: "⇧", ctrl: "⌃", meta: "⌘", cmd: "⌘" }
+const OTHER_KEYS: Record<string, string> = { alt: "Alt", shift: "Shift", ctrl: "Ctrl", meta: "Meta", cmd: "Meta" }
+// The configured shortcut in the platform's own notation: ⌥⇧T on Apple platforms, Alt+Shift+T elsewhere.
+function shortcutLabel() {
+  const parts = meta().shortcut.split("+")
+  const key = parts.pop()!.replace(/^Key/, "")
+  const names = isApple ? APPLE_KEYS : OTHER_KEYS
+  return [ ...parts.map((part) => names[part.toLowerCase()] ?? part), key ].join(isApple ? "" : "+")
+}
 const buttons = {
   inspect: tool("highlighter", INK.highlighter, "Select", shortcutLabel()),
   edit: tool("pen", INK.pen, "Edit"),

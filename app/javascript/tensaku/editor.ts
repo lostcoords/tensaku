@@ -1,14 +1,18 @@
-// Editing text in place. The editor always shows the source, never the rendered text: static text is
-// editable, Ruby output, translation interpolations and child elements are locked chips.
+// Editing text in place. The editor shows the source's static text as editable fields. Ruby output and
+// translation interpolations are locked chips. Child elements show as they look on the page: a line
+// break breaks, an element's text keeps its style and opens its own editor on a click, and an element
+// without text is a small mark.
 
+import { diffRows, type Diff } from "./diff"
 import { api, ApiError, query } from "./api"
 import { attributeKey, nodesForKey, elementsWithAttributeKey, type TranslationKey } from "./markers"
-import { contentRect, copiesOf, editableAttributes, MARKDOWN, stampOf, STAMP, translationOf, utf8Length, editKind } from "./dom"
+import { contentRect, copiesOf, editableAttributes, MARKDOWN, stampOf, STAMP, translationOf, utf8Length, editKind, visibleText } from "./dom"
 import { refresh, replaceText, type SourceKind } from "./refresh"
 import { activeInShadow, div, h, layer, place, toast } from "./ui"
 
 interface TextPiece { kind: "text"; start: number; end: number; raw: string; text: string; index?: number }
-type Piece = TextPiece | { kind: "ruby"; code: string } | { kind: "element"; tag: string; label: string } | { kind: "hidden" }
+interface ElementPiece { kind: "element"; tag: string; label: string; stamp?: string | null }
+type Piece = TextPiece | { kind: "ruby"; code: string } | ElementPiece | { kind: "hidden" }
 interface Attribute { name: string; quote: string | null; pieces: Piece[] }
 interface Description { file: string; stamp: string; range: string; tag: string; helper: boolean; editable: boolean; pieces: Piece[]; attributes: Attribute[] }
 interface LocaleEntry { file?: string; line?: number; value: string | null; editable: boolean }
@@ -184,16 +188,52 @@ function frame(element: Element, surface: HTMLElement, info: string, save: () =>
   return container
 }
 
-function pieceSurface(pieces: Piece[]) {
+const NESTED_STYLES = ["fontFamily", "fontSize", "fontStyle", "fontWeight", "letterSpacing", "textTransform", "color"] as const
+
+// A child element, as it looks on the page. Returns null for one that takes no space in the text
+// around it: hidden, or positioned out of the flow like a decorative underline.
+function nestedElement(piece: ElementPiece, host: Element | undefined, unchanged: () => boolean): Node | null {
+  if (piece.tag === "br" || piece.tag.startsWith("br.") || piece.tag.startsWith("br#")) return document.createElement("br")
+  const child = piece.stamp ? host?.querySelector(`[${STAMP}="${CSS.escape(piece.stamp)}"]`) : null
+  const computed = child ? getComputedStyle(child) : null
+  if (computed && (computed.display === "none" || computed.position === "absolute" || computed.position === "fixed")) return null
+  const text = child ? visibleText(child, 80) : piece.label
+  if (!text) return h("span", { className: "chip mark", title: `<${piece.tag}>`, contenteditable: "false" })
+
+  const span = h("span", { className: "nested", contenteditable: "false" }, text)
+  if (computed) {
+    NESTED_STYLES.forEach((name) => { span.style[name] = computed[name] })
+    if (!computed.display.startsWith("inline")) span.style.display = "block"
+  }
+  if (child && editKind(child)) {
+    span.classList.add("link")
+    span.title = "Edit this element on its own"
+    // With unsaved changes, clicking away saves them, as a click anywhere outside the fields does.
+    span.addEventListener("click", () => { if (unchanged()) edit(child) })
+  }
+  return span
+}
+
+function pieceSurface(pieces: Piece[], host?: Element) {
   const surface = div("")
   const fields: { span: HTMLElement; piece: TextPiece }[] = []
+  const unchanged = () => fields.every(({ span, piece }) => valueOf(span) === piece.text)
   for (const piece of pieces) {
     if (piece.kind === "text") {
+      // Whitespace between elements isn't text anyone edits. A space after a line break would only
+      // push the next line out of place.
+      if (!piece.text.trim()) {
+        if (surface.lastChild && surface.lastChild.nodeName !== "BR") surface.append(" ")
+        continue
+      }
       const span = field(piece.text)
       fields.push({ span, piece })
       surface.append(span)
     } else if (piece.kind === "ruby") surface.append(chip(piece.code.length > 30 ? piece.code.slice(0, 29) + "…" : piece.code, piece.code))
-    else if (piece.kind === "element") surface.append(chip(`<${piece.tag}>${piece.label ? " " + piece.label : ""}`, "Edit this element on its own"))
+    else if (piece.kind === "element") {
+      const node = nestedElement(piece, host, unchanged)
+      if (node) surface.append(node)
+    }
   }
   return { surface, fields }
 }
@@ -209,7 +249,7 @@ async function editTemplate(element: Element) {
     throw new Error(info.helper ? "This element comes from a helper, so its text can't be edited here." : "This element has no static text to edit.")
   }
   assertRendered(element, info.pieces.filter((p): p is TextPiece => p.kind === "text").map((p) => p.text))
-  const { surface, fields } = pieceSurface(info.pieces)
+  const { surface, fields } = pieceSurface(info.pieces, element)
   const copies = copiesOf(element)
   frame(element, surface, `${info.file}:${stamp.line}`, async () => {
     const changed = fields.filter(({ span, piece }) => valueOf(span) !== piece.text)
@@ -447,11 +487,14 @@ function remember(element: Element, label: string, run: () => Promise<void>): Un
 
 // undo is the one this save created; a save that is itself an undo has none, so its toast offers no
 // Undo. The toast's Undo is only live while that edit is still the element's latest.
-function done(result: { changed?: boolean; file?: string; warning?: string }, kind: SourceKind, undo?: Undo) {
+function done(result: { changed?: boolean; file?: string; warning?: string; diff?: Diff }, kind: SourceKind, undo?: Undo) {
   if (!result.changed) return
   const entry = undo ? history.find((item) => item.undo === undo) : undefined
   if (entry && !entry.file) entry.file = result.file
-  toast(`Saved ${result.file ?? ""}`.trim(), {
+  const where = result.diff ? `${result.file}:${result.diff.line}` : result.file ?? ""
+  toast(`Saved ${where}`.trim(), {
+    timeout: result.diff ? 8000 : undefined,
+    detail: result.diff ? diffRows(result.diff) : undefined,
     actions: undo ? { Undo: () => { if (Array.from(undos.values()).includes(undo)) undo.run().catch(report); else toast("That edit was changed again, so it can't be undone from here.") } } : undefined,
   })
   if (result.warning) toast(result.warning, { timeout: 8000 })

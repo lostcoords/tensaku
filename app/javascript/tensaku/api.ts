@@ -43,3 +43,5 @@ export async function api<T = any>(method: string, path: string, body?: unknown)
 
 export const query = (params: Record<string, string | undefined>) =>
   "?" + new URLSearchParams(Object.entries(params).filter((entry): entry is [string, string] => entry[1] !== undefined)).toString()
+
+export const isApple = /mac|iphone|ipad|ipod/i.test(navigator.platform || navigator.userAgent)

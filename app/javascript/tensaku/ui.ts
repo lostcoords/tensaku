@@ -117,7 +117,11 @@ kbd { font: 10.5px/1 var(--mono); padding: 2px 4px; border-radius: 4px; backgrou
 .editable { outline: none; text-decoration: underline dotted color-mix(in srgb, var(--akaji) 70%, transparent); text-decoration-thickness: 1.5px; text-underline-offset: .22em; min-width: .5em; display: inline; }
 .editable { text-decoration-color: color-mix(in srgb, var(--akaji) 45%, transparent); }
 .editable:focus { text-decoration-color: color-mix(in srgb, var(--akaji) 80%, transparent); }
-.chip { display: inline-block; font: .78em/1.5 var(--mono); color: var(--muted); background: color-mix(in srgb, currentColor 7%, transparent); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; margin: 0 1px; vertical-align: baseline; user-select: none; cursor: default; white-space: nowrap; }
+.chip { display: inline-block; max-width: min(100%, 24em); overflow: hidden; text-overflow: ellipsis; font: 12px/1.6 var(--mono); letter-spacing: normal; color: var(--muted); background: color-mix(in srgb, currentColor 7%, transparent); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; margin: 0 2px; vertical-align: middle; user-select: none; cursor: default; white-space: nowrap; }
+.chip.mark { width: 10px; height: 10px; padding: 0; background: none; border-style: dashed; }
+.nested { opacity: .6; user-select: none; cursor: default; }
+.nested.link { cursor: pointer; }
+.nested.link:hover { opacity: .9; text-decoration: underline dotted; text-underline-offset: .22em; }
 .locale { display: grid; grid-template-columns: 32px 1fr; gap: 4px 6px; align-items: start; padding: 6px 10px; border-top: 1px solid var(--line); font: 13px/1.4 var(--sans); }
 .locale .code { font: 11px var(--mono); color: var(--muted); padding-top: 2px; }
 .attr { display: grid; grid-template-columns: 90px 1fr; gap: 6px; align-items: baseline; margin-top: 6px; }
@@ -165,6 +169,19 @@ kbd { font: 10.5px/1 var(--mono); padding: 2px 4px; border-radius: 4px; backgrou
 
 .toasts { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; }
 .toast { background: var(--tray); color: var(--tray-ink); border: 1px solid var(--tray-line); border-radius: 999px; padding: 8px 14px; box-shadow: 0 10px 26px -8px rgba(0, 0, 0, .45); display: flex; gap: 10px; align-items: center; max-width: 560px; animation: settle .2s var(--spring); }
+@media (max-width: 640px) { .toasts { bottom: 76px; } }
+.toast.detailed { flex-wrap: wrap; justify-content: space-between; width: min(36rem, calc(100vw - 24px)); border-radius: 12px; }
+.diff { flex-basis: 100%; min-width: 0; font: 12px/1.6 var(--mono); }
+.diff-row { padding: 0 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.diff-row:first-child { border-radius: 4px 4px 0 0; }
+.diff-row:last-child { border-radius: 0 0 4px 4px; }
+.diff-row mark { color: inherit; border-radius: 2px; }
+.diff-row.removed { background: rgba(224, 52, 79, .16); }
+.diff-row.removed mark { background: rgba(224, 52, 79, .55); }
+.diff-row.added { background: rgba(47, 168, 114, .18); }
+.diff-row.added mark { background: rgba(47, 168, 114, .55); }
+.diff-sign { display: inline-block; width: 1.25em; user-select: none; }
+.diff-more { padding: 2px 6px 0; color: var(--tray-muted); }
 .toast.error { background: var(--akaji); border-color: var(--akaji); color: #fff; border-radius: 12px; }
 .toast button { color: inherit; border-color: currentColor; padding: 1px 9px; font-size: 12px; border-radius: 999px; }
 
@@ -307,12 +324,13 @@ export function div(className: string, ...children: Child[]) {
   return h("div", { className }, ...children)
 }
 
-export function toast(message: string, options: { error?: boolean; actions?: Record<string, () => void>; timeout?: number } = {}) {
-  const element = div("toast" + (options.error ? " error" : ""), h("span", {}, message))
+export function toast(message: string, options: { error?: boolean; actions?: Record<string, () => void>; timeout?: number; detail?: HTMLElement } = {}) {
+  const element = div("toast" + (options.error ? " error" : "") + (options.detail ? " detailed" : ""), h("span", {}, message))
   element.setAttribute("role", options.error ? "alert" : "status")
   for (const [label, action] of Object.entries(options.actions ?? {})) {
     element.append(h("button", { onclick: () => { element.remove(); action() } }, label))
   }
+  if (options.detail) element.append(options.detail)
   toasts.append(element)
   setTimeout(() => element.remove(), options.timeout ?? (options.error ? 8000 : 5000))
   return element

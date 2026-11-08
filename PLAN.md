@@ -69,6 +69,10 @@ Markdown, plus notes with exact positions that an agent can read.
   pieces in the file. The editor shows `Hello [user.name]!`, with the Ruby as a locked chip, and you edit
   the static parts. The same applies to translation interpolation (`Hello [%{name}]`), HTML entities and
   inline Markdown.
+- Child elements show as they look on the page rather than as code: `<br>` breaks the line, an element's
+  text keeps its style, dimmed, and opens that element's editor on a click, and an element without text
+  is a small mark. Elements positioned out of the flow aren't shown, and whitespace between elements
+  isn't a field.
 - An element Herb can't stamp (output of `form_with` or a custom helper, DOM built by JavaScript) gets
   notes through its nearest stamped ancestor, but its text can't be edited.
 - Elements rendered in a loop share one stamp (the line they were written at), like a partial rendered
@@ -94,6 +98,8 @@ Markdown, plus notes with exact positions that an agent can read.
 - After a write, the server clears Action View's template cache and reloads I18n, so the next request
   can't race Rails' file watcher. Tensaku warns when fragment caching is on in development
   (`rails dev:cache`), because cached fragments would keep showing the old text.
+- The save reply carries the changed lines (`FileWrite.diff`, from the file's bytes before and after the
+  write), and the toast shows them, so a save visibly reaches the file.
 - Undo: version control is the history. The overlay offers Undo for each save (same stale-file check)
   and lists the saves made since the page loaded.
 
@@ -430,6 +436,18 @@ adds a second one.
   can't read it from the page. Loopback only, plus refusing a foreign `Origin` or non-local `Host`.
   It reads and updates notes, never source files. Every endpoint the overlay calls still needs the
   token.
+- **Herb attribute splats (added 2026-11-09):** Herb 0.11.2 drops attributes passed as
+  `tag.div(**attrs)` when `action_view_helpers` is on (Herb issue #2737, open fix in PR #2768, neither
+  resolved on 2026-11-09). Tensaku's `SourceAttributionVisitor` recommends that option, so installing
+  Tensaku triggers the bug in development. Production and source writes aren't affected.
+  - Decision: keep Herb's default, because turning the option off removes source stamps from helpers
+    like `link_to` in every app. The safety page documents the opt-out. We don't comment on or file
+    anything in the Herb project.
+  - Revisit before a wider release: if the fix hasn't shipped, add a startup warning or a hint in the
+    install generator.
+  - When a Herb release has the fix: bump Herb, compile `<%= tag.div(**attrs) do %>x<% end %>` with
+    the visitor to confirm the attributes stay, then remove the safety page note, the `CHANGELOG`
+    known issue and `parser_options` in `docs/config/initializers/reactionview.rb`.
 - **Agent feedback (added 2026-11-07):** no "send to agent" step: a saved note is already a file the
   agent can read or wait for. Instead the page shows what the agent does: a `working` status set by
   `start_note`, an "agent connected" light (any MCP call touches `tmp/tensaku/notes/.agent`; connected

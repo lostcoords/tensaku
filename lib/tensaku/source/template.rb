@@ -129,8 +129,9 @@ module Tensaku
         replacements = replacements.reject { source.byteslice(it[:start]...it[:end]) == it[:text] }
         return { changed: false } if replacements.empty?
 
-        FileWrite.atomic(@path, FileWrite.splice(source, replacements))
-        { changed: true, file: relative_path }
+        updated = FileWrite.splice(source, replacements)
+        FileWrite.atomic(@path, updated)
+        { changed: true, file: relative_path, diff: FileWrite.diff(source, updated) }
       end
 
       # Browsers hand back "\n" line breaks; a file written with "\r\n" keeps them.

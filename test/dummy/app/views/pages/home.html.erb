@@ -2,6 +2,8 @@
   <h1><%= t(".title") %></h1>
   <p class="greeting">Hello <%= @user.name %>!</p>
   <p class="intro">Tensaku &amp; friends edit this text.</p>
+  <p class="mixed">First line<br>
+    <em class="inner" style="font-style: italic">inner words</em> and more <svg class="glyph" width="8" height="8"></svg><svg class="flourish" style="position: absolute" width="8" height="8"></svg> end</p>
   <img src="/icon.svg" alt="A small icon" title="Icon title">
   <input type="search" placeholder="<%= t(".search_placeholder") %>" aria-label="Search">
 </section>

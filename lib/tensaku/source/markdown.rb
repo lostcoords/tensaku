@@ -57,8 +57,9 @@ module Tensaku
         return { changed: false, file: relative_path } if replacement == raw
 
         start, finish = byte_range
-        FileWrite.atomic(@path, FileWrite.splice(@source, [ { start:, end: finish, text: replacement } ]))
-        { changed: true, file: relative_path }
+        updated = FileWrite.splice(@source, [ { start:, end: finish, text: replacement } ])
+        FileWrite.atomic(@path, updated)
+        { changed: true, file: relative_path, diff: FileWrite.diff(@source, updated) }
       end
 
       private

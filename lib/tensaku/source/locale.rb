@@ -57,7 +57,7 @@ module Tensaku
 
         check!(updated, locale, key, text, entry.file)
         FileWrite.atomic(entry.path, updated)
-        { changed: true, file: entry.file, line: entry.line }
+        { changed: true, file: entry.file, line: entry.line, diff: FileWrite.diff(entry.source, updated) }
       end
 
       def style_name(style)

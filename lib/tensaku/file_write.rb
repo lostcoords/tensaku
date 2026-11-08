@@ -48,5 +48,16 @@ module Tensaku
       end
       result.force_encoding(source.encoding)
     end
+
+    # The lines a write changed, for the overlay's save message: the first line's number, then the old
+    # and new lines between what the two versions share at each end.
+    def diff(before, after)
+      was, now = [ before, after ].map { it.dup.force_encoding(Encoding::UTF_8).scrub.lines(chomp: true) }
+      prefix = 0
+      prefix += 1 while prefix < was.size && prefix < now.size && was[prefix] == now[prefix]
+      suffix = 0
+      suffix += 1 while suffix < was.size - prefix && suffix < now.size - prefix && was[-1 - suffix] == now[-1 - suffix]
+      { line: prefix + 1, removed: was[prefix...(was.size - suffix)], added: now[prefix...(now.size - suffix)] }
+    end
   end
 end

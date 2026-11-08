@@ -31,6 +31,62 @@ class EditingTest < ApplicationSystemTestCase
     assert_includes view("app/views/pages/home.html.erb"), %(<p class="greeting">Welcome back, <%= @user.name %>!</p>)
   end
 
+  test "child elements show as they look on the page, and only the fields around them change" do
+    visit "/"
+    wait_for_overlay
+
+    alt_click find("p.mixed")
+    assert overlay.has_css?(".editor .surface br")
+    nested = overlay.find(".editor .nested")
+    assert_equal "inner words", nested.text
+    assert_equal "italic", page.evaluate_script(%(getComputedStyle(document.querySelector("tensaku-overlay").shadowRoot.querySelector(".editor .nested")).fontStyle))
+    assert overlay.has_css?(".editor .chip.mark", count: 1), "an element without text is one mark, and one out of the flow isn't shown"
+    assert_no_match(/<em|<br|<svg/, overlay.find(".editor .surface").text)
+    assert_equal [ "First line", "and more", "end" ], overlay.all(".editor .editable").map(&:text)
+
+    before = view("app/views/pages/home.html.erb")
+    type_in_editor "Top line", field: 0
+    save_editor
+
+    assert_selector "p.mixed", text: "Top line"
+    assert_equal before.sub("First line<br>", "Top line<br>"), view("app/views/pages/home.html.erb")
+  end
+
+  test "clicking a child element's text opens its own editor" do
+    visit "/"
+    wait_for_overlay
+
+    alt_click find("p.mixed")
+    overlay.find(".editor .nested.link").click
+    assert overlay.has_no_css?(".editor .nested")
+    assert_equal [ "inner words" ], overlay.all(".editor .editable").map(&:text)
+    type_in_editor "outer words"
+    save_editor
+
+    assert_selector "em.inner", text: "outer words"
+    assert_includes view("app/views/pages/home.html.erb"), ">outer words</em>"
+  end
+
+  test "a chip keeps its size in big text" do
+    visit "/"
+    wait_for_overlay
+    page.execute_script(%(document.querySelector("p.greeting").style.fontSize = "64px"))
+
+    alt_click find("p.greeting")
+    assert overlay.has_css?(".editor .chip")
+    assert_equal "12px", page.evaluate_script(%(getComputedStyle(document.querySelector("tensaku-overlay").shadowRoot.querySelector(".editor .chip")).fontSize))
+  end
+
+  [ [ "MacIntel", "⌥⇧T" ], [ "Win32", "Alt+Shift+T" ], [ "Linux x86_64", "Alt+Shift+T" ] ].each do |platform, label|
+    test "the shortcut label follows the platform on #{platform}" do
+      page.driver.browser.page.command("Page.addScriptToEvaluateOnNewDocument", source: %(Object.defineProperty(navigator, "platform", { get: () => #{platform.to_json} })))
+      visit "/"
+      wait_for_overlay
+
+      assert_equal label, page.evaluate_script(%(document.querySelector("tensaku-overlay").shadowRoot.querySelector(".toolbar .tip kbd").textContent))
+    end
+  end
+
   test "edit mode highlights editable text and a normal click edits" do
     visit "/about"
     wait_for_overlay

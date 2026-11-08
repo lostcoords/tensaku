@@ -14,6 +14,17 @@ class OverlayRobustnessTest < ApplicationSystemTestCase
     assert overlay.has_no_css?(".editor")
   end
 
+  test "the message after a save shows the changed line with the words marked" do
+    visit "/about"
+    wait_for_overlay
+    edit "h1", "About us"
+
+    assert overlay.has_css?(".toast .diff-row.removed mark", text: "me")
+    assert overlay.has_css?(".toast .diff-row.added mark", text: "us")
+    assert_match(/\ASaved app\/views\/.+:\d+/, overlay.find(".toast.detailed > span").text)
+    assert overlay.has_css?(".toast.detailed button", text: "Undo")
+  end
+
   test "the toast's Undo reverts the save it reports, even when an element was edited before" do
     visit "/about"
     wait_for_overlay

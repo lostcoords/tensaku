@@ -109,6 +109,14 @@ class Tensaku::LocaleTest < Tensaku::TestCase
     assert_nil Locale.find("en", "vendored")
   end
 
+  test "an edit replies with the line it changed" do
+    @file.write("en:\n  a: Hello\n  b: Tag\n")
+
+    result = Locale.edit("en", "a", original: "Hello", text: "Howdy")
+
+    assert_equal({ line: 2, removed: [ "  a: Hello" ], added: [ "  a: Howdy" ] }, result[:diff])
+  end
+
   test "an anchored or tagged value keeps its anchor and tag" do
     @file.write("en:\n  a: &x Hello\n  b: !!str Tag\n  c: *x\n")
 

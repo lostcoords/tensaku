@@ -48,6 +48,23 @@ class Tensaku::TemplateTest < Tensaku::TestCase
     assert_equal %(<div>\n  <p class="greeting">Welcome back, <%= @user.name %>!</p>\n  <p>Café &amp; more</p>\n</div>\n), path.read
   end
 
+  test "an edit replies with the lines it changed" do
+    write_view "a.html.erb", %(<div>\n  <p class="greeting">Hello <%= @user.name %>!</p>\n  <p>Café</p>\n</div>\n)
+    piece = describe("a.html.erb", 2, 3)[:pieces][0]
+
+    result = Template.new("app/views/pages/a.html.erb").edit_text(2, 3, [ piece.slice(:start, :end).merge(original: piece[:raw], text: "Hi ") ])
+
+    assert_equal 2, result[:diff][:line]
+    assert_equal [ %(  <p class="greeting">Hello <%= @user.name %>!</p>) ], result[:diff][:removed]
+    assert_equal [ %(  <p class="greeting">Hi <%= @user.name %>!</p>) ], result[:diff][:added]
+  end
+
+  test "FileWrite.diff handles added lines, CRLF and invalid bytes" do
+    assert_equal({ line: 2, removed: [], added: [ "b" ] }, Tensaku::FileWrite.diff("a\nc\n", "a\nb\nc\n"))
+    assert_equal({ line: 1, removed: [ "a" ], added: [ "b" ] }, Tensaku::FileWrite.diff("a\r\nc\r\n", "b\r\nc\r\n"))
+    assert Tensaku::FileWrite.diff("\xFF\n".b, "ok\n".b)[:removed].first.valid_encoding?
+  end
+
   test "multibyte text before the target doesn't shift the splice" do
     path = write_view "a.html.erb", %(<p title="ééé">日本 <b>bold</b> tail</p>\n)
     pieces = describe("a.html.erb", 1, 1)[:pieces]

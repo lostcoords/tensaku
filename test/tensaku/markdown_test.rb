@@ -43,6 +43,12 @@ class Tensaku::MarkdownTest < Tensaku::TestCase
     assert_equal SOURCE.sub("A paragraph with **bold** text\nover two lines.", "A shorter paragraph."), @file.read
   end
 
+  test "an edit replies with the lines it changed" do
+    result = Markdown.new("app/views/pages/menu.md:5:1-5:16").then { it.edit(original: it.describe[:original], text: "Café *carta*") }
+
+    assert_equal({ line: 5, removed: [ "## Café *menu*" ], added: [ "## Café *carta*" ] }, result[:diff])
+  end
+
   test "edits a list item after its marker, with multibyte text above" do
     Markdown.new("app/views/pages/menu.md:5:1-5:16").then { it.edit(original: it.describe[:original], text: "Café *carta*") }
     item = Markdown.new("app/views/pages/menu.md:11:1-11:13")

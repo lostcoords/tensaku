@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+### Editing
+
+- The editor shows child elements as they look on the page instead of as code. `<br>` breaks the line,
+  an element's text keeps its style, dimmed, and opens that element's editor on a click, and an element
+  without text is a small mark. Whitespace between elements is no longer an editable field.
+- Locked chips have a fixed size, so they stay small in a heading, and long ones are cut off with an
+  ellipsis.
+
+### Known issues
+
+- Herb 0.11.2 drops attributes passed as `tag.div(**attrs)` in development. The safety page has the
+  opt-out and what it costs.
+
+### Overlay
+
+- The message after a save shows the file, the line, and the old and new text of the lines that changed.
+  Save replies carry these lines as `diff`.
+- Shortcut labels follow the platform: `⌥⇧T` on Apple platforms and `Alt+Shift+T` elsewhere, and the
+  note form says `⌘↵ saves` or `Ctrl+Enter saves`.
+
 ## 0.1.0 (2026-11-08)
 
 ### Editing
