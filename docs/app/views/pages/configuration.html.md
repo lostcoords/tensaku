@@ -1,10 +1,10 @@
 # Configuration
 
-Tensaku works without configuration. To change a default, add an initializer and guard it, because Tensaku is only loaded in development:
+Tensaku works without configuration. To change a default, add an initializer and guard it with the environment, because Tensaku is only loaded in development. `defined?(Tensaku)` is not enough: with a path gem, Bundler loads `Tensaku::VERSION` in every environment.
 
 ```ruby
 # config/initializers/tensaku.rb
-if defined?(Tensaku)
+if Rails.env.development?
   Tensaku.configure do |config|
     config.writable_paths << "content"
     config.shortcut = "alt+shift+KeyT"
