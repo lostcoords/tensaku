@@ -62,10 +62,9 @@ module Tensaku
       real
     end
 
-    # The configured paths, plus Kiln's content directory when Kiln's content layer is loaded.
+    # The configured directories that exist.
     def writable_dirs
       dirs = Tensaku.config.writable_paths.map { Tensaku.root.join(it) }
-      dirs << Pathname(Kiln::Content.root) if defined?(::Kiln::Content) && ::Kiln::Content.respond_to?(:root)
       dirs.select(&:directory?).map(&:realpath)
     end
 

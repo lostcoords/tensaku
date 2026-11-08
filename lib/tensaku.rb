@@ -68,7 +68,7 @@ module Tensaku
       yield config
     end
 
-    # Lets another gem allow writes to its own source directory, for example Kiln's content/.
+    # Lets another gem allow writes to its own source directory.
     def register_writable_path(path)
       config.writable_paths << path.to_s unless config.writable_paths.include?(path.to_s)
     end

@@ -1,7 +1,7 @@
 module Tensaku
   module Source
     # Markdown blocks, addressed by the ranges a producer writes:
-    # data-tensaku-md="path:startLine:startCol-endLine:endCol", 1-based lines and byte columns, end
+    # data-md-source="path:startLine:startCol-endLine:endCol", 1-based lines and byte columns, end
     # column inclusive (commonmarker's sourcepos). Tensaku doesn't render Markdown; it replaces text
     # inside a block's range and leaves the rest of the file alone.
     class Markdown
@@ -11,8 +11,8 @@ module Tensaku
       # Block syntax at the start of a range that stays locked: heading hashes, list markers, quotes.
       PREFIX = /\A(?:\#{1,6}[ \t]+|[-*+][ \t]+(?:\[[ xX]\][ \t]+)?|\d{1,9}[.)][ \t]+|>[ \t]?)/
 
-      # Block tags whose text is edited; others (tables, code) only get notes. A whole list is edited
-      # as its source, markers included.
+      # Block tags whose text is edited; other blocks Kiln marks (pre, table, hr) only get notes. A
+      # whole list is edited as its source, markers included.
       EDITABLE = %w[p h1 h2 h3 h4 h5 h6 li blockquote ul ol].freeze
       WHOLE = %w[ul ol].freeze
 

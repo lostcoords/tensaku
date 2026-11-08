@@ -177,7 +177,7 @@ it doesn't render Markdown itself.
 | `data-herb-source="path:line:col"` | Herb | Element's open tag position |
 | Marker inside translated strings | Tensaku's I18n backend, development only | Text came from this key and locale. Stripped by the overlay. |
 | `data-tensaku-group` | The app | Widen the highlight and the edit target to this element, for cases the automatic mapping gets wrong |
-| `data-tensaku-md="path:line:col-line:col"` | Kiln (or another Markdown producer), development only | Block's Markdown source range |
+| `data-md-source="path:line:col-line:col"` | Kiln (or another Markdown producer), development only | Block's Markdown source range |
 | `data-tensaku-request="GET"` (meta tag) | Tensaku | Request method, so the overlay knows whether it can fetch the page again |
 
 ### 9. No Node for apps
@@ -201,7 +201,7 @@ it doesn't render Markdown itself.
 | One-step undo | 4 | Undo the last edit per element. |
 | Page update after saving | 4 | Decision 5. |
 | Edit translations | 5 | Edits the page's locale. A toggle shows the same key in the other locales, to update them together or see they're out of date. |
-| Edit Markdown | 6 | Through `data-tensaku-md` from Kiln's content layer. |
+| Edit Markdown | 6 | Through `data-md-source` from Kiln's content layer. |
 | Corner button and shortcut | 1 | A small draggable button in a corner with the open-note count, plus a keyboard shortcut to toggle the overlay. Pins show whenever notes exist. |
 | ViewComponent templates | 1 | Sidecar `.html.erb` templates compile through Herb, so references, notes and edits work. Inline templates (`erb_template` in Ruby) don't. |
 | Mailer previews | 4 | Edit HTML email templates from `/rails/mailers` previews. Needs a test that previews render through Herb. |
@@ -266,7 +266,7 @@ Findings (2026-11-07):
   on by itself) and ViewComponent sidecar templates on Rails 8.1.4.1. Mailer previews render through
   Herb with no extra work.
 - Herb positions are 1-based lines and 0-based character columns (stamps add 1); token ranges are byte
-  offsets. Psych columns are characters too. Kiln's `data-tensaku-md` columns are bytes. Every splice
+  offsets. Psych columns are characters too. Kiln's `data-md-source` columns are bytes. Every splice
   converts to byte offsets and has a multibyte test.
 - The test suite runs the dummy app in the development environment, since that is where Tensaku is on.
   Tests wrapped in the executor hold the load interlock that the view reloader needs after a write, so
@@ -448,7 +448,7 @@ adds a second one.
 - **Attributes:** editable in 0.1.
 - **Translations:** edit the page's locale, other locales on demand. Keys found through markers in the
   I18n backend (from RESEARCH.md), not wrapper elements.
-- **Markdown:** producers only (Kiln's content layer emits `data-tensaku-md`).
+- **Markdown:** producers only (Kiln's content layer emits `data-md-source`).
 - **Notes:** `tmp/tensaku/notes/`, elements and positions only (no screenshots), resolved with a reply,
   pruned later. Agents get them through files, MCP, clipboard and a Claude Code skill.
 - **Undo:** version control plus one-step undo in the overlay.
@@ -483,6 +483,11 @@ adds a second one.
 - **Shared state (added 2026-11-08):** the token lives in `tmp/tensaku/token` and the overlay's
   selection in the notes directory, so Puma workers agree. Saves and note changes run under one
   `flock` in `tmp/tensaku/write.lock`, re-reading the file inside it.
+- **Markdown contract (changed 2026-11-08):** producers write `data-md-source` (was `data-tensaku-md`),
+  so Kiln and Tensaku don't reference each other. Kiln's content layer is off until the app turns on
+  `Kiln::Content.source_positions`, and Tensaku no longer adds `Kiln::Content.root` to the writable
+  paths: the app lists it. Tensaku edits a subset of the blocks Kiln marks (`p`, headings, `li`,
+  `blockquote`, whole lists); `pre`, `table` and `hr` only get notes.
 
 ## Open questions
 

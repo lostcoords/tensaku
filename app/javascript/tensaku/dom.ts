@@ -4,7 +4,7 @@
 import { attributeKeyNames, textKeys, type TranslationKey } from "./markers"
 
 export const STAMP = "data-herb-source"
-export const MARKDOWN = "data-tensaku-md"
+export const MARKDOWN = "data-md-source"
 const SOURCE_SELECTOR = `[${STAMP}], [${MARKDOWN}]`
 
 export interface Stamp {

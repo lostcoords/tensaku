@@ -4,13 +4,13 @@
     lines = md.lines
     heading = lines.index { it.start_with?("## ") } + 1
     para = lines.index { it.start_with?("Install") } + 1
-    %(<h2 data-tensaku-md="content/guide.md:#{heading}:1-#{heading}:#{lines[heading - 1].chomp.bytesize}">#{ERB::Util.h(lines[heading - 1].delete_prefix("## ").chomp)}</h2>\n) +
-      %(<p data-tensaku-md="content/guide.md:#{para}:1-#{para + 1}:#{lines[para].chomp.bytesize}">#{ERB::Util.h((lines[para - 1] + lines[para]).squish)}</p>\n) +
+    %(<h2 data-md-source="content/guide.md:#{heading}:1-#{heading}:#{lines[heading - 1].chomp.bytesize}">#{ERB::Util.h(lines[heading - 1].delete_prefix("## ").chomp)}</h2>\n) +
+      %(<p data-md-source="content/guide.md:#{para}:1-#{para + 1}:#{lines[para].chomp.bytesize}">#{ERB::Util.h((lines[para - 1] + lines[para]).squish)}</p>\n) +
       lines.each_index.select { lines[it].start_with?("- ") }.then { |items|
         next "" if items.empty?
 
-        %(<ul data-tensaku-md="content/guide.md:#{items.first + 1}:1-#{items.last + 1}:#{lines[items.last].chomp.bytesize}">) +
-          items.map { %(<li data-tensaku-md="content/guide.md:#{it + 1}:1-#{it + 1}:#{lines[it].chomp.bytesize}">#{ERB::Util.h(lines[it].delete_prefix("- ").chomp)}</li>) }.join +
+        %(<ul data-md-source="content/guide.md:#{items.first + 1}:1-#{items.last + 1}:#{lines[items.last].chomp.bytesize}">) +
+          items.map { %(<li data-md-source="content/guide.md:#{it + 1}:1-#{it + 1}:#{lines[it].chomp.bytesize}">#{ERB::Util.h(lines[it].delete_prefix("- ").chomp)}</li>) }.join +
           "</ul>"
       }
   } %>

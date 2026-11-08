@@ -9,6 +9,10 @@
 - In-place editing of template text and attributes, translations (with other locales) and Markdown
   blocks from producers. Writes are byte splices with a stale-file check and one-step undo.
 - Whole Markdown lists can be edited as source.
+- Markdown blocks are read from `data-md-source="path:line:col-line:col"`, the attribute Kiln 0.1.3
+  writes. Paragraphs, headings, list items, quotes and whole lists are editable; code blocks, tables and
+  rules only get notes. Kiln's content directory isn't writable automatically: add it to
+  `writable_paths`.
 - Edit mode outlines only elements with text written in the template, asked once from `POST /editable`.
   Text that comes entirely from Ruby (`<%= %>`) isn't outlined.
 - The editor takes the page's background, text colour and type and sits over the element. Its status

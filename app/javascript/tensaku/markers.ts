@@ -154,7 +154,7 @@ export function textKeys(element: Element): { node: Text; key: TranslationKey }[
   for (let node = walker.nextNode() as Text | null; node; node = walker.nextNode() as Text | null) {
     const keys = nodeKeys.get(node)
     if (!keys) continue
-    const owner = node.parentElement?.closest("[data-herb-source], [data-tensaku-md]")
+    const owner = node.parentElement?.closest("[data-herb-source], [data-md-source]")
     if (owner && owner !== element && element.contains(owner)) continue
     keys.forEach((key) => found.push({ node, key }))
   }
