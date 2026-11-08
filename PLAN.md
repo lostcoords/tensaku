@@ -5,8 +5,9 @@ Click a piece of text and edit it in place, and Tensaku writes the change back t
 locale file or the Markdown source. Or leave a note on an element or an area of the page, and your coding
 agent reads it with the exact file and line attached, instead of a screenshot and "change this".
 
-Status: phases 0 to 6 implemented and tested locally (2026-11-07), unreleased. Not yet public: the GitHub
-repo, the RubyGems name and phase 7 wait for approval. See the Findings under each phase.
+Status (2026-11-08): phases 0 to 6 are implemented and tested, unreleased. The repo is public at
+github.com/lostcoords/tensaku, with docs at tensaku.lostcoords.com. The RubyGems name and the 0.1 release
+wait for approval. Each phase below keeps what building it taught.
 Prior art: [RESEARCH.md](RESEARCH.md) (state of Herb, Rails, threads) and [REFERENCES.md](REFERENCES.md)
 (related projects).
 
@@ -36,7 +37,7 @@ Markdown, plus notes with exact positions that an agent can read.
   [ReActionView](https://github.com/marcoroth/reactionview), which provides one and lets other gems add
   Herb visitors (`config.engine.visitors.use(...)`).
 - **Nothing changes in production.** Tensaku and ReActionView go in the `development` group, so
-  production (and Kiln builds, which run in production) keep rendering with Erubi. No backports, no
+  production (and static builds, which run in production) keep rendering with Erubi. No backports, no
   patches to Rails.
 - Development renders with Herb and production with Erubi. Rails states that valid templates render
   the same output with both, and ReActionView's validation overlay shows invalid HTML in development,
@@ -55,9 +56,10 @@ Markdown, plus notes with exact positions that an agent can read.
   `Rails.env.development?`, so nothing loads in test or production even if the gem is in the wrong group.
 - Write endpoints accept requests from this machine only (loopback peer, no forwarded client, a local
   `Host`, no foreign `Origin`), and need a token that is embedded in the page.
-- Writes are limited to an allow-list: `app/views`, `app/components`, `config/locales`, and paths that
-  other gems register (for example Kiln's `content/`).
-- Kiln fails a build if any `data-herb-*` or `data-tensaku-*` attribute reaches the output.
+- Writes are limited to an allow-list: `app/views`, `app/components`, `config/locales`, plus paths the
+  app adds to `writable_paths` or other gems register with `Tensaku.register_writable_path`.
+- Kiln fails a build if any `data-herb-*`, `data-tensaku-*` or `data-md-source` attribute reaches the
+  output.
 
 ### 3. The editor edits the source, never the rendered text
 
@@ -92,8 +94,8 @@ Markdown, plus notes with exact positions that an agent can read.
 - After a write, the server clears Action View's template cache and reloads I18n, so the next request
   can't race Rails' file watcher. Tensaku warns when fragment caching is on in development
   (`rails dev:cache`), because cached fragments would keep showing the old text.
-- Undo: version control is the history. The overlay also keeps the last edit per element, so a mistake
-  can be undone with one click (same stale-file check).
+- Undo: version control is the history. The overlay offers Undo for each save (same stale-file check)
+  and lists the saves made since the page loaded.
 
 ### 5. Updating the page after a save
 
@@ -117,9 +119,6 @@ No single strategy works for every setup, so Tensaku layers them:
 | No Turbo, htmx, plain HTML | Step 1, then morph. |
 | React or Vue islands | Step 1. Morph skips elements marked permanent. |
 
-A spike at the start of phase 4 tries this on a Hotwire page, a page with Turbo Frames and a page
-without Turbo before the overlay depends on it.
-
 ### 6. Two kinds of marks: edits and notes
 
 Like Japanese proofreading, which marks definite corrections in red (赤字, *akaji*) and questions for
@@ -135,17 +134,17 @@ the author in pencil (鉛筆, *enpitsu*):
 - One JSON file per note in `tmp/tensaku/notes/`: local, ignored by git. Notes
   are short-lived instructions, not project history.
 - A note holds the URL, the comment, every target's file, range, kind and text, the rectangle and
-  viewport for area notes, a status and a reply. No screenshots: the agent can take its own with a
-  browser tool.
-- Lifecycle: `open` → `resolved` with a short reply from the agent or you ("changed the heading in
-  `_hero.html.erb:4`"). The agent can also set `question` with a reply when the note is unclear, and the
-  pin shows the question on the page. Resolved pins turn green so you can check the change, then you dismiss them or
-  they're deleted after a few days.
+  viewport for area notes, a status, a thread of messages and a reply (the agent's latest message,
+  shown by the pin). No screenshots: the agent can take its own with a browser tool.
+- Lifecycle: `open` → `working` (an agent picked it up) → `resolved` with a short reply ("changed the
+  heading in `_hero.html.erb:4`"). The agent can also set `question` when the note is unclear, and the
+  pin shows the question on the page. Resolved pins turn green so you can check the change, then you
+  dismiss them or they're deleted after `config.prune_after`.
 - Four ways for agents to get notes, all in 0.1:
   - **Files:** agents read `tmp/tensaku/notes/*.json` directly.
-  - **MCP endpoint** on the dev server: `list_notes`, `get_note`, `resolve_note`, `ask_question`,
-    `watch_notes` (waits for new notes, so an agent can work through them as you add them),
-    `current_selection`. Modeled on Agentation's MCP (see RESEARCH.md).
+  - **MCP endpoint** on the dev server: `list_notes`, `get_note`, `start_note`, `resolve_note`,
+    `ask_question`, `reply_to_note`, `watch_notes` (waits for new notes, so an agent can work through
+    them as you add them), `current_selection`. Modeled on Agentation's MCP (see RESEARCH.md).
   - **Copy to clipboard:** one note or all open notes as Markdown, for any chat.
   - **Claude Code skill** shipped with the gem: how to find, act on and resolve notes.
 
@@ -162,7 +161,9 @@ the author in pencil (鉛筆, *enpitsu*):
   "viewport": "1440x900",
   "status": "open",
   "reply": null,
-  "created_at": "2026-11-07T18:00:00Z"
+  "thread": [],
+  "created_at": "2026-11-07T18:00:00.000000Z",
+  "updated_at": "2026-11-07T18:00:00.000000Z"
 }
 ```
 
@@ -178,6 +179,7 @@ it doesn't render Markdown itself.
 | Marker inside translated strings | Tensaku's I18n backend, development only | Text came from this key and locale. Stripped by the overlay. |
 | `data-tensaku-group` | The app | Widen the highlight and the edit target to this element, for cases the automatic mapping gets wrong |
 | `data-md-source="path:line:col-line:col"` | Kiln (or another Markdown producer), development only | Block's Markdown source range |
+| `data-tensaku-permanent` | The app | The morph after a save leaves this element alone |
 | `data-tensaku-request="GET"` (meta tag) | Tensaku | Request method, so the overlay knows whether it can fetch the page again |
 
 ### 9. No Node for apps
@@ -198,15 +200,15 @@ it doesn't render Markdown itself.
 | Notes for agents | 3 | Files, MCP endpoint, copy to clipboard, Claude Code skill. |
 | Edit template text | 4 | Alt/Option-click a text node to edit it right away, or turn on edit mode from the toolbar to see every editable text highlighted and edit with a normal click. Save on Enter or blur. Ruby shows as locked chips. |
 | Edit attribute text | 4 | `alt`, `title`, `placeholder`, `aria-label`, button `value`: a small form per element. |
-| One-step undo | 4 | Undo the last edit per element. |
+| Undo | 4 | Undo from the toast after a save, and an edit history for the page. |
 | Page update after saving | 4 | Decision 5. |
 | Edit translations | 5 | Edits the page's locale. A toggle shows the same key in the other locales, to update them together or see they're out of date. |
-| Edit Markdown | 6 | Through `data-md-source` from Kiln's content layer. |
+| Edit Markdown | 6 | Through `data-md-source` from a producer such as Kiln's content layer. Paragraphs, headings, list items, quotes and whole lists; code, tables and rules get notes only. |
 | Corner button and shortcut | 1 | A small draggable button in a corner with the open-note count, plus a keyboard shortcut to toggle the overlay. Pins show whenever notes exist. |
 | ViewComponent templates | 1 | Sidecar `.html.erb` templates compile through Herb, so references, notes and edits work. Inline templates (`erb_template` in Ruby) don't. |
 | Mailer previews | 4 | Edit HTML email templates from `/rails/mailers` previews. Needs a test that previews render through Herb. |
 | Install generator | 3 | `bin/rails generate tensaku:install`: Gemfile group check, ReActionView initializer, Claude Code skill in `.claude/skills/tensaku/`, MCP endpoint in `.mcp.json`, `tmp/` ignored. Prints what it changed. |
-| Open in editor | — | Herb's dev tools already do this. Not rebuilt. |
+| Open in editor | 4 | `GET /editor` builds the link through Rails' `ActiveSupport::Editor` and `RAILS_EDITOR`. |
 
 ### Out of scope
 
@@ -226,9 +228,12 @@ it doesn't render Markdown itself.
 lib/tensaku.rb                  entry point, configuration
 lib/tensaku/railtie.rb          dev-only: ReActionView interception, visitor, middleware
 lib/generators/tensaku/         install generator
-lib/tensaku/middleware.rb       injects the overlay and request meta, serves the endpoints
-lib/tensaku/guard.rb            loopback check, boot token, path allow-list
+lib/tensaku/middleware.rb       injects the overlay and request meta, routes to the endpoints
+lib/tensaku/endpoints.rb        JSON endpoints the overlay calls
+lib/tensaku/guard.rb            request checks, boot token, path allow-list
+lib/tensaku/file_write.rb       byte splices, atomic writes, the shared write lock
 lib/tensaku/source/template.rb  text and attribute pieces from an element stamp, splice
+lib/tensaku/source/html_text.rb escaping and entity handling for template text
 lib/tensaku/source/locale.rb    find a YAML scalar by key, splice its value
 lib/tensaku/source/markdown.rb  splice inside a producer's block range
 lib/tensaku/i18n.rb             I18n backend that adds key markers in development
@@ -239,28 +244,20 @@ skills/tensaku/SKILL.md         Claude Code skill
 app/javascript/tensaku/         overlay source (TypeScript)
 app/assets/tensaku.js           compiled overlay, committed
 test/dummy/                     Rails 8.1 app used by the test suite
+docs/                           documentation site, a separate Rails app built with Kiln
 ```
 
-## Work list
+## Work log
 
 Features first. Tests cover the splicing (where a bug corrupts files) and the main flows, without
-chasing coverage.
+chasing coverage. Phases 0 to 6 are done; their findings stay as the record of why things work the way
+they do.
 
 ### Phase 0 — workspace
 
-- [x] Gem skeleton, MIT license, README.
-- [x] `test/dummy` Rails 8.1 app with ReActionView (development group), Turbo, Stimulus, a ViewComponent
-      and a mailer preview.
-- [x] Minitest, Capybara with Cuprite for browser tests.
-- [x] TypeScript build for the overlay (esbuild or bun), compiled file committed.
-- [x] Lint (rubocop-rails-omakase) and GitHub Actions CI, actions pinned to commit SHAs.
-- [x] jj repo, colocated. Public repo at github.com/lostcoords/tensaku.
-- [ ] Claim the `tensaku` name on RubyGems with a 0.0.1 placeholder (ask before `gem push`).
-
 Findings (2026-11-07):
 
-- The jj repo is colocated; the public GitHub repo isn't created yet (waiting for approval), so CI
-  hasn't run on GitHub. `bin/lint` and `bin/test` pass locally. `gem build` packages the right files.
+- `gem build` packages the right files.
 - Spike before building on it: ReActionView 0.6.1 plus `SourceAttributionVisitor` stamps layouts,
   views, partials rendered in a loop, `link_to` (through `action_view_helpers`, which the visitor turns
   on by itself) and ViewComponent sidecar templates on Rails 8.1.4.1. Mailer previews render through
@@ -282,23 +279,12 @@ Findings (2026-11-07):
 
 ### Phase 1 — references
 
-- [x] Railtie: ReActionView interception and `SourceAttributionVisitor` in development only.
-- [x] Middleware injects the overlay.
-- [x] Corner button with note count, keyboard shortcut.
-- [x] Check that ViewComponent sidecar templates get stamps.
-- [x] Overlay: hover highlight, click to copy a reference with partial chain, Stimulus controller and
-      Turbo Frame.
-
 Findings: the overlay lives in a shadow root on an element attached to `<html>`, outside `<body>`, so
 Turbo body swaps and the morph never touch it. The default shortcut is Alt+Shift+T
 (`config.shortcut`). ReActionView's debug mode (Herb dev tools) wraps ERB output in
 `display: contents` spans; the overlay treats them as part of the parent element's text.
 
 ### Phase 2 — notes
-
-- [x] Note format and storage in `tmp/tensaku/notes/`.
-- [x] Element and area selection, comment box, pins, notes panel.
-- [x] Resolve and dismiss from the page, prune old resolved notes.
 
 Findings: block elements span the whole line, so an area note measures each element's content extent
 (a range over its children) and keeps elements that are at least half inside the rectangle, outermost
@@ -308,11 +294,6 @@ the comment and sets the note back to open.
 
 ### Phase 3 — notes for agents
 
-- [x] Copy one or all notes as Markdown.
-- [x] MCP endpoint.
-- [x] Claude Code skill.
-- [x] Install generator.
-
 Findings: MCP clients configured in `.mcp.json` can't read the page's boot token, so the MCP endpoint
 takes no token. It answers loopback addresses only and refuses a foreign `Origin` or a non-local `Host`
 (so a web page can't reach it, including through DNS rebinding). It only reads and updates notes, never
@@ -320,14 +301,6 @@ source files. See the decisions log. `watch_notes` long-polls up to 300 seconds 
 thread while it waits.
 
 ### Phase 4 — editing templates
-
-- [x] Spike: page update strategies on Hotwire, Turbo Frames and no-Turbo pages (decision 5).
-- [x] Guard: loopback, token, allow-list.
-- [x] Source pieces from an element stamp, text and attribute splices, stale-file check.
-- [x] Cache clearing after writes, fragment-cache warning.
-- [x] Overlay: Alt-click and edit mode, locked chips, attribute form, save, one-step undo.
-- [x] Mailer previews.
-- [x] Page update: same-source nodes, refetch and morph, POST pages, Herb live patching when present.
 
 Findings (2026-11-07):
 
@@ -349,10 +322,6 @@ Findings (2026-11-07):
 
 ### Phase 5 — translations
 
-- [x] I18n backend markers (key and locale), stripped by the overlay, text and attributes.
-- [x] YAML scalar splice that keeps quoting and comments.
-- [x] Other-locale toggle.
-
 Findings: markers are invisible: U+2063, then "locale:key" in base 4 with four zero-width characters,
 then U+2063. They're added only while a controller handles an HTML request, never to `number.*`,
 `date.*`, `time.*` and similar keys, never to a value from `default:`, and never to pluralized lookups
@@ -364,20 +333,15 @@ must stay the same.
 
 ### Phase 6 — Markdown
 
-- [x] Kiln emits `data-tensaku-md` (done in Kiln, unreleased, see Kiln's PLAN.md "Tensaku support").
-- [x] Markdown splice.
-
-Findings: Kiln's headings no longer contain an anchor link (`<h2 id="slug">Text</h2>`), so nothing
-needs ignoring. `data-tensaku-md` columns are commonmarker's byte columns, end inclusive. Heading
-hashes, list markers and quote markers are locked; the rest of the block is edited as Markdown
-source. `p`, headings, `li` and `blockquote` are editable; lists, tables and code only get notes.
-Kiln's `Kiln::Content.root` is writable automatically when Kiln's content layer is loaded, with no
-Kiln change. Tested with a stand-in producer in the dummy app, not yet against Kiln itself.
+Findings: Kiln's headings contain no anchor link (`<h2 id="slug">Text</h2>`), so nothing needs
+ignoring. `data-md-source` columns are commonmarker's byte columns, end inclusive. Heading hashes,
+list markers and quote markers are locked; the rest of the block is edited as Markdown source. `p`,
+headings, `li` and `blockquote` are editable, and a whole list as source; tables and code only get
+notes. The dummy app tests with a stand-in producer; the docs site runs it against Kiln.
 
 ### Phase 7 — adopt
 
-- [x] Tensaku's own docs site (`docs/`), added 2026-11-07 as the first place Tensaku runs on a real
-  site before it goes into other apps.
+The docs site (`docs/`, added 2026-11-07) is the first real site Tensaku runs on.
 
 Findings (2026-11-07): the docs app is Rails 8.1 with lostcoords-ui 0.8.2 for the layout and Kiln's
 content layer for the pages, which are `.html.md` views. In development Herb stamps the layout and
@@ -402,6 +366,9 @@ because Kiln refuses `data-herb-*` in its output. Writing the demo found an over
 page refetch must not contain the overlay element, or the parser moves it into `<body>` and the morph
 adds a second one.
 
+- [ ] Claim the `tensaku` name on RubyGems (ask before `gem push`).
+- [ ] Move `docs/` to Kiln 0.1.3, which writes `data-md-source` (Markdown editing on the docs site
+      needs it).
 - [ ] davafons.com on Rails + Kiln.
 - [ ] lostcoords-ui docs.
 - [ ] wariwari (server-rendered, no Kiln).
@@ -418,7 +385,6 @@ adds a second one.
 
 - **Herb in development, Erubi in production.** Valid templates render the same with both, but an
   invalid one (an unclosed tag) can differ. ReActionView's validation overlay flags those in development.
-  Kiln's page comparison catches drift on static sites.
 - **ReActionView is pre-1.0** and does more than Tensaku needs (reactive templates, debug mode). Its
   debug mode wraps ERB output in `display: contents` spans in development, which changes the DOM a
   little.
@@ -457,10 +423,9 @@ adds a second one.
 - **Home (changed 2026-11-07):** a Lostcoords product. Public repo at github.com/lostcoords/tensaku,
   docs at tensaku.lostcoords.com, MIT.
 - **Upstream:** build independently, talk to the Herb maintainers after 0.1.
-- **Kiln:** done in Kiln 0.1.1: the build fails on `data-herb-*`/`data-tensaku-*`, and the
-  content layer moved to commonmarker and emits `data-tensaku-md` in development when Tensaku is loaded.
-  David accepted the Markdown HTML changes.
-
+- **Kiln:** Kiln's content layer renders with commonmarker and writes `data-md-source` when the app
+  turns on source positions, and its build fails on Tensaku and Herb attributes. David accepted the
+  Markdown HTML changes. See "Markdown contract" below.
 - **MCP authentication (changed 2026-11-07):** the MCP endpoint takes no boot token, because MCP clients
   can't read it from the page. Loopback only, plus refusing a foreign `Origin` or non-local `Host`.
   It reads and updates notes, never source files. Every endpoint the overlay calls still needs the
@@ -473,7 +438,7 @@ adds a second one.
 - **MCP sessions (changed 2026-11-07):** `initialize` hands out an `Mcp-Session-Id` so the page can name
   the agent. It only labels; requests without it are served the same, and nothing else keys on it.
 - **Threads (added 2026-11-07):** a note keeps `thread`, a list of messages from you or the agent.
-  `reply` stays as the agent's latest message, for older readers.
+  `reply` is the agent's latest message, the line the pin shows.
 - **Stale check (refined 2026-11-07):** the server's byte comparison plus an overlay check that the
   file's static text still matches the rendered element when the editor opens.
 - **Request checks (added 2026-11-08):** every endpoint checks the raw `Host` (local names, loopback

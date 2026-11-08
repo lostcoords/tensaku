@@ -3,6 +3,8 @@
 Tensaku edits text on a running Rails page in development and writes it back to the source, and keeps
 notes for coding agents. Use jj for version control; never use mutating Git commands.
 
+[CONTRIBUTING.md](CONTRIBUTING.md) has the build, test and docs commands. The rules:
+
 - Read PLAN.md before design changes. Its decisions log is the reference for what Tensaku does and
   leaves out. ART_STYLE.md is the direction for the visual design pass.
 - Nothing may change outside development: no loading Herb, ReActionView or Tensaku code in test or
@@ -10,19 +12,12 @@ notes for coding agents. Use jj for version control; never use mutating Git comm
   development check or Tensaku's autoloads.
 - Writes are byte splices with a stale check. Never load and dump YAML, never re-serialize a template.
   Every new splice needs a test that the rest of the file is unchanged.
-- The overlay source is `app/javascript/tensaku/*.ts`. Run `bun run build` and commit
-  `app/assets/tensaku.js`; `bin/lint` fails when it's out of date.
-- The test suite runs `test/dummy` in development. Browser tests write to dummy files and restore them.
-- `docs/` is the documentation site, a separate Rails app with its own Gemfile (Kiln content layer,
-  lostcoords-ui). Its pages are `docs/app/views/pages/*.html.md`. Try overlay changes there in a
-  browser before calling them done. `parcela up --detach` serves it at
-    https://tensaku.localhost. `RAILS_ENV=production bin/rails kiln:build` in `docs/` must succeed.
-  - The landing page demo runs the built overlay against `docs/app/javascript/demo/server.js`, an
-    in-browser stand-in for the endpoints, playing back `demo/data.js`. After changing
-    `docs/app/views/pages/landing.html.erb` or the endpoints' replies, run `bin/rails runner
-    script/demo_data.rb` in `docs/` (CI checks it) and update the stand-in to match.
+- After changing `app/javascript/tensaku/*.ts`, run `bun run build` and commit `app/assets/tensaku.js`.
+- Try overlay changes on the docs site in a browser before calling them done. `RAILS_ENV=production
+  bin/rails kiln:build` in `docs/` must succeed, and `script/demo_data.rb` must be rerun after changing
+  the landing page or an endpoint's reply.
 - Run `bin/lint` and `bin/test` for code changes.
-- Never run `gem push`, create the GitHub repo, push, or tag without the user's approval.
+- Never run `gem push`, push, or tag without the user's approval.
 - No AI attribution in commits, pull requests or files.
 
 Writing (README, CHANGELOG, comments): plain, factual sentences. Say what a thing does. No em dashes

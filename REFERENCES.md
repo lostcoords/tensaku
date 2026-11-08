@@ -10,7 +10,7 @@ Projects related to Tensaku, grouped by what they do, with what Tensaku takes fr
 | Project | What it is | For Tensaku |
 |---|---|---|
 | [Herb](https://github.com/marcoroth/herb) | HTML-aware ERB parser and engine. Rails 8.2 (unreleased) uses its engine for HTML templates. | ✅ Required. Parsing for splices, `SourceAttributionVisitor` for element positions ([docs](https://github.com/marcoroth/herb/blob/main/docs/docs/projects/engine/visitors/source-attribution.md)). |
-| [Herb Dev Tools](https://herb-tools.dev/projects/dev-tools) | In-browser outlines, "Open in Editor", diagnostics panel | ✅ Reuse "Open in Editor" when installed, don't rebuild it. 👀 Could grow toward editing. |
+| [Herb Dev Tools](https://herb-tools.dev/projects/dev-tools) | In-browser outlines, "Open in Editor", diagnostics panel | 🔧 Tensaku builds its own editor link through Rails' `ActiveSupport::Editor`. 👀 Could grow toward editing. |
 | [Herb Dev Server](https://github.com/marcoroth/herb/pull/1662) | Pushes template changes to the open page, keeping focus and caret | 🔧 Use for the page update after a save when it's running (needs ReActionView's slots feature). |
 | [ReActionView](https://github.com/marcoroth/reactionview) | Herb template handler for Rails 8.1, reactive ERB templates, ships the dev tools and dev server | ✅ Required, development only. Provides the Herb engine on Rails 8.1 and the hook for Tensaku's visitor. |
 | [idiomorph](https://github.com/bigskysoftware/idiomorph) | DOM morphing, used by Turbo 8 | ✅ Bundled for refetch-and-morph after a save. |

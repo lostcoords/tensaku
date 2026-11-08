@@ -135,7 +135,6 @@ Rails agent tooling) is in [REFERENCES.md](REFERENCES.md). No Rails gem writes e
    - Their rules: never on `number.*` or `date.*`, never on keyless `default:`.
    - Invisible zero-width characters (Sanity, Vercel) are an alternative, but they break string
      comparisons in Ruby unless every comparison cleans them first.
-   - Changes PLAN decision for translations, see below.
 2. **Loops:** elements rendered in a loop share one stamp. The editor says "this edits all N copies".
 3. **YAML:** keep comments and ordering. i18n-edit losing comments is the known failure.
 4. **Round trip:** prefer Herb's hot reload when it runs. It keeps focus, caret and unsaved input.
