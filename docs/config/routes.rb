@@ -5,5 +5,6 @@ Rails.application.routes.draw do
     get page.slug, to: "pages#show", page: page.slug, as: "#{page.slug.tr("-", "_")}_page"
   end
 
+  get "search", to: "search#show", format: :json
   get "404", to: "pages#not_found"
 end
