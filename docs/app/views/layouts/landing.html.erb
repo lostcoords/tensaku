@@ -2,7 +2,7 @@
 <html lang="en" data-theme="dark">
   <head>
     <meta charset="utf-8">
-    <title>Tensaku: fix your Rails app on the page</title>
+    <title>Tensaku: fix your Rails app in the browser</title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="description" content="Edit text on a running Rails page and Tensaku writes it back to the source. Leave notes, and your coding agent gets the exact file and line.">
     <%# The demo's overlay stays on this page: arriving and leaving are full page loads. %>
@@ -10,6 +10,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shantell+Sans:wght@400;600&display=swap">
+    <%# Before first paint, so the finished heading doesn't flash before demo/hero.js rewinds it. %>
+    <script>if (!matchMedia("(prefers-reduced-motion: reduce)").matches) document.documentElement.classList.add("hero-anim")</script>
     <%= stylesheet_link_tag "tailwind", "application_header", "landing" %>
     <%= javascript_importmap_tags %>
     <%= javascript_import_module_tag "demo" %>
@@ -22,6 +24,7 @@
       <span class="text-sm">tensaku</span>
     <% end %>
     <%= render layout: "shared/header", locals: { brand:, home_label: "Tensaku home", width: "max-w-330", links: [ [ "Docs", introduction_page_path, false ], [ "Installation", installation_page_path, false ] ] } do %>
+      <%= render "shared/search" %>
       <%= lc_button_link_to "https://github.com/lostcoords/tensaku", variant: :ghost, size: :sm, aria: { label: "Source on GitHub" } do %><%= render "shared/github_icon" %><% end %>
     <% end %>
     <%= render "demo/rakugaki" %>

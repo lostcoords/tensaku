@@ -1,25 +1,24 @@
 <section class="hero">
   <h1 class="<%= lc_heading_class(size: :display, extra: "hero__title") %>">
-    Fix your Rails app
-    <span class="pen-mark">on the page<svg viewBox="0 0 240 14" preserveAspectRatio="none" aria-hidden="true"><path d="M3 9 C 45 3, 92 12, 138 7 S 214 4, 237 8"/></svg></span>.
+    Fix your Rails app<br>
+    <span class="pen-mark">in the browser<svg viewBox="0 0 240 14" preserveAspectRatio="none" aria-hidden="true"><path d="M3 9 C 45 3, 92 12, 138 7 S 214 4, 237 8"/></svg></span>.
   </h1>
-  <p class="<%= lc_text_class(tone: :muted, extra: "hero__lead") %>">Edit the text where you see it. Tensaku writes it back to the source.</p>
   <div class="hero__actions">
-    <a class="<%= lc_button_class(size: :lg) %>" href="#try">Try it on this page</a>
-    <a class="<%= lc_button_class(variant: :outline, size: :lg) %>" href="<%= installation_page_path %>">Install it</a>
+    <button type="button" class="<%= lc_button_class(size: :lg) %>" data-demo-try>Try it on this page</button>
+    <a class="<%= lc_button_class(variant: :outline, size: :lg) %>" href="https://github.com/lostcoords/tensaku"><%= render "shared/github_icon" %>GitHub</a>
   </div>
 </section>
 
-<section class="try" id="try">
-  <ol class="try__steps">
-    <li><strong>Alt-click</strong> the big heading, change a word and press Enter.</li>
-    <li>Press <kbd class="<%= lc_kbd_class %>">Alt</kbd> <kbd class="<%= lc_kbd_class %>">Shift</kbd> <kbd class="<%= lc_kbd_class %>">T</kbd>, click a card below and choose <strong>Add note</strong>.</li>
-    <li>Press <strong>Resolve as the agent</strong> and watch the pin turn green.</li>
-  </ol>
-  <p class="<%= lc_text_class(size: :small, tone: :muted, extra: "try__touch") %>">On a touch screen, tap 添 in the corner, then Edit.</p>
+<section class="try">
+  <div class="try__guide">
+    <ol class="try__steps">
+      <li><%= lc_kbd "alt+click", data: { turbo_permanent: true } %> the big heading, change a word and press Enter. Its source updates too.</li>
+      <li>Press <%= lc_kbd "alt+shift+t", data: { turbo_permanent: true } %>, click a card below and choose <strong>Add note</strong>.</li>
+    </ol>
+    <p class="<%= lc_text_class(size: :small, tone: :muted, extra: "try__touch") %>">On a touch screen, tap 添 in the corner, then Edit.</p>
+  </div>
+  <%= render "demo/window" %>
 </section>
-
-<%= render "demo/window" %>
 
 <section class="features">
   <article class="<%= lc_card_class %>">

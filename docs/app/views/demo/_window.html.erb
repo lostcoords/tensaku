@@ -1,16 +1,10 @@
-<%# The source window: the file this page is rendered from, and the notes as the agent reads them. %>
-<section class="<%= lc_card_class(padding: :none, extra: "window") %>" aria-label="The source of this page" data-demo-chrome>
-  <%= lc_tabs id: "demo-window", label: "This page's source and notes", list: { class: "window__tabs" } do |tabs| %>
-    <% tabs.panel "app/views/pages/landing.html.erb", value: "source" do %>
-      <pre class="window__code" data-demo-source-code><%= File.read(Rails.root.join("app/views/pages/landing.html.erb")) %></pre>
-    <% end %>
-    <% tabs.panel safe_join([ "What your agent reads ", lc_badge("0", tone: :neutral, hidden: true, data: { demo_count: true }) ]), value: "agent" do %>
-      <div class="window__agent">
-        <%= lc_button "Resolve as the agent", variant: :secondary, size: :sm, disabled: true, data: { demo_agent_resolve: true } %>
-        <pre data-demo-agent>No open notes yet.</pre>
-      </div>
-    <% end %>
-  <% end %>
+<%# The lines of the page's source that the heading comes from, which is what the first step edits. %>
+<% lines = File.readlines(Rails.root.join("app/views/pages/landing.html.erb"), chomp: true) %>
+<% first = lines.index { it.include?("<h1") } %>
+<% last = lines.index { it.include?("</h1>") } %>
+<section class="<%= lc_card_class(padding: :none, extra: "window") %>" aria-label="The heading's source" data-demo-chrome>
+  <p class="window__bar">app/views/pages/landing.html.erb</p>
+  <pre class="window__code" data-demo-source-code data-first-line="<%= first + 1 %>"><%= lines[first..last].join("\n") %></pre>
   <p class="<%= lc_text_class(size: :small, tone: :muted, extra: "window__note") %>">
     <span data-demo-static>This runs in your browser: the file above changes here, not on a server.</span>
     <span data-demo-live-only hidden>You're in development, so edits are written to the real file.</span>

@@ -80,6 +80,7 @@ export class DemoServer {
     for (const { piece, original } of planned) {
       if (this.source.slice(piece.start, piece.end) !== original) return stale()
     }
+    const before = this.source
     const everyPiece = Object.values(this.stamps).flatMap((d) => [...d.pieces, ...d.attributes.flatMap((a) => a.pieces)]).filter((p) => p.kind === "text")
     const sorted = [...planned].sort((a, b) => b.piece.start - a.piece.start)
     let first = Infinity
@@ -104,7 +105,7 @@ export class DemoServer {
     }
     this.lastChange = { start: first, end: last }
     this.changed("source")
-    return [200, { changed: true, file: data.file }]
+    return [200, { changed: true, file: data.file, diff: lineDiff(before, this.source) }]
   }
 
   // Notes -------------------------------------------------------------------------------------
@@ -112,7 +113,7 @@ export class DemoServer {
   listNotes(url) {
     const notes = this.notes.filter((note) => !url || note.url === url)
     const open = this.notes.filter((n) => n.status !== "resolved").length
-    return { notes: clone(notes), open, agent: { connected: Boolean(this.agentConnected), seen_at: null } }
+    return { notes: clone(notes), open, agent: { connected: false, seen_at: null } }
   }
 
   notesFor(params) {
@@ -136,7 +137,7 @@ export class DemoServer {
       thread: [],
     }
     this.notes.push(note)
-    this.changed("notes")
+    this.changed("note")
     return [201, clone(note)]
   }
 
@@ -223,3 +224,14 @@ const escapeAttribute = (text, quote) => {
   return quote === "'" ? escaped.replace(/'/g, "&#39;") : escaped.replace(/"/g, "&quot;")
 }
 const unescape = (raw) => raw.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&")
+
+// What FileWrite.diff replies with: the lines between what two versions share at each end.
+function lineDiff(before, after) {
+  const was = before.split("\n")
+  const now = after.split("\n")
+  let prefix = 0
+  while (prefix < was.length && prefix < now.length && was[prefix] === now[prefix]) prefix++
+  let suffix = 0
+  while (suffix < was.length - prefix && suffix < now.length - prefix && was.at(-1 - suffix) === now.at(-1 - suffix)) suffix++
+  return { line: prefix + 1, removed: was.slice(prefix, was.length - suffix), added: now.slice(prefix, now.length - suffix) }
+}
