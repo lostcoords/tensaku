@@ -367,7 +367,7 @@ page refetch must not contain the overlay element, or the parser moves it into `
 adds a second one.
 
 - [ ] Claim the `tensaku` name on RubyGems (ask before `gem push`).
-- [ ] Move `docs/` to Kiln 0.1.3, which writes `data-md-source` (Markdown editing on the docs site
+- [x] Move `docs/` to Kiln 0.1.3, which writes `data-md-source` (Markdown editing on the docs site
       needs it).
 - [ ] davafons.com on Rails + Kiln.
 - [ ] lostcoords-ui docs.

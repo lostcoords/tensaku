@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.0 (2026-11-08)
 
 ### Editing
 
@@ -56,6 +56,8 @@
 
 ### Safety and fixes
 
+- `writable_paths` takes single files as well as directories. A file allows only that file, such as
+  `../CONTRIBUTING.md` outside the app.
 - The endpoints check the `Host` and `Origin` headers and refuse requests a proxy forwarded from
   another machine, so DNS rebinding or a tunnel can't reach them.
 - The token goes only into successful pages and 422 form errors requested with a local `Host`, never

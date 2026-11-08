@@ -15,7 +15,7 @@
       <span class="brand-mark text-2xl leading-none" aria-hidden="true">添</span>
       <span class="text-sm">tensaku</span>
     <% end %>
-    <%= render layout: "shared/header", locals: { brand:, home_label: "Tensaku home", width: "max-w-330", links: [ [ "Docs", "/introduction", true ] ] } do %>
+    <%= render layout: "shared/header", locals: { brand:, home_label: "Tensaku home", width: "max-w-330", links: [ [ "Docs", introduction_page_path, true ] ] } do %>
       <%= lc_button_link_to "https://github.com/lostcoords/tensaku", variant: :ghost, size: :sm, aria: { label: "Source on GitHub" } do %><%= render "shared/github_icon" %><% end %>
     <% end %>
     <%= render layout: "shared/docs_shell", locals: { navigation: render("shared/navigation"), menu_label: "Pages", width: "max-w-3xl" } do %>

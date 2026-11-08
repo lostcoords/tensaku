@@ -18,7 +18,7 @@ This site is a Rails app, and Tensaku runs on it in development. Clone the repos
 
 ## Where to start
 
-- [Install Tensaku](/installation) with the gem and the generator.
-- Read [what can be edited](/editing) and how a save works.
-- Leave [notes](/notes), and give your agent the [note format and MCP tools](/agents).
-- Read [safety and limits](/safety) before you use it on a real app.
+- [Install Tensaku](/installation/) with the gem and the generator.
+- Read [what can be edited](/editing/) and how a save works.
+- Leave [notes](/notes/), and give your agent the [note format and MCP tools](/agents/).
+- Read [safety and limits](/safety/) before you use it on a real app.

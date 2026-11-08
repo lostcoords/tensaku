@@ -6,7 +6,7 @@
   <p class="<%= lc_text_class(tone: :muted, extra: "hero__lead") %>">Edit the text where you see it. Tensaku writes it back to the source.</p>
   <div class="hero__actions">
     <a class="<%= lc_button_class(size: :lg) %>" href="#try">Try it on this page</a>
-    <a class="<%= lc_button_class(variant: :outline, size: :lg) %>" href="/installation">Install it</a>
+    <a class="<%= lc_button_class(variant: :outline, size: :lg) %>" href="<%= installation_page_path %>">Install it</a>
   </div>
 </section>
 
@@ -39,5 +39,5 @@
 <section class="install">
   <h2 class="<%= lc_heading_class(size: :title) %>">Two commands</h2>
   <%= lc_code_block "bundle add tensaku --group development\nbin/rails generate tensaku:install", id: "install-commands", language: "shell", max_lines: nil %>
-  <p class="<%= lc_text_class(tone: :muted) %>">Ruby 4.0 or later and Rails 8.1. <a class="<%= lc_link_class(extra: "text-primary") %>" href="/introduction">Read the docs</a></p>
+  <p class="<%= lc_text_class(tone: :muted) %>">Ruby 4.0 or later and Rails 8.1. <a class="<%= lc_link_class(extra: "text-primary") %>" href="<%= introduction_page_path %>">Read the docs</a></p>
 </section>
