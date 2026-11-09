@@ -15,8 +15,6 @@ function start() {
   document.addEventListener("click", (event) => { if (event.target.closest("[data-demo-try]")) openPanel() })
   // In development the real Tensaku is on the page already, editing the real file.
   if (document.querySelector('meta[name="tensaku"]')) {
-    demo.querySelector("[data-demo-static]")?.setAttribute("hidden", "")
-    demo.querySelector("[data-demo-live-only]")?.removeAttribute("hidden")
     highlightLive(demo)
     playHero()
     return
@@ -37,7 +35,7 @@ function start() {
 
   const meta = document.createElement("meta")
   meta.name = "tensaku"
-  Object.assign(meta.dataset, { tensakuRequest: "GET", tensakuToken: "demo", tensakuRoot: ROOT, tensakuShortcut: "alt+shift+KeyT" })
+  Object.assign(meta.dataset, { tensakuRequest: "GET", tensakuToken: "demo", tensakuRoot: ROOT })
   document.head.append(meta)
 
   routeFetch(server)

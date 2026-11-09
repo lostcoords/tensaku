@@ -1,0 +1,10 @@
+<%# locals: (current: nil) %>
+<%# The same bar on every page, so moving between them leaves it in place. current: "docs" or "installation". %>
+<% brand = capture do %>
+  <%= image_tag "hanamaru-small.svg", alt: "", width: 30, height: 30 %>
+  <span class="text-sm">tensaku</span>
+<% end %>
+<%= render layout: "shared/header", locals: { brand:, home_label: "Tensaku home", links: [ [ "Docs", introduction_page_path, current == "docs" ], [ "Installation", installation_page_path, current == "installation" ] ] } do %>
+  <%= render "shared/search" %>
+  <%= lc_button_link_to "https://github.com/lostcoords/tensaku", variant: :ghost, size: :sm, aria: { label: "Source on GitHub" } do %><%= render "shared/github_icon" %><% end %>
+<% end %>

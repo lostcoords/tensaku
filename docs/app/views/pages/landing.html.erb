@@ -1,42 +1,50 @@
 <section class="hero">
   <h1 class="<%= lc_heading_class(size: :display, extra: "hero__title") %>">
     Fix your Rails app<br>
-    <span class="pen-mark">in the browser<svg viewBox="0 0 240 14" preserveAspectRatio="none" aria-hidden="true"><path d="M3 9 C 45 3, 92 12, 138 7 S 214 4, 237 8"/></svg></span>.
+    <span class="pen-mark">in the browser.</span>
   </h1>
   <div class="hero__actions">
-    <button type="button" class="<%= lc_button_class(size: :lg) %>" data-demo-try>Try it on this page</button>
+    <a class="<%= lc_button_class(size: :lg, extra: "hero__start") %>" href="<%= installation_page_path %>"><span class="glint" aria-hidden="true"><i class="glint__across"></i><i class="glint__down"></i></span>Get started</a>
     <a class="<%= lc_button_class(variant: :outline, size: :lg) %>" href="https://github.com/lostcoords/tensaku"><%= render "shared/github_icon" %>GitHub</a>
   </div>
+  <button type="button" class="hero__try" data-demo-try="true">or <span class="hero__try-link">try it on this page</span></button>
 </section>
 
 <section class="try">
   <div class="try__guide">
     <ol class="try__steps">
-      <li><%= lc_kbd "alt+click", data: { turbo_permanent: true } %> the big heading, change a word and press Enter. Its source updates too.</li>
-      <li>Press <%= lc_kbd "alt+shift+t", data: { turbo_permanent: true } %>, click a card below and choose <strong>Add note</strong>.</li>
+      <li><%= lc_kbd "alt+click", data: { turbo_permanent: true } %> the big heading, choose Edit text, change a word and press Enter. Its source updates too.</li>
+      <li><%= lc_kbd "alt+shift+click", data: { turbo_permanent: true } %> anything on this page and write what should change. Your agent gets the note.</li>
     </ol>
-    <p class="<%= lc_text_class(size: :small, tone: :muted, extra: "try__touch") %>">On a touch screen, tap 添 in the corner, then Edit.</p>
+    <p class="<%= lc_text_class(size: :small, tone: :muted, extra: "try__touch") %>">On a touch screen, tap the flower in the corner, then Edit.</p>
   </div>
   <%= render "demo/window" %>
 </section>
 
-<section class="features">
-  <article class="<%= lc_card_class %>">
-    <h3 class="<%= lc_heading_class(size: :subheading) %>"><span class="ink-red">Edit</span> text in place</h3>
-    <p class="<%= lc_text_class(tone: :muted) %>">The editor shows the source. Ruby stays a locked chip, so you only change the words around it.</p>
-  </article>
-  <article class="<%= lc_card_class %>">
-    <h3 class="<%= lc_heading_class(size: :subheading) %>"><span class="ink-accent">Notes</span> for your agent</h3>
-    <p class="<%= lc_text_class(tone: :muted) %>">Point at anything and say what should change. Your agent gets the note with the file and line.</p>
-  </article>
-  <article class="<%= lc_card_class %>">
-    <h3 class="<%= lc_heading_class(size: :subheading) %>"><span class="ink-green">Production</span> stays the same</h3>
-    <p class="<%= lc_text_class(tone: :muted) %>">Tensaku only loads in development, and every write touches only the bytes you edited.</p>
-  </article>
+<%= render "pages/agent_stripe" %>
+
+<section class="agents">
+  <div class="agents__intro">
+    <h2 class="<%= lc_heading_class(size: :title) %>">Collaborate with your <span class="pen-mark">agents</span>!</h2>
+    <p class="<%= lc_text_class(size: :small, tone: :muted) %>">Each note has your comment and the file and line you pointed at. Notes stay on your machine as plain JSON files. Agents read them through MCP, a Claude Code skill or the files themselves, or you copy them as Markdown. <a class="<%= lc_link_class(extra: "text-primary") %>" href="<%= notes_page_path(anchor: "how-agents-read-notes") %>">How agents read notes</a></p>
+  </div>
+  <section class="video-placeholder" aria-label="Tensaku video demo">
+    <%= lc_icon "film", options: { "aria-hidden": true } %>
+    <p>Video demo coming soon</p>
+  </section>
 </section>
 
-<section class="install">
-  <h2 class="<%= lc_heading_class(size: :title) %>">Two commands</h2>
-  <%= lc_code_block "bundle add tensaku --group development\nbin/rails generate tensaku:install", id: "install-commands", language: "shell", max_lines: nil %>
-  <p class="<%= lc_text_class(tone: :muted) %>">Ruby 4.0 or later and Rails 8.1. <a class="<%= lc_link_class(extra: "text-primary") %>" href="<%= introduction_page_path %>">Read the docs</a></p>
+<section class="cta">
+  <div class="cta__content">
+    <h2 class="<%= lc_heading_class(size: :display, extra: "cta__title") %>">Try it on your own app</h2>
+    <p class="cta__text">Add the gem to your development group and restart your server. There is no JavaScript to set up.</p>
+    <div class="cta__command">
+      <%= lc_code_block "bundle add tensaku --group development\n\n# To connect a coding agent\nbin/rails generate tensaku:install", id: "install-commands", language: "shell", max_lines: nil %>
+    </div>
+    <div class="cta__actions">
+      <a class="<%= lc_button_class(size: :lg, extra: "cta__button") %>" href="<%= installation_page_path %>">Install Tensaku</a>
+      <a class="<%= lc_button_class(variant: :ghost, size: :lg, extra: "cta__button cta__button--plain") %>" href="<%= introduction_page_path %>">Read the docs</a>
+    </div>
+  </div>
+  <%= image_tag "hanamaru.svg", alt: "", class: "cta__mark" %>
 </section>

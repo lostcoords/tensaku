@@ -15,7 +15,7 @@
 /* The site is dark only, in combination 313 of Sanzo Wada's A Dictionary of Color Combinations
    (1933-34): Carmine, Yellow and Diamine Green on Black. They match what Tensaku does: the red pen
    corrects, the highlighter marks, and green is a resolved note. Yellow is loud on black, so it is
-   only used, faintly, for highlighter marks. */
+   only used faintly, for highlighter marks and as a pale wash in code. */
 html[data-theme="dark"] {
   --wada-ground: #111314;
   --wada-red: #cc1236;
@@ -50,10 +50,5 @@ html[data-theme="dark"] {
   --border: color-mix(in oklab, var(--wada-ground), white 16%);
   --input: color-mix(in oklab, var(--wada-ground), white 16%);
   --ring: var(--wada-red-text);
-}
-
-.brand-mark {
-  color: var(--tensaku-akaji);
-  font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
 }
 

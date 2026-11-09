@@ -7,7 +7,7 @@ module Docs
     Page.new("installation", "Installation", "Start"),
     Page.new("editing", "Editing text", "Use"),
     Page.new("notes", "Notes", "Use"),
-    Page.new("agents", "Notes for agents", "Use"),
+    Page.new("architecture", "Architecture", "Reference"),
     Page.new("producers", "Attributes and producers", "Reference"),
     Page.new("configuration", "Configuration", "Reference"),
     Page.new("safety", "Safety and limits", "Reference")

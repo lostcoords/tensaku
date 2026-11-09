@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "tensaku": {
+      "command": "bundle",
+      "args": [
+        "exec",
+        "tensaku",
+        "mcp"
+      ]
+    }
+  }
+}

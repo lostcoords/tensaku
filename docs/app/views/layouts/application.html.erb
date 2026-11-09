@@ -5,20 +5,14 @@
     <title><%= @page ? "#{@page.title} · " : "" %>Tensaku</title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="description" content="Edit text and leave notes for your coding agent on a running Rails page, in development.">
-    <%= stylesheet_link_tag "tailwind", "application_header", "docs_shell", data: { turbo_track: "reload" } %>
+    <%= favicon_link_tag "hanamaru-small.svg", type: "image/svg+xml" %>
+    <%= stylesheet_link_tag "tailwind", "application_header", "docs_shell", "highlight", data: { turbo_track: "reload" } %>
     <meta name="turbo-prefetch" content="true">
     <%= javascript_importmap_tags %>
   </head>
   <body class="antialiased">
     <%= lc_skip_link %>
-    <% brand = capture do %>
-      <span class="brand-mark text-2xl leading-none" aria-hidden="true">添</span>
-      <span class="text-sm">tensaku</span>
-    <% end %>
-    <%= render layout: "shared/header", locals: { brand:, home_label: "Tensaku home", width: "max-w-none", floating: false, links: [ [ "Docs", introduction_page_path, true ] ] } do %>
-      <%= render "shared/search" %>
-      <%= lc_button_link_to "https://github.com/lostcoords/tensaku", variant: :ghost, size: :sm, aria: { label: "Source on GitHub" } do %><%= render "shared/github_icon" %><% end %>
-    <% end %>
+    <%= render "shared/site_header", current: @page&.slug == "installation" ? "installation" : "docs" %>
     <% page = yield %>
     <% outline = Docs.outline(page) %>
     <%= render layout: "shared/docs_shell", locals: { navigation: render("shared/navigation"), contents: (render("shared/outline", outline:) if outline.size > 1), menu_label: "Pages", width: "max-w-3xl" } do %>

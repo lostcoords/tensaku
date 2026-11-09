@@ -1,35 +1,103 @@
 # Installation
 
-Tensaku needs Ruby 4.0 or later and Rails 8.1. Rails 8.2 isn't supported yet. Add the gem to the development group only:
+Tensaku is one gem in your development group. There is no JavaScript to set up.
 
-```ruby
-# Gemfile
-group :development do
-  gem "tensaku"
-end
-```
+After reading this page, you will know:
 
-Then install it and run the generator:
+- What Tensaku needs.
+- How to install it and check that it works.
+- How to connect a coding agent.
+- How to remove it.
+
+## Requirements
+
+- Ruby 4.0 or later.
+- Rails 8.1.
+
+Bundler installs Herb and ReActionView with the gem. Tensaku works with importmap, jsbundling or no JavaScript at all, because its middleware injects one prebuilt script into HTML pages.
+
+## Install the gem
+
+Add the gem to the development group:
 
 ```sh
-bundle install
-bin/rails generate tensaku:install
+bundle add tensaku --group development
 ```
 
-## What the generator does
-
-- Checks that Tensaku is in the development group, and warns if it isn't.
-- Writes `config/initializers/reactionview.rb`, guarded by `defined?(ReActionView)`.
-- Installs the Claude Code skill in `.claude/skills/tensaku/`.
-- Adds the MCP endpoint to `.mcp.json`. Pass `--port` if your server doesn't run on 3000.
-- Adds `/tmp/tensaku/` to `.gitignore` unless `tmp/` is already ignored, so notes stay local.
-
-It prints every file it changes.
-
-## JavaScript
-
-You don't set up any JavaScript. Tensaku's middleware injects one prebuilt script into HTML pages in development. It works with importmap, jsbundling or no JavaScript at all.
+Then restart your server. Editing and notes now work.
 
 ## Check that it works
 
-Start the server and open a page. A round 添 button sits in the bottom right corner. Press Alt+Shift+T for select mode and hover an element. The label shows the file and line it came from.
+Open a page. A round button with a red flower sits in the bottom right corner. Press Alt+Shift+T for select mode and hover an element. The label shows the file and line it came from.
+
+### If the button doesn't appear
+
+Tensaku only adds the overlay to full HTML pages with a 2xx or 422 status, requested from this machine. Check that:
+
+- The server was restarted after the install and runs in development.
+- The page's host is `localhost`, a `.localhost` name, a loopback IP or a name in `config.hosts`.
+- The browser doesn't reach the server through a tunnel, a reverse proxy, Docker or a devcontainer.
+- The response isn't streamed, compressed, sent from a file on disk or non-UTF-8.
+
+[Safety and limits](/safety/) has the details.
+
+## Connect a coding agent
+
+The generator is optional. Run it to connect coding agents:
+
+```sh
+bin/rails generate tensaku:install
+```
+
+It prints every file it changes, and does this:
+
+- Checks that Tensaku is in the development group, and warns if it isn't.
+- Installs the skill in `.agents/skills/tensaku/`, and for Claude Code in `.claude/skills/tensaku/`.
+- Adds `bundle exec tensaku mcp`, the MCP server, to `.mcp.json`, and to the project config of each agent below that it sets up.
+- Adds `/tmp/tensaku/` to `.gitignore` unless `tmp/` is already ignored, so notes stay local.
+
+Each agent reads its own files:
+
+| Agent | MCP entry | Skill | Checked |
+|---|---|---|---|
+| Claude Code | `.mcp.json` | `.claude/skills/tensaku/` | Yes, Claude Code 2.1.323 |
+| Codex | `.codex/config.toml`, read once you trust the project | `.agents/skills/tensaku/` | No, from Codex's documentation |
+| OpenCode | `opencode.json` | `.agents/skills/tensaku/` | No, from OpenCode's documentation |
+| Cursor | `.cursor/mcp.json` | `.agents/skills/tensaku/` | No, from Cursor's documentation |
+| Gemini CLI | `.gemini/settings.json` | `.agents/skills/tensaku/` | No, from Gemini CLI's documentation |
+| Copilot CLI, VS Code | `.mcp.json` | `.agents/skills/tensaku/` | No, from GitHub's and VS Code's documentation |
+
+`.mcp.json` and `.agents/skills/tensaku/` are always written. The other files are written for the agents you name, or by default for those whose config directory or file is already in the project:
+
+```sh
+bin/rails generate tensaku:install --agents codex,cursor
+bin/rails generate tensaku:install --agents all
+```
+
+The generator keeps the other servers in each JSON file, and appends to `.codex/config.toml` without rewriting it. It leaves `opencode.jsonc` alone and prints the entry to add by hand.
+
+The `.mcp.json` entry looks like this:
+
+```json
+{
+  "mcpServers": {
+    "tensaku": {
+      "command": "bundle",
+      "args": ["exec", "tensaku", "mcp"]
+    }
+  }
+}
+```
+
+Your agent starts the server itself, in the directory it runs in, and stops it when it quits. Restart the agent after running the generator. For another agent, add the same command to its MCP settings, or have it run `bundle exec tensaku notes`. See [the MCP server](/notes/#the-mcp-server).
+
+## Remove Tensaku
+
+Run `bundle remove tensaku`, then delete what the generator and your notes left behind:
+
+- `tmp/tensaku/`
+- Your notes: the `tensaku` folder in your user data folder (see [where notes live](/notes/#where-notes-live))
+- `.claude/skills/tensaku/` and `.agents/skills/tensaku/`
+- The `tensaku` entry in `.mcp.json`, `.codex/config.toml`, `.cursor/mcp.json`, `.gemini/settings.json` and `opencode.json`
+- The `# Tensaku notes` lines in `.gitignore`, if the generator added them
+- `config/initializers/tensaku.rb`, if you made one

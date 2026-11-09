@@ -5,8 +5,4 @@
 <section class="<%= lc_card_class(padding: :none, extra: "window") %>" aria-label="The heading's source" data-demo-chrome>
   <p class="window__bar">app/views/pages/landing.html.erb</p>
   <pre class="window__code" data-demo-source-code data-first-line="<%= first + 1 %>"><%= lines[first..last].join("\n") %></pre>
-  <p class="<%= lc_text_class(size: :small, tone: :muted, extra: "window__note") %>">
-    <span data-demo-static>This runs in your browser: the file above changes here, not on a server.</span>
-    <span data-demo-live-only hidden>You're in development, so edits are written to the real file.</span>
-  </p>
 </section>

@@ -33,11 +33,15 @@ export class DemoServer {
     if (method === "POST" && path === "/text") return this.editText(body)
     if (method === "POST" && path === "/attribute") return this.editAttribute(body)
     if (method === "POST" && path === "/selection") return [200, { ok: true }]
+    // Nothing changes the demo's notes from outside the page, so it doesn't stream; the overlay polls.
+    if (method === "GET" && path === "/events") return [501, { error: "The demo doesn't stream events." }]
     if (method === "GET" && path === "/notes") return [200, this.listNotes(params.get("url"))]
     if (method === "GET" && path === "/notes.md") return [200, params.get("format") === "short" ? this.shortMarkdown(this.notesFor(params)) : this.markdown(this.notesFor(params))]
     // The demo can't open an editor; the overlay explains RAILS_EDITOR instead.
     if (method === "GET" && path === "/editor") return [200, { url: null }]
     if (method === "POST" && path === "/notes") return this.createNote(body)
+    // The demo keeps no screenshots; the note is saved without one.
+    if (method === "PUT" && /^\/notes\/[a-z0-9]+\/screenshot$/.test(path)) return [200, {}]
     const id = path.match(/^\/notes\/([a-z0-9]+)$/)?.[1]
     if (id && method === "PATCH") return this.updateNote(id, body)
     if (id && method === "DELETE") return this.deleteNote(id)
@@ -112,13 +116,13 @@ export class DemoServer {
 
   listNotes(url) {
     const notes = this.notes.filter((note) => !url || note.url === url)
-    const open = this.notes.filter((n) => n.status !== "resolved").length
-    return { notes: clone(notes), open, agent: { connected: false, seen_at: null } }
+    const open = this.notes.filter((n) => ["open", "working", "question"].includes(n.status)).length
+    return { notes: clone(notes), open, agents: [] }
   }
 
   notesFor(params) {
     if (params.get("id")) return this.notes.filter((n) => n.id === params.get("id"))
-    return this.notes.filter((n) => n.status !== "resolved" && (!params.get("url") || n.url === params.get("url")))
+    return this.notes.filter((n) => ["open", "working", "question"].includes(n.status) && (!params.get("url") || n.url === params.get("url")))
   }
 
   createNote({ url, comment, targets, viewport, rect }) {
@@ -131,9 +135,9 @@ export class DemoServer {
       viewport,
       rect,
       status: "open",
+      sent_at: now,
       created_at: now,
       updated_at: now,
-      reply: null,
       thread: [],
     }
     this.notes.push(note)
@@ -143,27 +147,24 @@ export class DemoServer {
 
   // What Tensaku's Notes.target adds: the file and the element's full range, from its stamp.
   target(raw) {
-    const target = { kind: raw.kind, text: raw.text, tag: raw.tag, context: raw.context }
+    const target = { kind: raw.kind, text: raw.text, tag: raw.tag, classes: raw.classes, context: raw.context }
     const description = raw.stamp && this.stamps[raw.stamp]
     if (description) Object.assign(target, { stamp: raw.stamp, file: description.file, range: description.element.range, tag: description.element.tag })
     return target
   }
 
-  // What Notes.update does: a message joins the thread (an agent's is also the reply), and targets
-  // move the note.
-  updateNote(id, { status, reply, comment, message, from = "you", agent, targets }) {
+  // What Notes.update does: a message joins the thread, and a change from the page sends the note again.
+  updateNote(id, { status, comment, message, from = "you", agent }) {
     const note = this.notes.find((n) => n.id === id)
     if (!note) return [404, { error: "No such note" }]
     if (comment) note.comment = comment
-    if (reply !== undefined) note.reply = reply || null
     if (status) note.status = status
     if (message) {
       note.thread = [...(note.thread ?? []), { from, text: message, ...(agent ? { agent } : {}), at: new Date().toISOString() }]
-      if (from === "agent") note.reply = message
     }
     if (agent && status === "working") note.agent = agent
-    if (targets) { note.targets = targets.map((target) => this.target(target)); delete note.rect; delete note.viewport }
     note.updated_at = new Date().toISOString()
+    if (status === "open") note.sent_at = note.updated_at
     this.changed("notes")
     return [200, clone(note)]
   }
@@ -189,7 +190,6 @@ export class DemoServer {
       const lines = [`## Tensaku note ${note.id} (${note.status}) on ${note.url}`, "", note.comment]
       if (note.targets.length) lines.push("", ...note.targets.map((t) => `- ${targetMarkdown(t)}`))
       if (note.thread?.length) lines.push("", ...note.thread.map((m) => `> **${m.from === "you" ? "You" : m.agent ?? "Agent"}:** ${m.text}`))
-      else if (note.reply) lines.push("", `Reply: ${note.reply}`)
       return lines.join("\n")
     }).join("\n\n")
   }
@@ -202,6 +202,7 @@ function targetMarkdown(target) {
   if (location) parts.push(`at \`${location}\``)
   const text = (target.text ?? "").replace(/\s+/g, " ").trim()
   if (text) parts.push(`"${text.length > 120 ? text.slice(0, 117) + "..." : text}"`)
+  if (target.classes?.length) parts.push(`classes \`${target.classes.join(" ")}\``)
   const context = Object.entries(target.context ?? {}).filter(([, value]) => value && (!Array.isArray(value) || value.length))
   if (context.length) parts.push(`(${context.map(([key, value]) => `${key}: ${[].concat(value).join(" < ")}`).join(", ")})`)
   return parts.join(" ")

@@ -1,0 +1,36 @@
+/* Rouge tokens in the Wada palette from application.css: keywords in the red pen, strings in the
+   resolved green, names in a pale wash of the highlighter yellow. */
+.lc-prose .highlight {
+  --code-name: color-mix(in oklab, var(--wada-yellow) 40%, var(--foreground));
+  --code-comment: var(--muted-foreground);
+}
+
+.highlight .k, .highlight .kd, .highlight .kn, .highlight .kp, .highlight .kr, .highlight .kt, .highlight .kv,
+.highlight .kc, .highlight .o, .highlight .ow {
+  color: var(--wada-red-text);
+}
+
+.highlight .s, .highlight .sa, .highlight .sb, .highlight .sc, .highlight .dl, .highlight .sd, .highlight .s2,
+.highlight .se, .highlight .sh, .highlight .sx, .highlight .s1, .highlight .ss, .highlight .sr {
+  color: var(--success);
+}
+
+.highlight .nb, .highlight .nc, .highlight .no, .highlight .nn, .highlight .nf, .highlight .fm, .highlight .nd,
+.highlight .na, .highlight .nt, .highlight .nl, .highlight .py, .highlight .ne, .highlight .bp,
+.highlight .nv, .highlight .vc, .highlight .vg, .highlight .vi, .highlight .vm,
+.highlight .m, .highlight .mb, .highlight .mf, .highlight .mh, .highlight .mi, .highlight .il, .highlight .mo, .highlight .mx {
+  color: var(--code-name);
+}
+
+.highlight .c, .highlight .ch, .highlight .cd, .highlight .cm, .highlight .cp, .highlight .cpf, .highlight .c1, .highlight .cs {
+  color: var(--code-comment);
+  font-style: italic;
+}
+
+.highlight .gd {
+  color: var(--wada-red-text);
+}
+
+.highlight .gi {
+  color: var(--success);
+}

@@ -1,0 +1,20 @@
+<%# Two identical halves move by half the track, so the loop has no seam. Each half repeats the set to stay wider than large screens. Only the first set is read aloud. The marks come from Simple Icons (CC0). %>
+<% agents = JSON.parse(Rails.root.join("config/agents.json").read, symbolize_names: true) %>
+<div class="agent-stripe">
+  <p class="agent-stripe__label">Works with all your favorite coding agents</p>
+  <div class="agent-stripe__marquee">
+    <div class="agent-stripe__track">
+      <% 2.times do |half| %>
+        <%= tag.ul class: [ "agent-stripe__row", ("agent-stripe__row--copy" if half.positive?) ], aria: { label: ("Coding agents" if half.zero?), hidden: (true if half.positive?) } do %>
+          <% 2.times do |round| %>
+            <% agents.each do |agent| %>
+              <%= tag.li class: ("agent-stripe__repeat" if round.positive?), aria: { hidden: (true if round.positive?) }, style: "--brand: #{agent[:dark]}" do %>
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><%= tag.path d: agent[:path], fill: "currentColor" %></svg><%= agent[:name] %>
+              <% end %>
+            <% end %>
+          <% end %>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+</div>

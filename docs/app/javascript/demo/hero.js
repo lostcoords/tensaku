@@ -1,9 +1,10 @@
-// The heading fixes itself once per page load: a fake mouse clicks "editor", backspaces it and types
-// "browser", the word the page really says, and the source excerpt follows along. The page's first
-// input or a scrolled-away heading ends it at once, so Tensaku only ever edits the real text.
+// The heading fixes itself once per page load: a fake mouse clicks "editor.", backspaces it and types
+// "browser.", the word the page really says, and the source excerpt follows along. The overlay, the
+// "try it" button or an alt key ends it at once, so Tensaku only ever edits the real text. Other
+// clicks, taps and scrolling leave it playing.
 
-const FIXED = "browser"
-const WRONG = "editor"
+const FIXED = "browser."
+const WRONG = "editor."
 const ARROW = '<svg class="hero-cursor__arrow" viewBox="0 0 24 24"><path d="M3 2 L3 19 L8 14.5 L11.5 22 L15 20.5 L11.5 13 L18 13 Z"/></svg>'
 const BEAM = '<svg class="hero-cursor__beam" viewBox="0 0 24 24"><path d="M8 3 C10 3 12 4 12 6 L12 18 C12 20 10 21 8 21 M16 3 C14 3 12 4 12 6 M12 18 C12 20 14 21 16 21"/></svg>'
 
@@ -43,11 +44,13 @@ export function playHero() {
   caret.setAttribute("aria-hidden", "true")
 
   let stopped = false
+  const interrupts = (event) => event.altKey || event.target.closest?.("tensaku-overlay, [data-demo-try]")
+  const stopOn = (event) => { if (interrupts(event)) stop() }
   const stop = () => {
     if (stopped) return
     stopped = true
-    removeEventListener("pointerdown", stop, true)
-    removeEventListener("keydown", stop, true)
+    removeEventListener("pointerdown", stopOn, true)
+    removeEventListener("keydown", stopOn, true)
     setWords(final)
     sourceLine?.classList.remove("demo-code__line--changed")
     caret.remove()
@@ -55,11 +58,15 @@ export function playHero() {
     mark.classList.remove("pen-mark--editing")
     stopAnimating()
   }
-  addEventListener("pointerdown", stop, true)
-  addEventListener("keydown", stop, true)
+  addEventListener("pointerdown", stopOn, true)
+  addEventListener("keydown", stopOn, true)
 
   const wait = (ms) => new Promise((resolve, reject) => setTimeout(() => (stopped ? reject() : resolve()), ms))
-  const moveTo = (x, y) => { cursor.style.transform = `translate(${x}px, ${y}px)` }
+  // Kept inside the page's width: on a phone, a cursor past the right edge would widen the page.
+  const moveTo = (x, y) => {
+    const maxX = root.clientWidth - cursor.offsetWidth - 4
+    cursor.style.transform = `translate(${Math.min(x, maxX)}px, ${y}px)`
+  }
   const wordBox = () => {
     const range = document.createRange()
     range.setStart(text, prefix.length)

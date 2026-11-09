@@ -22,7 +22,7 @@
 .hero {
   max-width: 46rem;
   margin: 0 auto;
-  padding: 4.5rem 0 5rem;
+  padding: clamp(4.5rem, 10vw, 8rem) 0 10rem;
   text-align: center;
 }
 
@@ -41,28 +41,97 @@
   margin-top: 2rem;
 }
 
+.hero__start {
+  position: relative;
+}
+
+.hero__try {
+  display: block;
+  margin: 1rem auto 0;
+  color: var(--foreground);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+/* The same wavy red line as the docs' page titles. */
+.hero__try-link {
+  text-decoration: underline wavy var(--wada-red) 1.5px;
+  text-underline-offset: 0.25em;
+  transition: color 0.15s ease;
+}
+
+.hero__try:hover .hero__try-link {
+  color: var(--wada-red-text);
+}
+
+/* Two blurred lights sweep the button's border: one along the top and down the right, the other down
+   the left and along the bottom, meeting at the bottom-right corner. Reduced motion hides them. */
+@keyframes glint-across {
+  0% { left: -40px; top: -25px; opacity: 0; }
+  3% { opacity: 1; }
+  45% { left: calc(100% - 25px); top: -25px; opacity: 1; }
+  95% { left: calc(100% - 25px); top: calc(100% + 15px); opacity: 1; }
+  100% { left: calc(100% - 25px); top: calc(100% + 30px); opacity: 0; }
+}
+
+@keyframes glint-down {
+  0% { left: -25px; top: -40px; opacity: 0; }
+  3% { opacity: 1; }
+  45% { left: -25px; top: calc(100% - 25px); opacity: 1; }
+  95% { left: calc(100% + 15px); top: calc(100% - 25px); opacity: 1; }
+  100% { left: calc(100% + 30px); top: calc(100% - 25px); opacity: 0; }
+}
+
+.glint {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  padding: 1.5px;
+  pointer-events: none;
+  mask: linear-gradient(black 0 0) content-box exclude, linear-gradient(black 0 0);
+}
+
+.glint i {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(#fff 55%, transparent 80%);
+  filter: blur(8px);
+  animation: 3.5s ease-in-out infinite;
+}
+
+.glint .glint__across {
+  width: 60px;
+  height: 35px;
+  animation-name: glint-across;
+}
+
+.glint .glint__down {
+  width: 35px;
+  height: 60px;
+  animation-name: glint-down;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glint { display: none; }
+}
+
 .pen-mark {
   position: relative;
   display: inline-block;
   white-space: nowrap;
 }
 
-.pen-mark svg {
+.pen-mark::after {
+  content: "";
   position: absolute;
   left: -2%;
   bottom: -0.1em;
   width: 104%;
   height: 0.32em;
-  overflow: visible;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 14' preserveAspectRatio='none'%3E%3Cpath d='M3 9 C 45 3, 92 12, 138 7 S 214 4, 237 8' fill='none' stroke='%23cc1236' stroke-width='4' stroke-linecap='round' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  pointer-events: none;
   animation: draw 700ms 300ms ease-out backwards;
-}
-
-.pen-mark path {
-  fill: none;
-  stroke: var(--wada-red);
-  stroke-width: 4;
-  stroke-linecap: round;
-  vector-effect: non-scaling-stroke;
 }
 
 @keyframes draw {
@@ -72,7 +141,7 @@
 
 /* The heading fixing itself: demo/hero.js drives it. Until it starts, the heading's last words stay
    hidden, and they show anyway if the script never runs. */
-.hero-anim:not(.hero-anim--playing) .pen-mark {
+.hero-anim:not(.hero-anim--playing) .hero__title .pen-mark {
   visibility: hidden;
   animation: hero-reveal 0s 2s forwards;
 }
@@ -81,7 +150,7 @@
   to { visibility: visible; }
 }
 
-.hero-anim .pen-mark svg {
+.hero-anim .hero__title .pen-mark::after {
   animation: none;
   clip-path: inset(0 100% 0 0);
 }
@@ -244,10 +313,6 @@
   transform: rotate(-6deg);
 }
 
-.try__steps strong {
-  background: linear-gradient(transparent 68%, var(--highlighter) 68%, var(--highlighter) 92%, transparent 92%);
-}
-
 .try__touch {
   display: none;
   margin-top: 0.75rem;
@@ -277,13 +342,8 @@
   padding: 0.75rem 0;
   overflow-x: auto;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.65;
-}
-
-.window__note {
-  padding: 0.6rem 1rem;
-  border-top: 1px solid var(--border);
 }
 
 .demo-code__line {
@@ -293,8 +353,8 @@
 
 .demo-code__number {
   display: inline-block;
-  width: 3.25rem;
-  padding-right: 1rem;
+  width: 2.5rem;
+  padding-right: 0.75rem;
   text-align: right;
   color: var(--muted-foreground);
   opacity: 0.5;
@@ -380,42 +440,256 @@
 .tok-symbol { color: color-mix(in oklab, var(--wada-red), white 60%); }
 .tok-comment { color: var(--muted-foreground); font-style: italic; }
 
-/* Features and install --------------------------------------------------------------------- */
+/* Agents and install ----------------------------------------------------------------------- */
 
-.features {
+.agents {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-  gap: 1.25rem;
-  padding: 1rem 0 3rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2rem;
+  padding: 4rem 0 5rem;
 }
 
-.ink-red,
-.ink-accent,
-.ink-green {
-  font-family: var(--hand);
-}
-
-.ink-red { color: var(--wada-red-text); }
-.ink-accent { background: linear-gradient(transparent 68%, var(--highlighter) 68%, var(--highlighter) 92%, transparent 92%); }
-.ink-green { color: var(--success); }
-
-.install {
+.agents__intro {
   display: grid;
-  gap: 1rem;
+  gap: 0.5rem;
   max-width: 44rem;
-  margin: 0 auto;
-  padding: 2rem 0 5rem;
+}
+
+/* Where the video demo goes. */
+.video-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--secondary);
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+}
+
+.video-placeholder svg {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+
+/* A band across the whole window, out of the page's column. */
+.agent-stripe {
+  margin-inline: calc(50% - 50vw);
+  padding: 1.25rem 0 1.5rem;
+  background: var(--secondary);
+  text-align: center;
+}
+
+.agent-stripe__label {
+  margin: 0 0 0.75rem;
+  padding: 0 1rem;
+  color: var(--muted-foreground);
+  font-size: 0.95rem;
+}
+
+.agent-stripe__marquee {
+  overflow: hidden;
+  mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+}
+
+.agent-stripe__track {
+  display: flex;
+  width: max-content;
+  animation: agent-stripe-scroll 70s linear infinite;
+}
+
+.agent-stripe__marquee:hover .agent-stripe__track {
+  animation-play-state: paused;
+}
+
+.agent-stripe__row {
+  display: flex;
+  flex: none;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agent-stripe__row li {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 1.1rem;
+  padding: 0.4rem clamp(2rem, 4vw, 3.5rem);
+  font-size: clamp(1.75rem, 3.4vw, 2.875rem);
+  font-weight: 750;
+  letter-spacing: -0.035em;
+  white-space: nowrap;
+}
+
+.agent-stripe__row svg {
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  color: var(--brand);
+}
+
+@keyframes agent-stripe-scroll {
+  to { transform: translateX(-50%); }
+}
+
+/* Without motion, one centered set wraps in place. */
+@media (prefers-reduced-motion: reduce) {
+  .agent-stripe__marquee { mask-image: none; }
+
+  .agent-stripe__track {
+    width: auto;
+    justify-content: center;
+    animation: none;
+  }
+
+  .agent-stripe__row {
+    flex: 1;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem 0;
+    padding: 0 1rem;
+  }
+
+  .agent-stripe__row--copy,
+  .agent-stripe__row .agent-stripe__repeat { display: none; }
+
+  .agent-stripe__row li {
+    padding: 0.25rem 1.25rem;
+    font-size: 1.5rem;
+  }
+}
+
+/* The closing band, in the corrector's red, lined up with the page's column. */
+.cta {
+  position: relative;
+  overflow: hidden;
+  margin-inline: calc(50% - 50vw);
+  padding: clamp(2.5rem, 5vw, 3.5rem) max(1rem, calc(50vw - 35rem));
+  background: var(--wada-red);
+  color: #fff;
+}
+
+.cta__mark {
+  display: none;
+  position: absolute;
+  top: -45%;
+  right: 0;
+  height: 140%;
+  width: auto;
+  transform: translateX(27%);
+  filter: brightness(0) invert(1);
+  opacity: 0.15;
+  pointer-events: none;
+}
+
+@media (min-width: 56rem) {
+  .cta__mark { display: block; }
+}
+
+.cta__content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: start;
+  gap: 1.25rem;
+  max-width: 40rem;
+}
+
+.cta__title {
+  color: inherit;
+  font-size: clamp(2.4rem, 6vw, 3.75rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+
+.cta__text {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.cta__command {
+  width: 100%;
+  margin-top: 0.5rem;
+  color: var(--foreground);
+}
+
+.cta__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.cta__button,
+.cta__button:hover {
+  background: var(--wada-ink);
+  color: var(--wada-ground);
+}
+
+.cta__button:hover {
+  background: #fff;
+}
+
+.cta__button--plain,
+.cta__button--plain:hover {
+  color: #fff;
+}
+
+.cta__button--plain {
+  background: transparent;
+}
+
+.cta__button--plain:hover {
+  background: rgb(255 255 255 / 0.14);
+}
+
+.cta__button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.landing-footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: -0.4rem -0.6rem;
+}
+
+.landing-footer__links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 999px;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.landing-footer__links a:hover {
+  background: var(--secondary);
+  color: var(--foreground);
+}
+
+.landing-footer__links svg {
+  width: 1.1rem;
+  height: 1.1rem;
 }
 
 .landing-footer {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
   max-width: 72rem;
   margin: 0 auto;
   padding: 2rem 1rem 3rem;
-  border-top: 1px solid var(--border);
   color: var(--muted-foreground);
   font-size: 0.85rem;
 }
@@ -435,18 +709,17 @@
   .rakugaki { display: block; }
 }
 
+/* Each doodle is centered on an ellipse around the hero's title and buttons, at the angle --a. */
 .rk {
   position: absolute;
-  top: var(--top);
-  transform: rotate(var(--rot, 0deg));
+  top: calc(21rem + 16rem * sin(var(--a)));
+  left: calc(50% + 30rem * cos(var(--a)));
+  transform: translate(-50%, -50%) rotate(var(--rot, 0deg));
   color: var(--muted-foreground);
   font-family: var(--hand);
   font-size: 1.15rem;
   white-space: nowrap;
 }
-
-.rk--left { right: calc(50% + 24rem + var(--x)); }
-.rk--right { left: calc(50% + 24rem + var(--x)); }
 
 .rk s {
   text-decoration-color: var(--wada-red);
@@ -480,14 +753,24 @@
 
 .rk--note {
   padding: 0.7rem 0.85rem 0.9rem;
-  border-radius: 2px 2px 14px 2px;
-  background: var(--note);
-  box-shadow: 0 6px 14px rgb(0 0 0 / 0.35);
+  border-radius: 2px 2px 0 2px;
+  background: linear-gradient(315deg, transparent 11.3px, var(--note) 11.3px);
+  filter: drop-shadow(0 6px 8px rgb(0 0 0 / 0.35));
   color: #2b2620;
   font-size: 1rem;
   line-height: 1.25;
   white-space: normal;
   width: 8.5rem;
+}
+
+.rk--note::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  background: linear-gradient(135deg, color-mix(in oklab, var(--note), black 22%) 50%, transparent 50%);
 }
 
 .rk--yellow { --note: #efe39a; }
@@ -519,20 +802,24 @@
 
   /* Browsers without scroll timelines show these sections as they are. */
   @supports (animation-timeline: view()) {
-    .features > *,
-    .install > * {
+    .agents > *,
+    .agent-stripe__marquee,
+    .cta__content > * {
       animation: rise linear both;
       animation-timeline: view();
       animation-range: entry 0% entry 90%;
     }
 
-    .features > :nth-child(2) { animation-range: entry 8% entry 98%; }
-    .features > :nth-child(3) { animation-range: entry 16% entry 100%; }
+    .agents .pen-mark::after {
+      animation-delay: 0s;
+      animation-timeline: view();
+      animation-range: entry 40% entry 100%;
+    }
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pen-mark svg,
+  .pen-mark::after,
   .demo-card {
     animation: none;
   }
