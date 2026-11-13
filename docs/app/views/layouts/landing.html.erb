@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <title>Tensaku: fix your Rails app in the browser</title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <meta name="description" content="Edit text on a running Rails page and Tensaku writes it back to the source. Leave notes, and your coding agent gets the exact file and line.">
+    <meta name="description" content="Fix your Rails app in the browser. Edit text where you see it. Send everything else to your coding agent, without leaving the page.">
     <%# The demo's overlay stays on this page: arriving and leaving are full page loads. %>
     <meta name="turbo-visit-control" content="reload">
     <%= favicon_link_tag "hanamaru-small.svg", type: "image/svg+xml" %>
@@ -29,6 +29,7 @@
         <a href="<%= introduction_page_path %>"><%= lc_icon "book-open", options: { "aria-hidden": true } %>Docs</a>
         <a href="https://github.com/lostcoords/tensaku"><%= render "shared/github_icon" %>GitHub</a>
         <a href="https://rubygems.org/gems/tensaku"><%= lc_icon "cube", options: { "aria-hidden": true } %>RubyGems</a>
+        <% if (release = Docs.release) %><a href="<%= changelog_page_path %>" aria-label="Version <%= release %>, changelog"><%= lc_icon "tag", options: { "aria-hidden": true } %>v<%= release %></a><% end %>
       </nav>
     </footer>
   </body>

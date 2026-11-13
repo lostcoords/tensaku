@@ -5,13 +5,13 @@
 <h1 align="center">Tensaku</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/status-experimental-e8b44f" alt="Status: experimental">
   <a href="https://rubyonrails.org"><img src="https://img.shields.io/badge/Rails-8.1-b45d3c?logo=rubyonrails&amp;logoColor=white" alt="Rails 8.1"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-57966f" alt="License: MIT"></a>
 </p>
 
 <p align="center">
-  Fix your Rails app on the page, in development.
+  <strong>Fix your Rails app in the browser.</strong><br>
+  Edit text where you see it. Send everything else to your coding agent, without leaving the page.
 </p>
 
 <p align="center">
@@ -22,7 +22,7 @@
 
 Tensaku (添削, correcting a draft) lets you click text on a running Rails page and edit it. It writes the change back to the ERB template, the locale YAML or the Markdown file. For anything that isn't a text edit, leave a note on the page, and your coding agent reads it with the file and line of each element.
 
-Tensaku is experimental. It needs Ruby 4.0 or later and Rails 8.1. It runs only in development, on [Herb](https://github.com/marcoroth/herb) through [ReActionView](https://github.com/marcoroth/reactionview). Test and production keep rendering with Erubi and never load Tensaku, ReActionView or Herb.
+It needs Ruby 4.0 or later and Rails 8.1. It runs only in development, on [Herb](https://github.com/marcoroth/herb) through [ReActionView](https://github.com/marcoroth/reactionview). Test and production keep rendering with Erubi and never load Tensaku, ReActionView or Herb.
 
 ## Install it in a Rails app
 

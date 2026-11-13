@@ -4,7 +4,7 @@ Tensaku (添削, correcting a draft) lets you click text on a running Rails page
 
 Tensaku runs only in development, on [Herb](https://github.com/marcoroth/herb) through [ReActionView](https://github.com/marcoroth/reactionview). Test and production keep rendering with Erubi and never load Tensaku, ReActionView or Herb.
 
-Tensaku is experimental, and nothing is stable yet. It needs Ruby 4.0 or later and Rails 8.1.
+It needs Ruby 4.0 or later and Rails 8.1.
 
 ## Try it here
 

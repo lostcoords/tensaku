@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <title><%= @page ? "#{@page.title} · " : "" %>Tensaku</title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <meta name="description" content="Edit text and leave notes for your coding agent on a running Rails page, in development.">
+    <meta name="description" content="Fix your Rails app in the browser. Edit text where you see it. Send everything else to your coding agent, without leaving the page.">
     <%= favicon_link_tag "hanamaru-small.svg", type: "image/svg+xml" %>
     <%= stylesheet_link_tag "tailwind", "application_header", "docs_shell", "highlight", data: { turbo_track: "reload" } %>
     <meta name="turbo-prefetch" content="true">
@@ -21,7 +21,7 @@
       </article>
       <%# Inside the shell, so the sticky sidebars have the whole page to stay in and never slide up under the header. %>
       <footer class="mt-16 flex flex-wrap items-center justify-between gap-4 border-t border-border pt-6 text-xs text-muted-foreground">
-        <span>Tensaku by <a href="https://lostcoords.com">Lostcoords</a> · MIT license</span><%= lc_link "Source on GitHub ↗", "https://github.com/lostcoords/tensaku", tone: :muted, class: "no-underline hover:underline" %>
+        <span>Tensaku by <a href="https://lostcoords.com">Lostcoords</a> · MIT license<% if (release = Docs.release) %> · <a href="<%= changelog_page_path %>" aria-label="Version <%= release %>, changelog">v<%= release %></a><% end %></span><%= lc_link "Source on GitHub ↗", "https://github.com/lostcoords/tensaku", tone: :muted, class: "no-underline hover:underline" %>
       </footer>
     <% end %>
   </body>

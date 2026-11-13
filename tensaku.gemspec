@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.authors     = [ "David Afonso" ]
   spec.email       = [ "dav@davafons.com" ]
   spec.homepage    = "https://tensaku.lostcoords.com"
-  spec.summary     = "Edit text and leave notes for your coding agent on a running Rails page, in development."
+  spec.summary     = "Fix your Rails app in the browser. Edit text where you see it. Send everything else to your coding agent, without leaving the page."
   spec.description = "Tensaku lets you click text on a Rails page in development and write the change back to the " \
     "ERB template, the locale YAML or the Markdown source, or leave notes on elements and areas that a coding " \
     "agent reads with the exact file and line. Built on Herb through ReActionView. Development only."
