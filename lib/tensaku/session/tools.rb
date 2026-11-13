@@ -17,7 +17,7 @@ module Tensaku
           inputSchema: {
             type: "object",
             properties: {
-              status: { type: "string", enum: %w[open working question resolved declined active all], description: "active (default) means open, working or question." },
+              status: { type: "string", enum: %w[open working question resolved declined active archived all], description: "active (default) means open, working or question. archived lists the archive; all is every note outside it." },
               url: { type: "string", description: "Only notes left on this path, for example /about." }
             }
           }

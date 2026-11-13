@@ -82,6 +82,19 @@ class Tensaku::McpTest < Tensaku::TestCase
     assert_equal "No notes.", text(tool("list_notes"))
   end
 
+  test "list_notes offers the archive as a status and lists it" do
+    status = rpc("tools/list").dig("result", "tools").find { it["name"] == "list_notes" }.dig("inputSchema", "properties", "status")
+    assert_includes status["enum"], "archived"
+
+    note = Tensaku::Notes.create(url: "/about", comment: "Rename this section")
+    tool("start_note", id: note["id"])
+    tool("resolve_note", id: note["id"], reply: "Renamed")
+    Tensaku::Notes.prune!(now: Time.now + Tensaku.config.archive_after + 60)
+
+    assert_equal "No notes.", text(tool("list_notes", status: "all"))
+    assert_includes text(tool("list_notes", status: "archived")), note["id"]
+  end
+
   test "notes link to the page at the address the browser last used" do
     Tensaku::Notes.create(url: "/about", comment: "Rename this section")
     assert_includes text(tool("list_notes")), "on /about"

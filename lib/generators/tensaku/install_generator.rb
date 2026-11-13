@@ -88,11 +88,11 @@ module Tensaku
         path = File.join(destination_root, ".gitignore")
         ignored = File.exist?(path) && File.readlines(path, chomp: true).any? { it.strip.match?(%r{\A/?tmp(/|/\*|/\*\*)?\z}) }
         if ignored
-          say_status :ok, "tmp/ is ignored, so notes stay local", :green
+          say_status :ok, "tmp/ is ignored, so tmp/tensaku/ stays out of version control", :green
         elsif File.exist?(path)
-          append_to_file ".gitignore", "\n# Tensaku notes\n/tmp/tensaku/\n"
+          append_to_file ".gitignore", "\n# Tensaku's token, lock, log and screenshots\n/tmp/tensaku/\n"
         else
-          create_file ".gitignore", "# Tensaku notes\n/tmp/tensaku/\n"
+          create_file ".gitignore", "# Tensaku's token, lock, log and screenshots\n/tmp/tensaku/\n"
         end
       end
 
