@@ -57,6 +57,42 @@ export async function refresh(kind: SourceKind) {
   }
 }
 
+// After an agent changed the app's files: the same fetch and morph, plus the stylesheets, whose
+// digested URLs change with their content. Quiet: a page reached by a POST, or a failed fetch, is
+// left as it is.
+export async function refreshAfterAgent() {
+  if (meta().method !== "GET") return
+  try {
+    const response = await fetch(location.href, { headers: { Accept: "text/html", "X-Tensaku-Refresh": "1" }, credentials: "same-origin" })
+    if (!response.ok) return
+    const next = new DOMParser().parseFromString(await response.text(), "text/html")
+    swapStylesheets(next)
+    morph(next)
+  } catch {
+    // The next change tries again.
+  }
+}
+
+// Adds the stylesheets the new page links that this one doesn't, and removes the old ones once the
+// new ones load, so the page doesn't flash unstyled.
+function swapStylesheets(next: Document) {
+  const hrefs = (doc: Document) => Array.from(doc.querySelectorAll<HTMLLinkElement>('head link[rel="stylesheet"]')).map((link) => link.getAttribute("href"))
+  const wanted = new Set(hrefs(next))
+  const current = Array.from(document.querySelectorAll<HTMLLinkElement>('head link[rel="stylesheet"]'))
+  const have = new Set(current.map((link) => link.getAttribute("href")))
+  const added = Array.from(next.querySelectorAll<HTMLLinkElement>('head link[rel="stylesheet"]')).filter((link) => !have.has(link.getAttribute("href")))
+  if (!added.length) return
+  const stale = current.filter((link) => !wanted.has(link.getAttribute("href")))
+  let waiting = added.length
+  for (const link of added) {
+    const copy = document.importNode(link, true)
+    const done = () => { if (--waiting === 0) stale.forEach((old) => old.remove()) }
+    copy.addEventListener("load", done)
+    copy.addEventListener("error", done)
+    document.head.append(copy)
+  }
+}
+
 // A form control the person has changed since the page loaded keeps what they typed or picked: the
 // morph only brings in the server's value for controls still at their default.
 function changedByUser(element: Element) {

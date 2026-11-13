@@ -24,6 +24,11 @@ module Tensaku
         end
       end
 
+      # The code this server runs, to tell the page when the files changed under it (Build.stale?).
+      initializer "tensaku.build" do
+        Tensaku::Build.started
+      end
+
       initializer "tensaku.middleware" do |app|
         app.middleware.insert_before 0, Tensaku::Middleware
       end

@@ -20,30 +20,52 @@ After reading this page, you will know:
 | An area | Alt-drag (Option-drag), in any mode, or drag in select mode. The note collects every stamped element at least half inside the area. |
 | Several elements | Shift-click them in select mode, then press **N** or **Add note**. **Esc** clears them. |
 
-The note form takes a screenshot of what the note points at, with a margin around it, as the page looked when the form opened. Untick **Screenshot** to save the note without it; the form remembers the choice. The overlay draws the screenshot from the page itself, so no browser permission is needed. It leaves out Tensaku's own overlay. Images and fonts the overlay can't fetch, such as ones from another origin without CORS headers, can be missing from it. The card shows the screenshot; click it to open it at full size. Agents get it with `get_screenshot` or `tensaku notes screenshot`.
+The note form takes a screenshot of what the note points at, with a margin around it, as the page looked when the form opened. Untick **Screenshot** to save the note without it; the form remembers the choice. The overlay draws the screenshot from the page itself, so no browser permission is needed. It leaves out Tensaku's own overlay, and images from another origin that doesn't send CORS headers: those areas are blank. Drawing takes about half a second on a typical page, while you type. On a page with thousands of elements, the screenshot shows the element the note points at without the area around it, so it stays fast. The card shows the screenshot; click it to open it at full size. Agents get it with `get_screenshot` or `tensaku notes screenshot`.
 
 To note something that moves, pause the page first with the pause button in the toolbar. It pauses CSS animations and transitions, Web Animations, and playing video and audio, until you press it again. Animations driven by JavaScript timers or `requestAnimationFrame` keep running.
 
-## Send notes to your agent
+## Notes and your agent
 
-A note goes to your agent when you save it, and again when you edit it, answer its question or reopen it. Your agent gets Tensaku's tools from `tensaku mcp`, which it starts itself (see [connect a coding agent](/installation/#connect-a-coding-agent)). Then ask it in your own words:
+A saved note waits in the database until an agent checks for notes, and it is new for agents again when you edit it, answer its question or reopen it. Your agent gets Tensaku's tools from `tensaku mcp`, which it starts itself (see [connect a coding agent](/installation/#connect-a-coding-agent)). Then ask it in your own words:
 
 | Ask your agent | It does |
 |---|---|
 | "Watch my Tensaku notes" | Waits with `watch_notes`. Each note you save reaches it as you write it, and it works through them until you tell it to stop. |
 | "Do my Tensaku notes" | Works through the open notes once |
 
-Each `tensaku mcp` session has a two-word name, such as amber-fox, and the page names it with its agent: **Claude Code · amber-fox**. The agent tells you the name when it starts listening, so you can tell which terminal is which. With one agent listening, the note form's button says who gets the note, for example **Send to Codex · amber-fox**, and the card says **Delivered to Codex · amber-fox** once `watch_notes` has handed it over. The bottom of the notes panel says who is listening. With nobody listening it says **No agent listening**, and **Connect one** opens the Agents popover.
+Each `tensaku mcp` session has a two-word name, such as amber-fox, and the page names it with its agent: **Claude Code · amber-fox**. The agent tells you the name when it starts listening, so you can tell which terminal is which. The card says **Picked up by Codex · amber-fox** once an agent has taken the note. The bottom of the notes panel says who is checking for notes. With nobody listening it says **No agent listening**, and **Connect one** opens the Agents popover.
 
 The **Agents** button in the toolbar, a paper plane, is grey with no agent, drawn in ink while one is connected, and flying in green while one listens. A number shows when more than one is connected. Its popover lists the listening agents first, each with its folder and what it did last, such as "resolved xz5b 1 min ago" or the note it is working on. Agents that are connected but not listening fold into one line, **N more connected, not listening**, that expands. Until one listens, it has both prompts with a copy button each.
 
 A long back-and-forth on a note shows the agent's latest message and what came after it, with **Show N earlier messages** for the rest. Agents get notes the same way from `list_notes` and `watch_notes`, so the thread doesn't fill their context, and `get_note` has the whole thread.
 
-No agent is woken by Tensaku on its own. MCP lets an agent call Tensaku, but not the other way round, so an agent that isn't waiting in `watch_notes` reads your notes the next time you ask it to.
+MCP lets an agent call Tensaku, but not the other way round, so an agent that isn't waiting in `watch_notes` reads your notes the next time you ask it to. Claude Code is the exception, with a channel.
 
-With agents connected, the note form has a **To** menu: the first agent that takes the note (the default), or one session, listening sessions first. A note sent to a session belongs to it from the start: other sessions don't see it in `watch_notes` or `list_notes` and can't start it, even while that session is busy with another note. The form remembers the last choice. An open note's card has the same menu, to send the note to another session or back to whichever agent takes it first.
+### Claude Code: notes that start the agent
 
-A note belongs to one agent session: the one you sent it to, the one `watch_notes` handed it to, or the one that started it. With two agents listening, the first to look takes the note, and the other never sees it. An agent that is working on a note leaves new ones to an agent that is listening with nothing to do. While its session's process runs, other sessions leave the note alone, and a request for changes on it goes back to the same session. When that session quits, or its process is gone, any agent can take the note. `list_notes` marks each active note as the session's own or as nobody's yet, and says how many notes other sessions hold. An agent that edits code without calling `start_note` first isn't stopped; the tools tell it to start a note before working on it.
+Claude Code can load an MCP server as a *channel*, which lets the server put a message into the session as if you had typed it. Start Claude Code in the app with Tensaku as a channel:
+
+```sh
+claude --dangerously-load-development-channels server:tensaku
+```
+
+`tensaku` is the server's name in `.mcp.json`, as the install generator writes it. Claude Code shows a warning about development channels at start; choose **I am using this for local development**. Tensaku then says hello in the chat, Claude confirms with `channel_ready`, and says in one line that your notes now arrive there. From then on, each note you save is claimed for that session and pushed into its chat, and Claude starts on it without being asked. Answering its question or asking for changes on a note sends the note back the same way. Notes that arrive while it works are handled after the current turn. In the Agents popover the session says **Live: notes reach its chat as you save them**.
+
+What to know:
+
+- Channels are a research preview in Claude Code. They need a claude.ai or Console login, and on a Team or Enterprise plan an owner has to turn channels on. The flag is ignored with `-p`.
+- Notes already open when the session starts aren't pushed; Claude says how many there are.
+- A session started without the flag gets no channel messages and works as before. Tensaku only pushes to a session that answered its hello, so no note is handed to a session that can't see it.
+- Other agents (Codex, Cursor, Gemini CLI, OpenCode) have no such mechanism; use `watch_notes` with them.
+- Checked with Claude Code 2.1.323.
+
+### Assigning a note
+
+A note is unassigned until an agent takes it, or until you assign it. With agents connected, the note form has an **Assign to** menu: **Anyone** (the default), or one session, listening sessions first. A note assigned to a session belongs to it from the start: other sessions don't see it in `watch_notes` or `list_notes` and can't start it, even while that session is busy with another note. The form remembers the last choice. The card says **Unassigned** or **Assigned to** a session until an agent picks the note up. With no agent connected, the **Assign to** row links to the Agents popover, which says how to connect one.
+
+An open note's card has the same menu with an **Assign** button, to give the note to another session or back to anyone. A note in progress has it too, as **Reassign**: when you stop an agent in the middle of a note and its session keeps running, this takes the note back. The note is open again, and that session's `resolve_note` on it is refused. When an agent's process ends while it works on a note, the card says **stopped. Anyone can take it**, and the next agent that lists notes is told that part of the change may already be in the file.
+
+A note belongs to one agent session: the one you assigned it to, the one `watch_notes` handed it to, or the one that started it. With two agents listening, the first to look takes the note, and the other never sees it. An agent that is working on a note leaves new ones to an agent that is listening with nothing to do. While its session's process runs, other sessions leave the note alone, and a request for changes on it goes back to the same session. When that session quits, or its process is gone, any agent can take the note. `list_notes` marks each active note as the session's own or as nobody's yet, and says how many notes other sessions hold. `resolve_note` refuses a note the agent didn't start, so an agent that skips `start_note` fails at the end instead of resolving quietly. Tensaku can't stop an agent from editing files before that.
 
 ## Select mode
 
@@ -78,6 +100,10 @@ Each note shows as a pin on the element it points at, and has one of these statu
 | `question` | The agent asked something back. The question shows on the page. |
 | `resolved` | The agent replied and the pin is green, so you can check the change |
 | `declined` | The agent closed it without a change and said why. The pin is grey. |
+
+What you do on a card, such as marking it done, reopening it, answering or assigning it, shows on the card and the pin at once, before the server answers. If the server refuses, the card and pin go back and a toast says why. An open card follows the note as the agent works on it, unless you are typing in it.
+
+When an agent resolves a note, on this page or any other, the page fetches itself again and morphs the change in, the same way as after an edit (see [how the page updates](/editing/#how-the-page-updates)). Changed stylesheets are swapped in too. A page reached by a POST is left as it is.
 
 Each note keeps a thread: the agent's questions and messages, and your answers. Answering a question sets the note back to `open`. So does editing the note, and its thread stays.
 
@@ -195,7 +221,8 @@ Targets also carry the `tag`, the `text`, the element's own CSS `classes` and, i
 | `decline_note` | Closes a note without a change, with the reason |
 | `ask_question` | Asks the person something; the question shows on the page |
 | `reply_to_note` | Adds a message to the note's thread without changing its status |
-| `watch_notes` | Waits for notes you send: 60 seconds by default, up to 300 with `timeout_seconds` |
+| `watch_notes` | Waits for notes you save: 60 seconds by default, up to 300 with `timeout_seconds` |
+| `channel_ready` | Claude Code only: confirms that the Tensaku channel reaches the session, with the code from its hello |
 | `current_selection` | Returns the element last clicked in select mode |
 
 `watch_notes` waits for open notes sent after `since`, woken as soon as one is saved, and the page shows the agent as listening meanwhile. Its answer ends with a `checked_at` line to pass as `since` on the next call, so no note is missed or passed on twice. `list_notes` lists notes whether they were sent or not. Both cut a long thread down to the agent's latest message and what came after it.

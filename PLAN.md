@@ -442,8 +442,8 @@ adds a second one.
   stack. Each step checks the source still holds the text it expects, and is refused otherwise.
   Cmd/Ctrl+Z and Cmd/Ctrl+Shift+Z (Ctrl+Y) work when nothing is being typed in and there is something
   to undo or redo. It was one undo per element, lost on reload, and a full stack was out of scope.
-  Not covered: edits to other locales saved from the translation editor, and anything not saved
-  through Tensaku.
+  A translation saved in several locales from one editor is one entry. Not covered: anything not
+  saved through Tensaku.
 - **Overlay:** TypeScript, compiled file committed.
 - **Tests:** Minitest and Capybara with Cuprite. Features first, tests for the splicing and main flows.
 - **Home (changed 2026-11-07):** a Lostcoords product. Public repo at github.com/lostcoords/tensaku,
@@ -512,9 +512,10 @@ adds a second one.
   - One connection per process behind a re-entrant lock, opened again after a fork or when
     `TENSAKU_HOME` changes. Binary strings (ids from a request path) are bound as text, or SQLite
     compares them as blobs and finds nothing.
-  - Notes from the file era aren't imported: Tensaku isn't released, so nobody has notes to keep. The
-    schema is one script that only adds missing tables (`user_version` raised on each change); a change
-    to an existing table means deleting the database until the first release.
+  - Notes from the file era aren't imported: Tensaku isn't released, so nobody has notes to keep.
+  - Migrations (2026-11-13): `Store::SCHEMA` is the base as of `user_version` 2, and `MIGRATIONS` lists
+    every later change in order, each applied once in the same immediate transaction that reads the
+    version. A step that may have run is never changed. The first step adds `agents.version`.
   - Cost: the `sqlite3` gem, a native gem, for apps on Postgres or MySQL too. Agents can't edit notes
     as files; `tensaku notes` replaces that.
 - **Data folder (added 2026-11-13):** the database is in the platform's per-user data folder
@@ -535,27 +536,67 @@ adds a second one.
 - **Archive (added 2026-11-13, replaces deleting closed notes):** resolved and declined notes move to
   the archive after `archive_after` (was `prune_after`) or with **Archive done** (was **Clear done**).
   They stay listable (`status: archived`) and come back when reopened. Once notes persist, what was
-  resolved is history worth keeping. Deleting a single note still deletes it. Not done: an archive view
-  in the overlay.
+  resolved is history worth keeping. Deleting a single note still deletes it. The notes panel has an
+  **Archive** tab, newest first, where a note can be reopened or deleted.
 - **Picking the session (added 2026-11-13):** the note form and an open note's card have a **To**
   menu of the connected sessions by handle. A note sent to a session gets that session as its owner
   when it is written, so other sessions skip it in `watch_notes` and `list_notes` and can't start it,
   and the idle-first rule doesn't apply to it. Moving it to another session (or to anyone) clears the
   delivery and sends it again. `list_notes` marks each active note *Yours* or *Nobody's yet* and counts
-  the notes other sessions hold. Not enforced: an agent that edits code for a note it didn't start.
-  Ownership now lasts while the owner's process runs, not while it checked in within 20 seconds, so a
-  slow check-in doesn't free a note mid-work; a row without a pid keeps the 20-second rule.
+  the notes other sessions hold. `resolve_note` refuses a note that isn't `working`, so an agent that
+  skipped `start_note` fails loudly; editing files before that can't be stopped.
+  Ownership lasts while the owner's process runs, not while it checked in within 20 seconds, so a
+  slow check-in doesn't free a note mid-work.
+- **Assign, not send (2026-11-13):** MCP is pull only, so in general Tensaku can't make an agent
+  start a turn (Claude Code channels are the exception, below). So the page doesn't say "Send": a saved note is
+  **Unassigned** until an agent takes it, or **Assigned to** one session from the **Assign to** menu
+  (default **Anyone**). The card's **Assign** button reassigns an open note; on a note in progress it
+  is **Reassign**, which takes the note back from a session that was stopped mid-work but still runs
+  (open again; that session's resolve is refused because the note isn't `working`). A note in
+  progress whose session's process ended is marked `stopped`: the card says anyone can take it, and
+  `list_notes` warns that part of the change may already be in the file.
+- **Claude Code channel (2026-11-13):** `tensaku mcp` declares `experimental["claude/channel"]` to
+  clients whose name contains "claude". In a session started with
+  `claude --dangerously-load-development-channels server:tensaku`, a `notifications/claude/channel`
+  message starts a turn. A session without the flag drops it silently, and the server can't tell, so
+  it sends a hello with a random code 1.5 s after `notifications/initialized` (Claude Code registers
+  its listener a moment after connecting and drops earlier messages; seen in its debug log) and once
+  more at 6 s, and only counts the channel as working when Claude calls `channel_ready` with the code.
+  Then a thread waits on the doorbell, claims new notes for the session (`claim_sent`, so the
+  idle-first and assignment rules apply) and pushes them as one message with `meta.kind = notes` and
+  the ids. The session is shown as listening and **Live**. Verified end to end with Claude Code 2.1.323
+  (Haiku): hello, `channel_ready`, a saved note declined by the agent about 1.5 s later.
+  Not done: permission relay (`claude/channel/permission`), which would let the page approve tool
+  use; anyone who can reply could approve, so it needs more thought.
+- **Optimistic cards and refresh after an agent (2026-11-13):** a card's change (status, message,
+  assignment) is applied to the local notes, pins, panel and open card before the PATCH, and put back
+  with a toast if it fails; the open card is redrawn when a load brings a changed note, unless a field
+  in it has text. `GET /notes` returns `changed_at`, the time of the latest agent message on a resolved
+  note in the app; when it changes after the first load, the page refetches and morphs itself like
+  after an edit, and adds stylesheets whose URL changed (digests) before removing the old ones.
 - **Screenshots (added 2026-11-13):** when the note form opens, the overlay draws the area around the
   targets with modern-screenshot (MIT, bundled, pinned) and uploads it once the note is saved, as a PNG
   in a `screenshots` table (schema version 2; migrations now run in steps). Drawing the DOM needs no
   permission and no extension, unlike `getDisplayMedia`, and leaves the overlay out with a filter. It
   draws the smallest element that contains the area plus a margin, then crops; a canvas is limited to
-  16000 px a side and 40 million pixels, past which the scale drops. Images and fonts it can't fetch
-  can be missing. Up to 4 MB per note. Agents get it as an MCP image (`get_screenshot`) or a file
+  16000 px a side and 40 million pixels, past which the scale drops. Measured in Chromium and WebKit
+  (2026-11-13): about 0.6 s for a heading on the docs site (731 elements), in the background while
+  the form is open. A container with more than 2000 elements is drawn as the smallest element around
+  the target, without the margin: one row of a 20,000-element page took 4 to 24 ms, where drawing the
+  page took 15 to 20 s and came out at a useless scale. An image from another origin without CORS
+  headers is left blank; a same-origin one shows. Up to 4 MB per note. Agents get it as an MCP image (`get_screenshot`) or a file
   (`tensaku notes screenshot`). modern-screenshot adds about 36 KB to the overlay script.
 - **Agent liveness and placement (added 2026-11-13):**
-  - An agent checks in with its process id; one whose process is gone is not connected and stops
-    owning its notes at once, not after 20 seconds.
+  - A session holds an exclusive `flock` on `sessions/<session>.lock` in the data folder while it
+    runs; it is alive exactly while that lock is held, and stops owning its notes the moment its process
+    ends. A process id was used first, but the system can give a crashed agent's id to a new process,
+    which would keep its notes stuck until the row was pruned a day later.
+  - Code fingerprint (`Tensaku::Build`): a digest of Tensaku's Ruby files, taken when a process
+    starts. The dev server answers `restart: true` on `GET /notes` when its fingerprint differs from the
+    files on disk, and the page says to restart it: the page loads the overlay script fresh on every
+    request, so a stale server answered new requests with old code ("Not found" for the screenshot
+    upload). Each agent's check-in records its fingerprint, and the Agents popover marks an agent whose
+    fingerprint differs as running older code.
   - A session working on a note leaves new notes to a listening session working on none; with nobody
     idle, it takes them.
   - A session's handle is the first word pair no other connected session of the app has.

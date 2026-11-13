@@ -6,7 +6,8 @@
 
 - Undo and redo: every text save in the tab can be undone, newest first or from the edit history, and
   redone, with Cmd/Ctrl+Z and Cmd/Ctrl+Shift+Z (Ctrl+Y) or from the toasts. The history survives a
-  reload. A new save clears what can be redone.
+  reload. A new save clears what can be redone. A translation saved in several locales at once is undone
+  in all of them.
 - The editor shows child elements as they look on the page instead of as code. `<br>` breaks the line,
   an element's text keeps its style, dimmed, and opens that element's editor on a click, and an element
   without text is a small mark. Whitespace between elements is no longer an editable field.
@@ -31,11 +32,15 @@
 - Nothing polls. The page gets change events from the dev server (`GET /__tensaku/events`), and a
   process waiting for notes is woken over a Unix socket when a change is saved. The page polls only
   while its event stream is down.
-- A note belongs to one `tensaku mcp` session: the one you send it to with the note form's **To**
-  menu, the one `watch_notes` hands it to, or the one that starts it. Other sessions leave it alone
-  while that session's process runs, and a request for changes goes back to it. An open note's card can
-  send it to another session. A session busy with a note leaves new ones to an idle listening session.
-  `list_notes` marks each note as the session's own or nobody's yet.
+- A note belongs to one `tensaku mcp` session: the one you assign it to with the note form's
+  **Assign to** menu, the one `watch_notes` hands it to, or the one that starts it. Unassigned notes go
+  to the first session that checks. Other sessions leave a note alone while its session's process
+  runs, and a request for changes goes back to it. A card can assign an open note to another session,
+  or take a note in progress back from a session that was stopped mid-work. A note whose session
+  ended mid-work says so on the page and in `list_notes`. A session busy with a note leaves new ones to an idle listening session.
+  `list_notes` marks each note as the session's own or nobody's yet, and `resolve_note` refuses a note
+  that wasn't started. A session counts as running while its process holds a lock in the data folder,
+  so a crashed agent's notes are free at once.
 - Once an agent has listened, any Tensaku tool answer includes and claims the notes sent since it last
   looked, so a busy agent gets them at its next call. Other agents get the ids.
 - Each session has a two-word handle, such as amber-fox, unique among the app's connected sessions,
@@ -54,6 +59,17 @@
 - Long threads show the agent's latest message and what came after it, on the cards and in `list_notes`
   and `watch_notes`. `get_note` has the whole thread.
 - Each browser tab keeps its own selection; `current_selection` returns the newest.
+- The page says to restart the dev server when Tensaku's code changed since it started, and the Agents
+  popover marks an agent that runs older Tensaku code.
+- The notes panel has an **Archive** tab.
+- Changes made on a note card show at once and go back if the server refuses them. An open card
+  follows the agent's changes to its note.
+- When an agent resolves a note, the page fetches itself again and morphs the change in, with changed
+  stylesheets.
+- Claude Code channel: in a session started with
+  `claude --dangerously-load-development-channels server:tensaku`, each note you save is pushed into
+  the chat and Claude starts on it without being asked. The new `channel_ready` tool confirms the
+  channel works; the Agents popover shows the session as **Live**.
 - `tensaku mcp` logs each tool call to `tmp/tensaku/mcp.log`: tool, duration, answer size and the
   notes handed over.
 - Note links in the MCP answers and copied Markdown use the address the page was opened at.

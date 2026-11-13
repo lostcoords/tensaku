@@ -78,7 +78,13 @@ module Tensaku
       in [ "GET", "/notes" ]
         Notes.prune!
         Notes.base_url = request.base_url
-        json(notes: Notes.list(url: params["url"].presence), open: Notes.list(status: Notes::ACTIVE).size, agents: Notes.agents)
+        # restart: Tensaku's code changed since this server started, so it answers with the old code
+        # while the page runs the new overlay script.
+        # archived=1 lists the archive instead, for the notes panel's Archive tab.
+        listed = Notes.list(url: params["url"].presence, status: ("archived" if params["archived"] == "1"))
+        # changed_at: the last time an agent said something on a note in this app, so the page fetches
+        # itself again to show its change, whatever page the note was on.
+        json(notes: listed, open: Notes.list(status: Notes::ACTIVE).size, agents: Notes.agents, restart: Build.stale?, changed_at: Notes.last_agent_message_at)
       in [ "GET", "/events" ]
         events(request)
       in [ "GET", "/notes.md" ]
@@ -94,9 +100,11 @@ module Tensaku
         [ 200, { "content-type" => "image/png", "cache-control" => "no-store" }, [ shot["png"] ] ]
       in [ "PATCH", %r{\A/notes/([a-z0-9]+)\z} ]
         id = path.split("/").last
-        # Whatever you change on an open note (an edit, an answer, a reopen) is for the agent: sent again.
+        # An edit or a message is for the agent: the note is sent again. A status change alone (done,
+        # reopened, or undoing either) isn't.
+        changed = params["message"].present? || params["comment"].present?
         json(Notes.update(id, status: params["status"], comment: params["comment"],
-          message: params["message"], from: "you", send: params["status"] == "open", to: params["to"]))
+          message: params["message"], from: "you", send: changed && params["status"] == "open", to: params["to"]))
       in [ "POST", "/notes/archive" ]
         json(archived: Notes.archive!(params["ids"]))
       in [ "DELETE", %r{\A/notes/([a-z0-9]+)\z} ]

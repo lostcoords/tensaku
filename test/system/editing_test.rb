@@ -17,7 +17,7 @@ class EditingTest < ApplicationSystemTestCase
     assert_equal "/about", page.current_path
 
     find("h1").click(:alt)
-    page.driver.browser.keyboard.type(:Enter)
+    press(:enter)
     assert overlay.has_css?(".editor")
   end
 
@@ -114,7 +114,7 @@ class EditingTest < ApplicationSystemTestCase
 
   [ [ "MacIntel", "⌥⇧T" ], [ "Win32", "Alt+Shift+T" ], [ "Linux x86_64", "Alt+Shift+T" ] ].each do |platform, label|
     test "the shortcut label follows the platform on #{platform}" do
-      page.driver.browser.page.command("Page.addScriptToEvaluateOnNewDocument", source: %(Object.defineProperty(navigator, "platform", { get: () => #{platform.to_json} })))
+      playwright { it.add_init_script(script: %(Object.defineProperty(navigator, "platform", { get: () => #{platform.to_json} }))) }
       visit "/"
       wait_for_overlay
 
@@ -211,6 +211,11 @@ end
     assert_selector "p.welcome", text: "Hey David, welcome back"
     assert_includes view("config/locales/en.yml"), %(greeting: "Hey %{name}, welcome back")
     assert_includes view("config/locales/es.yml"), %(greeting: "Hola de nuevo %{name}, bienvenido de nuevo")
+
+    overlay.find(".toast", text: "Saved").find("button", text: "Undo").click
+    assert_selector "p.welcome", text: "Hi David, welcome back"
+    assert_eventually { view("config/locales/es.yml").exclude?("Hola de nuevo") }
+    assert_includes view("config/locales/en.yml"), %(greeting: "Hi %{name}, welcome back")
   end
 
   test "attributes from the template and from translations are edited in a form" do

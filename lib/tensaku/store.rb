@@ -14,9 +14,8 @@ module Tensaku
     FILE = "tensaku.sqlite3"
     BUSY_TIMEOUT = 5000
 
-    # Raised whenever the schema changes. Tensaku isn't released, so the schema is one script that only
-    # adds what is missing; a change to an existing table means deleting the database.
-    VERSION = 2
+    # The tables as they were at schema version 2. A database at version 0 or 1 gets them (the scripts
+    # only create what is missing), and every database then runs the MIGRATIONS after its version.
     SCHEMA = <<~SQL
       CREATE TABLE IF NOT EXISTS projects (
         root TEXT PRIMARY KEY,
@@ -91,6 +90,14 @@ module Tensaku
       );
     SQL
 
+    # Each change to the schema after version 2, in order, applied once: MIGRATIONS[0] takes a database
+    # from version 2 to 3. Add to the end; never change a step that may have run.
+    MIGRATIONS = [
+      "ALTER TABLE agents ADD COLUMN version TEXT",
+      "ALTER TABLE agents ADD COLUMN channel INTEGER NOT NULL DEFAULT 0"
+    ].freeze
+    VERSION = 2 + MIGRATIONS.size
+
     LOCK = Monitor.new
 
     module_function
@@ -155,9 +162,11 @@ module Tensaku
 
     def migrate(connection)
       connection.transaction(:immediate) do
-        next if connection.get_first_value("PRAGMA user_version").to_i >= VERSION
+        current = connection.get_first_value("PRAGMA user_version").to_i
+        next if current >= VERSION
 
-        connection.execute_batch(SCHEMA)
+        connection.execute_batch(SCHEMA) if current < 2
+        MIGRATIONS.drop([ current - 2, 0 ].max).each { connection.execute_batch(it) }
         connection.execute("PRAGMA user_version = #{VERSION}")
       end
     end

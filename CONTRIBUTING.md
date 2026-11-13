@@ -7,11 +7,12 @@ Read [PLAN.md](PLAN.md) before a design change. Its decisions log records what T
 ```sh
 bundle install
 bun install
+bunx playwright install chromium webkit
 bin/lint
 bin/test
 ```
 
-`bin/lint` runs RuboCop, the house rules and the TypeScript check, and fails if the compiled overlay is out of date. `bin/test` runs the unit tests and the browser tests, which use Cuprite and need Chrome.
+`bin/lint` runs RuboCop, the house rules and the TypeScript check, and fails if the compiled overlay is out of date. `bin/test` runs the unit tests and the browser tests. The browser tests use Capybara on Playwright, as our other apps do. Install the browsers once with `bunx playwright install chromium webkit`. They run in Chromium; `SYSTEM_TEST_BROWSER=webkit bin/test` runs them in WebKit, Safari's engine, and `SYSTEM_TEST_HEADED=1` shows the browser. CI runs both.
 
 The tests run `test/dummy` in the development environment, because Tensaku switches on only there. Browser tests write to the dummy app's files and restore them afterwards. `test/tensaku/production_test.rb` checks that test and production never load Tensaku, Herb or ReActionView.
 

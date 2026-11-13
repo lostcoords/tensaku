@@ -17,7 +17,10 @@ class Tensaku::McpTest < Tensaku::TestCase
     @ids = 0
   end
 
-  teardown { Tensaku.root = nil }
+  teardown do
+    @server.close_channel
+    Tensaku.root = nil
+  end
 
   def rpc(method, params = {}, server: @server, output: @output)
     id = (@ids += 1)
@@ -46,7 +49,7 @@ class Tensaku::McpTest < Tensaku::TestCase
 
     assert_equal "2025-06-18", init.dig("result", "protocolVersion")
     assert_equal [ "Claude Code" ], Tensaku::Notes.agents.map { it["name"] }
-    assert_equal %w[list_notes get_note get_screenshot start_note resolve_note decline_note ask_question reply_to_note watch_notes current_selection], rpc("tools/list").dig("result", "tools").map { it["name"] }
+    assert_equal %w[list_notes get_note get_screenshot start_note resolve_note decline_note ask_question reply_to_note watch_notes channel_ready current_selection], rpc("tools/list").dig("result", "tools").map { it["name"] }
   end
 
   test "notifications get no reply, and bad JSON gets a parse error" do
@@ -68,6 +71,10 @@ class Tensaku::McpTest < Tensaku::TestCase
     tool("ask_question", id: note["id"], question: "Rename to what?")
     assert_equal "question", Tensaku::Notes.find(note["id"])["status"]
 
+    refused = tool("resolve_note", id: note["id"], reply: "Renamed")
+    assert refused["isError"]
+    assert_includes text(refused), "Call start_note before you change anything"
+    tool("start_note", id: note["id"])
     assert_equal "Resolved note #{note["id"]}.", text(tool("resolve_note", id: note["id"], reply: "Renamed in about.html.erb:1"))
     saved = Tensaku::Notes.find(note["id"])
     assert_equal "resolved", saved["status"]
@@ -195,6 +202,7 @@ class Tensaku::McpTest < Tensaku::TestCase
     assert_includes listed, "#{shop_note["id"]} (open) on /cart in shop"
     assert_includes listed, "#{blog_note["id"]} (open) on / in blog"
 
+    tool("start_note", id: blog_note["id"])
     tool("resolve_note", id: blog_note["id"], reply: "Fixed")
     assert_equal "resolved", Tensaku.with_root(blog) { Tensaku::Notes.find(blog_note["id"])["status"] }
     assert_equal "open", Tensaku.with_root(shop) { Tensaku::Notes.find(shop_note["id"])["status"] }
@@ -263,7 +271,7 @@ class Tensaku::McpTest < Tensaku::TestCase
     resolved = tool("resolve_note", id: first["id"], reply: "Done")
 
     assert_equal "Resolved note #{first["id"]}. Call watch_notes to keep listening.", resolved.dig("content", 0, "text")
-    assert_includes resolved.dig("content", 1, "text"), "Notes the person sent while you worked. They are yours now"
+    assert_includes resolved.dig("content", 1, "text"), "Notes the person saved while you worked. They are yours now"
     assert_includes resolved.dig("content", 1, "text"), "## Tensaku note #{follow_up["id"]} (open)"
     assert_equal @server.session, Tensaku::Notes.find(follow_up["id"])["session"]
 
@@ -276,7 +284,7 @@ class Tensaku::McpTest < Tensaku::TestCase
     note = Tensaku::Notes.create(url: "/", comment: "Second")
     reply = tool("get_note", id: note["id"])
 
-    assert_equal "1 note was sent from the page since you last looked (#{note["id"]}). Call watch_notes or list_notes next.", reply.dig("content", 1, "text")
+    assert_equal "1 note was saved on the page since you last looked (#{note["id"]}). Call watch_notes or list_notes next.", reply.dig("content", 1, "text")
     assert_nil Tensaku::Notes.find(note["id"])["session"]
   end
 
@@ -346,6 +354,49 @@ class Tensaku::McpTest < Tensaku::TestCase
     assert_equal @server.session, Tensaku::Notes.find(note["id"])["session"]
   end
 
+  test "in Claude Code, a channel that answers the hello gets each saved note pushed and claimed" do
+    init = initialize_as("Claude Code")
+    assert_equal({}, init.dig("result", "capabilities", "experimental", "claude/channel"))
+    assert_includes init.dig("result", "instructions"), "channel_ready"
+    @server.handle(JSON.generate(jsonrpc: "2.0", method: "notifications/initialized"))
+    hello = @output.pop
+    assert_equal "notifications/claude/channel", hello["method"]
+    assert_equal "hello", hello.dig("params", "meta", "kind")
+    code = hello.dig("params", "content")[/code (\w+)/, 1]
+
+    assert tool("channel_ready", code: "wrong")["isError"]
+    assert_includes text(tool("channel_ready", code:)), "channel works"
+    assert_equal [ [ true, true ] ], Tensaku::Notes.agents.map { it.values_at("channel", "listening") }
+
+    note = Tensaku::Notes.create(url: "/about", comment: "Bigger title")
+    pushed = @output.pop(timeout: 5)
+    assert_equal "notifications/claude/channel", pushed["method"]
+    assert_equal({ "kind" => "notes", "notes" => note["id"] }, pushed.dig("params", "meta"))
+    assert_includes pushed.dig("params", "content"), "Bigger title"
+    assert_equal @server.session, Tensaku::Notes.find(note["id"])["session"]
+
+    # Answering the agent's question makes the note new again: it comes back to this session.
+    tool("ask_question", id: note["id"], question: "How big?")
+    Tensaku::Notes.update(note["id"], from: "you", message: "Twice as big", status: "open", send: true)
+    assert_includes @output.pop(timeout: 5).dig("params", "content"), "Twice as big"
+  end
+
+  test "other clients get no channel capability and no hello" do
+    init = initialize_as("Codex")
+    assert_nil init.dig("result", "capabilities", "experimental")
+    @server.handle(JSON.generate(jsonrpc: "2.0", method: "notifications/initialized"))
+    sleep 0.1
+    assert @output.empty?
+  end
+
+  test "a note whose session ended mid-work is listed as nobody's, and can be taken over" do
+    note = Tensaku::Notes.create(url: "/", comment: "Half done")
+    Tensaku::Notes.start(note["id"], agent: "Codex · gone-fox", session: SecureRandom.hex(16))
+
+    assert_includes text(tool("list_notes")), "Its session stopped while working on it, so it is nobody's now"
+    assert_not tool("start_note", id: note["id"])["isError"]
+  end
+
   test "a note sent to one session goes to it alone, even while it is busy and another session is idle" do
     other_output = Output.new
     other = Tensaku::Mcp.new([ tmp_root ], output: other_output)
@@ -368,7 +419,7 @@ class Tensaku::McpTest < Tensaku::TestCase
     assert_raises(Tensaku::Error) { Tensaku::Notes.create(url: "/", comment: "Nobody", to: "gone-fox") }
   end
 
-  test "the page can give an open note to another session, or to whoever takes it first" do
+  test "the page can assign a note to another session or to anyone, and take one back mid-work" do
     other_output = Output.new
     other = Tensaku::Mcp.new([ tmp_root ], output: other_output)
     initialize_as("Codex", server: other, output: other_output)
@@ -383,6 +434,13 @@ class Tensaku::McpTest < Tensaku::TestCase
     Tensaku::Notes.update(note["id"], from: "you", to: "")
     assert_includes text(tool("list_notes")), "*Nobody's yet: call start_note"
     tool("start_note", id: note["id"])
+    # Taken back mid-work: open again, and this session can't resolve it.
+    Tensaku::Notes.update(note["id"], from: "you", to: "")
+    assert_equal "open", Tensaku::Notes.find(note["id"])["status"]
+    assert tool("resolve_note", id: note["id"], reply: "Done")["isError"]
+
+    tool("start_note", id: note["id"])
+    tool("resolve_note", id: note["id"], reply: "Done")
     assert_raises(Tensaku::Error) { Tensaku::Notes.update(note["id"], from: "you", to: "") }
   end
 

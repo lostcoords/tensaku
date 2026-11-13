@@ -38,7 +38,7 @@ Every save in the tab can be undone and redone:
 | Undo an older save | **Undo** next to it in the toolbar's **Edit history** |
 | Undo an element's latest save | **Undo** in the element's menu (U) |
 
-The keys work while nothing is being typed in, so a field on your page and Tensaku's own editor keep their usual undo. A new save clears what can be redone. The history belongs to the browser tab and survives a reload. Each undo and redo checks that the file still has the text it expects, and is refused if the file changed since, like any save. Edits to other locales made from the translation editor aren't in the history.
+The keys work while nothing is being typed in, so a field on your page and Tensaku's own editor keep their usual undo. A new save clears what can be redone. The history belongs to the browser tab and survives a reload. Each undo and redo checks that the file still has the text it expects, and is refused if the file changed since, like any save. A translation saved in several locales from one editor is one entry, and one undo reverts every locale.
 
 ## What can be edited
 

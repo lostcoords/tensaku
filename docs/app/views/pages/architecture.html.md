@@ -91,11 +91,12 @@ A save replaces only the bytes of the text you changed. If the file changed sinc
     │ green pin, toast     │                         │                        │                      │
 ```
 
-- **Sending.** A note is sent when you save it, and again when you edit it, answer it or reopen it. Sent means its `sent_at` is set.
-- **Claiming.** `watch_notes` claims the sent notes in the same write transaction that finds them, so a note goes to one agent session. Once a session has listened, the answer of any Tensaku tool claims and includes new notes too. A session working on a note leaves new ones to a listening session with nothing to do.
-- **Picking a session.** A note sent to a session from the page's **To** menu is that session's from the start, as if it had claimed it, and only that session's `watch_notes` hands it over.
-- **Ownership.** The note stays with that session while its process runs. Changes you request on it go back to the same session. When the session quits or its process is gone, any session can take the note.
-- **Agents on the page.** Each `tensaku mcp` process checks in every five seconds with its process id. The page counts an agent as connected while it checked in within 20 seconds and its process is running, and shows it as listening while a `watch_notes` call waits. Only agents running in the app, or given it with `--app`, show on its page.
+- **New for agents.** A note is new for agents when you save it, and again when you edit it, answer it or reopen it: its `sent_at` is set.
+- **Claiming.** `watch_notes` claims the new notes in the same write transaction that finds them, so a note goes to one agent session. Once a session has listened, the answer of any Tensaku tool claims and includes new notes too. A session working on a note leaves new ones to a listening session with nothing to do.
+- **Assigning.** A note assigned to a session from the page's **Assign to** menu is that session's from the start, as if it had claimed it, and only that session's `watch_notes` hands it over. Assigning a note in progress takes it back: it is open again, and its old session's `resolve_note` is refused.
+- **Ownership.** The note stays with that session while its process runs. Changes you request on it go back to the same session. When the session quits or its process is gone, any session can take the note, and the page and `list_notes` say that its session stopped.
+- **Agents on the page.** Each `tensaku mcp` process checks in every five seconds, and holds a lock on a file named after its session in `sessions/` next to the database while it runs. The operating system drops the lock when the process ends, however it ends, so a session is running exactly while its lock is held; a process id the system reuses after a crash can't keep a note stuck. The page counts an agent as connected while it checked in within 20 seconds and its lock is held, and shows it as listening while a `watch_notes` call waits. Each check-in carries a fingerprint of Tensaku's code, and the page marks an agent whose code is older than the files on disk.
+- **Starting before resolving.** `resolve_note` refuses a note that isn't `working`, so an agent has to call `start_note`, which claims the note, before it can resolve it.
 - **Change events.** Every write adds a row to `changes`. The dev server keeps one connection open per tab on `/__tensaku/events`, and sends `changed` when a write rings its socket, and the page then loads the notes. A waiting process also checks every ten seconds, for an agent that stopped checking in. The page polls every four seconds only while its connection is down.
 
 No part of this wakes an agent. MCP lets an agent call Tensaku, not the other way round, so a note reaches an agent that is waiting in `watch_notes` or calling Tensaku's tools. See [Notes](/notes/).
@@ -109,6 +110,7 @@ No part of this wakes an agent. MCP lets an agent call Tensaku, not the other wa
 | `tmp/tensaku/write.lock` | The app | Dev server, with `flock` | The lock for source edits |
 | `tmp/tensaku/token` | The app | Dev server | The token the page sends with each request, shared by Puma workers |
 | `tmp/tensaku/mcp.log` | The app | `tensaku mcp` | One line per tool call: tool, duration, size, notes handed over |
+| `sessions/*.lock` | Next to the database | Each `tensaku mcp` | A lock held while the session runs |
 
 | Table | One row per |
 |---|---|
@@ -116,7 +118,7 @@ No part of this wakes an agent. MCP lets an agent call Tensaku, not the other wa
 | `notes` | Note: comment, targets, status, owner session, commit, sent, delivered and archived times |
 | `screenshots` | Note with a screenshot: the PNG and its size |
 | `messages` | Message in a note's thread |
-| `agents` | Agent session in an app: name, handle, folder, process id, listening, last call |
+| `agents` | Agent session in an app: name, handle, folder, process id, listening, last call, code fingerprint |
 | `selections` | Browser tab: the element last selected |
 | `changes` | Write, numbered, so a reader asks for what came after the last one it saw |
 

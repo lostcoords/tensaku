@@ -8,6 +8,14 @@ module Tensaku
   #
   # One process is one session. While it runs it checks in to each app's agents table, so the page
   # shows the agent as connected, and as listening while a watch_notes call waits.
+  #
+  # Claude Code channels: the server declares the experimental claude/channel capability, which lets it
+  # push a message into a Claude Code session started with
+  # `claude --dangerously-load-development-channels server:tensaku`; the message starts a turn as if the
+  # person had typed it. A session without the flag drops these messages without an error, so the
+  # server first sends a hello with a code and only treats the channel as working once Claude calls
+  # channel_ready with that code. From then on it claims each note saved on the page, as watch_notes
+  # would, and pushes it into the session.
   class Mcp
     PROTOCOL_VERSIONS = %w[2025-11-25 2025-06-18 2025-03-26 2024-11-05].freeze
     MAX_WATCH = 300
@@ -16,6 +24,8 @@ module Tensaku
     RECHECK = 10
     LOG = "tmp/tensaku/mcp.log"
     LOG_LIMIT = 1_000_000
+
+    CHANNEL_INSTRUCTIONS = " This server may also be a Claude Code channel. Its events arrive as <channel source=\"tensaku\"> messages. The first one asks you to call channel_ready with a code: do that, then tell the person in one line that Tensaku notes now arrive in this chat. Each later event holds notes the person saved on the page, already yours: work through them like notes from watch_notes. There's no need to call watch_notes while the channel works."
 
     TOOLS = [
       {
@@ -46,7 +56,7 @@ module Tensaku
       },
       {
         name: "resolve_note",
-        description: "Mark a note resolved as soon as its change is made, before starting the next note. The person is watching the page, so don't save these up for the end. The reply is shown next to a green pin: say in one line what changed and where (for example: changed the heading in app/views/pages/_hero.html.erb:4).",
+        description: "Mark a note resolved as soon as its change is made, before starting the next note. Only a note you started with start_note can be resolved. The person is watching the page, so don't save these up for the end. The reply is shown next to a green pin: say in one line what changed and where (for example: changed the heading in app/views/pages/_hero.html.erb:4).",
         inputSchema: { type: "object", properties: { id: { type: "string" }, reply: { type: "string" } }, required: %w[id reply] }
       },
       {
@@ -66,7 +76,7 @@ module Tensaku
       },
       {
         name: "watch_notes",
-        description: "Wait for notes the person sends from the page, so you can work through them as they arrive. Returns as soon as there are any, or empty after the timeout. While you wait, the page shows you as listening. Pass the checked_at value of the previous call as since so nothing is missed, and call it again after working through the notes to keep listening.",
+        description: "Wait for notes the person saves on the page, so you can work through them as they arrive. Returns as soon as there are any, or empty after the timeout. While you wait, the page shows you as listening. Pass the checked_at value of the previous call as since so nothing is missed, and call it again after working through the notes to keep listening.",
         inputSchema: {
           type: "object",
           properties: {
@@ -76,13 +86,18 @@ module Tensaku
         }
       },
       {
+        name: "channel_ready",
+        description: "Only when a Tensaku channel event asks for it: confirms that Tensaku's channel messages reach this session, so the person's notes are pushed here as they save them.",
+        inputSchema: { type: "object", properties: { code: { type: "string", description: "The code from the channel event" } }, required: %w[code] }
+      },
+      {
         name: "current_selection",
         description: "What the person last selected in the Tensaku overlay (elements with file and line), for questions like 'what is this?'.",
         inputSchema: { type: "object", properties: {} }
       }
     ].freeze
 
-    INSTRUCTIONS = "Tensaku notes are comments a person left on pages of this Rails app, each with the file and line that rendered the element. Work through open notes one at a time: start_note, make the change, then resolve_note with a one-line reply before the next note, so the page shows progress as it happens. Ask a question when a note is unclear, and decline_note when the change shouldn't be made. When the person asks you to watch or listen for notes, call watch_notes in a loop, and tell them the session name its first answer gives you (such as amber-fox), which the page shows next to your name. A note belongs to the session the person sent it to, was handed it or started it: call start_note before you change anything for a note, and leave notes another session owns. A note with a screenshot says so; get_screenshot returns it. Once you have called watch_notes, notes sent while you work come with the answer of whichever Tensaku tool you call next, already yours: work through them, and call watch_notes again only when you have nothing else to do."
+    INSTRUCTIONS = "Tensaku notes are comments a person left on pages of this Rails app, each with the file and line that rendered the element. Work through open notes one at a time: start_note, make the change, then resolve_note with a one-line reply before the next note, so the page shows progress as it happens. Ask a question when a note is unclear, and decline_note when the change shouldn't be made. When the person asks you to watch or listen for notes, call watch_notes in a loop, and tell them the session name its first answer gives you (such as amber-fox), which the page shows next to your name. A note belongs to the session the person assigned it to, was handed it or started it: call start_note before you change anything for a note, and leave notes another session owns. A note with a screenshot says so; get_screenshot returns it. Once you have called watch_notes, notes sent while you work come with the answer of whichever Tensaku tool you call next, already yours: work through them, and call watch_notes again only when you have nothing else to do."
 
     attr_reader :apps, :session
 
@@ -101,7 +116,12 @@ module Tensaku
       @last = nil
       @lock = Mutex.new
       @seen_lock = Mutex.new
+      @claim_lock = Mutex.new
       @calls = {}
+      # See the class comment. channel_code is sent in the hello; @channel turns true when it comes back.
+      @channel_code = SecureRandom.alphanumeric(8)
+      @channel = false
+      @claude = false
     end
 
     # Reads requests until stdin closes. Tool calls run in threads of their own, so a waiting
@@ -115,6 +135,7 @@ module Tensaku
       end
     ensure
       heartbeat&.kill
+      close_channel
       @lock.synchronize { @calls.values }.each(&:kill)
       each_app { Notes.agent_gone!(session) }
     end
@@ -149,6 +170,7 @@ module Tensaku
       id = message["id"]
       if id.nil? # a notification
         cancel(message.dig("params", "requestId")) if message["method"] == "notifications/cancelled"
+        greet if message["method"] == "notifications/initialized"
         return nil
       end
 
@@ -165,14 +187,62 @@ module Tensaku
     def initialize_result(params)
       client = params["clientInfo"].to_h
       @name = (client["title"].presence || client["name"].presence || @name).to_s.truncate(80)
+      # Channels are Claude Code's; other clients get neither the capability nor the hello.
+      @claude = [ client["name"], client["title"] ].any? { it.to_s.match?(/claude/i) }
       seen!
       requested = params["protocolVersion"]
+      capabilities = { tools: { listChanged: false } }
+      capabilities[:experimental] = { "claude/channel" => {} } if @claude
       {
         protocolVersion: PROTOCOL_VERSIONS.include?(requested) ? requested : PROTOCOL_VERSIONS.first,
-        capabilities: { tools: { listChanged: false } },
+        capabilities:,
         serverInfo: { name: "tensaku", version: Tensaku::VERSION },
-        instructions: INSTRUCTIONS
+        instructions: INSTRUCTIONS + (@claude ? CHANNEL_INSTRUCTIONS : "")
       }
+    end
+
+    # Claude Code registers its channel listener a moment after initialization, and drops what comes
+    # before it (seen in its debug log), so the hello waits, and is sent once more until answered.
+    HELLO_AFTER = [ 1.5, 6 ].freeze
+
+    def greet
+      return unless @claude
+
+      @greeter ||= Thread.new { HELLO_AFTER.each { sleep it; hello } }
+    end
+
+    # The first channel message. A session that loaded the channel gets it as a turn and calls
+    # channel_ready; any other drops it.
+    def hello
+      return if @channel
+
+      push("Tensaku is connected as #{agent_label}. To have the person's notes pushed into this chat as they save them, call the channel_ready tool with code #{@channel_code}, then tell the person in one line that their Tensaku notes now arrive here.", kind: "hello")
+    end
+
+    def push(content, **meta)
+      write({ jsonrpc: "2.0", method: "notifications/claude/channel", params: { content:, meta: meta.transform_values(&:to_s) } })
+    end
+
+    # Claims the notes saved on the page as they come and pushes them into the session, for as long as
+    # the process runs. The doorbell wakes it at once; it also looks every RECHECK seconds, for a note
+    # whose owner went away.
+    def start_pushing
+      @pusher ||= Thread.new do
+        Doorbell.listen(apps) do |doorbell|
+          loop do
+            found = @claim_lock.synchronize { claim_since(@checked_at) }
+            if found.any?
+              ids = found.flat_map { |_, notes| notes.map { it["id"] } }
+              push("Notes the person saved on the page. They are yours: work through them one at a time with start_note and resolve_note.\n\n#{found_markdown(found)}", kind: "notes", notes: ids.join(" "))
+              log("channel", Process.clock_gettime(Process::CLOCK_MONOTONIC), { content: [] }, ids)
+            end
+            doorbell.wait(RECHECK)
+          end
+        end
+      rescue StandardError => error
+        warn "[Tensaku] channel: #{error.class}: #{error.message}"
+        @pusher = nil
+      end
     end
 
     def cancel(id)
@@ -194,14 +264,14 @@ module Tensaku
 
     def news(result)
       if @watched
-        found = claim_since(@checked_at)
+        found = @claim_lock.synchronize { claim_since(@checked_at) }
         return [] if found.empty?
 
-        result[:content] << { type: "text", text: "Notes the person sent while you worked. They are yours now; work through them next:\n\n#{found_markdown(found)}" }
+        result[:content] << { type: "text", text: "Notes the person saved while you worked. They are yours now; work through them next:\n\n#{found_markdown(found)}" }
         found.flat_map { |_, notes| notes.map { it["id"] } }
       else
         ids = sent_since(@checked_at).map { it["id"] }
-        result[:content] << { type: "text", text: "#{ids.size == 1 ? "1 note was" : "#{ids.size} notes were"} sent from the page since you last looked (#{ids.join(", ")}). Call watch_notes or list_notes next." } if ids.any?
+        result[:content] << { type: "text", text: "#{ids.size == 1 ? "1 note was" : "#{ids.size} notes were"} saved on the page since you last looked (#{ids.join(", ")}). Call watch_notes or list_notes next." } if ids.any?
         []
       end
     end
@@ -250,8 +320,8 @@ module Tensaku
         note = in_app_of(arguments["id"]) { Notes.start(arguments["id"], agent: agent_label, session:) }
         tool_result("Started note #{note["id"]}. The page shows you as #{agent_label}.")
       when "resolve_note"
-        note = change(arguments["id"], status: "resolved", message: arguments["reply"])
-        tool_result("Resolved note #{note["id"]}.#{" Call watch_notes to keep listening." if @watched}")
+        note = change(arguments["id"], status: "resolved", message: arguments["reply"], started: true)
+        tool_result("Resolved note #{note["id"]}.#{" Call watch_notes to keep listening." if @watched && !@channel}")
       when "decline_note"
         note = change(arguments["id"], status: "declined", message: arguments["reason"])
         tool_result("Declined note #{note["id"]}.")
@@ -271,6 +341,18 @@ module Tensaku
         text = found.empty? ? "No new notes in #{timeout}s." : found_markdown(found)
         intro = "You are listening as #{agent_label}. Tell the person this name: the page shows it, and the notes handed to you are yours.\n\n" if first
         tool_result("#{intro}#{text}\n\nchecked_at: #{checked_at.iso8601(6)}").merge(handed: found.flat_map { |_, notes| notes.map { it["id"] } })
+      when "channel_ready"
+        return tool_result("That isn't the code from Tensaku's channel event.", error: true) unless arguments["code"].to_s == @channel_code
+
+        unless @channel
+          @channel = true
+          @watched = true
+          @checked_at = Time.now.utc
+          listening(+1)
+          start_pushing
+        end
+        waiting = apps.sum { |app| Tensaku.with_root(app) { Notes.list(status: Notes::ACTIVE, session:).size } }
+        tool_result("Tensaku's channel works. Notes the person saves on the page arrive in this chat as #{agent_label}, already yours. Tell the person in one line#{", and that #{waiting} earlier #{waiting == 1 ? "note is" : "notes are"} open (list_notes has them), without starting on them unless they ask" if waiting.positive?}.")
       when "current_selection"
         selection = apps.filter_map { |app| Tensaku.with_root(app) { Notes.selection } }.max_by { it["at"].to_s }
         tool_result(selection ? JSON.pretty_generate(selection) : "Nothing selected in the Tensaku overlay yet.")
@@ -348,7 +430,7 @@ module Tensaku
     def seen!
       @seen_lock.synchronize do
         each_app do
-          Notes.agent_seen!(session, name: @name, handle: session_handle, listening: @listening.positive?, cwd: Dir.pwd, started_at: @started_at, last: @last, pid: Process.pid)
+          Notes.agent_seen!(session, name: @name, handle: session_handle, listening: @listening.positive?, channel: @channel, cwd: Dir.pwd, started_at: @started_at, last: @last)
         end
       end
     rescue SystemCallError, SQLite3::BusyException
@@ -376,7 +458,13 @@ module Tensaku
     def close
       each_app { Notes.agent_gone!(session) }
     end
-    public :call, :name=, :close, :session_handle
+
+    # Stops pushing notes, for tests; run stops it when stdin closes.
+    def close_channel
+      [ @pusher, @greeter ].compact.each(&:kill)
+      @pusher = @greeter = nil
+    end
+    public :call, :name=, :close, :close_channel, :session_handle
 
     def each_app(&block)
       apps.each { |app| Tensaku.with_root(app, &block) }

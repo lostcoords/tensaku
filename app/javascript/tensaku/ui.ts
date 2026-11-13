@@ -83,12 +83,18 @@ kbd { font: 10.5px/1 var(--mono); padding: 2px 4px; border-radius: 4px; backgrou
 .note-form .options label, .note-form .options .to { display: flex; gap: 4px; align-items: center; min-width: 0; }
 .note-form .options .to { flex: 1; justify-content: flex-end; }
 .note-form .options .to select { flex: 1; }
+/* WebKit shrinks a checkbox in a flex row to nothing without a fixed size. */
+.note-form .options input[type=checkbox] { flex: none; width: 13px; height: 13px; margin: 0; }
 .note-form select, .note-card select { min-width: 0; max-width: 100%; font: 11px var(--sans); color: var(--ink); background: var(--paper); border: 1px solid var(--edge); border-radius: 3px; padding: 1px 2px; }
-.note-card .send { display: flex; gap: 6px; align-items: center; margin-top: 6px; font-size: 11px; color: var(--muted); }
-.note-card .send .to { display: flex; gap: 4px; align-items: center; flex: 1; min-width: 0; }
-.note-card .send select { flex: 1; }
-.note-card .send button:not(.link) { padding: 2px 10px; font-size: 11px; }
-.note-form .options .to .link, .note-card .send .link { font-size: 11px; }
+.popover .agent .outdated { margin-top: 2px; font-size: 11px; color: var(--akaji); }
+.note-card .assign { display: flex; gap: 6px; align-items: center; margin-top: 6px; font-size: 11px; color: var(--muted); }
+.note-card .assign .to { display: flex; gap: 4px; align-items: center; flex: 1; min-width: 0; }
+.note-card .assign select { flex: 1; }
+.note-card .assign button:not(.link), .note-form .foot button.primary { display: inline-flex; gap: 5px; align-items: center; }
+.note-card .assign button:not(.link) { padding: 2px 10px; font-size: 11px; }
+.note-card .assign button:disabled { opacity: .55; cursor: default; }
+.note-card .tools .reopen { padding: 2px 9px; font-size: 11px; }
+.note-form .options .to .link, .note-card .assign .link { font-size: 11px; }
 .note-card .screenshot { display: block; margin: 6px 0 2px; padding: 0; border: 1px solid var(--edge); border-radius: 3px; background: none; cursor: zoom-in; max-width: 100%; }
 .note-card .screenshot img { display: block; max-width: 100%; max-height: 140px; width: auto; height: auto; object-fit: contain; }
 .note-form .foot .hint { flex: 1; font-size: 11px; color: var(--muted); }

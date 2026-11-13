@@ -35,7 +35,7 @@ class MarkdownTest < ApplicationSystemTestCase
       document.getSelection().selectAllChildren(field);
       document.execCommand("insertText", false, "- Ruby 4\n- Rails 8.1");
     JS
-    page.driver.browser.keyboard.type(:enter)
+    press(:enter)
     assert overlay.has_css?(".editor"), "Enter adds a line in a list"
     page.execute_script(%q{document.execCommand("insertText", false, "- Herb")})
     overlay.find(".editor button", text: "Save").click

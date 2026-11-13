@@ -19,16 +19,15 @@ class OverlayRobustnessTest < ApplicationSystemTestCase
     wait_for_overlay
     cursor = -> { page.evaluate_script(%(getComputedStyle(document.querySelector("tensaku-overlay").shadowRoot.querySelector(".corner")).cursor)) }
     x, y = page.evaluate_script(%((() => { const r = document.querySelector("tensaku-overlay").shadowRoot.querySelector(".corner").getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2] })()))
-    mouse = page.driver.browser.mouse
 
     assert_equal "pointer", cursor.call
 
-    mouse.move(x:, y:)
+    mouse.move(x, y)
     mouse.down
-    mouse.move(x: x + 2, y:)
+    mouse.move(x + 2, y)
     assert_equal "pointer", cursor.call, "a press that hasn't moved far enough isn't a drag"
 
-    mouse.move(x: x - 40, y: y - 40)
+    mouse.move(x - 40, y - 40)
     assert_equal "grabbing", cursor.call
     mouse.up
     assert_equal "pointer", cursor.call
@@ -70,7 +69,7 @@ class OverlayRobustnessTest < ApplicationSystemTestCase
     edit "h1", "About them"
     assert_selector "h1", text: "About them"
 
-    overlay.all(".toast button", text: "Undo").last.click
+    overlay.find(".toast", text: "About them").find("button", text: "Undo").click
 
     assert_selector "h1", text: "About us"
     assert_selector "p.bio", text: "Small tools."

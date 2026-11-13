@@ -14,6 +14,8 @@ module Tensaku
   autoload :Store, "tensaku/store"
   autoload :Repo, "tensaku/repo"
   autoload :Doorbell, "tensaku/doorbell"
+  autoload :Presence, "tensaku/presence"
+  autoload :Build, "tensaku/build"
   autoload :Mcp, "tensaku/mcp"
   autoload :Caches, "tensaku/caches"
   autoload :I18nMarkers, "tensaku/i18n"

@@ -25,7 +25,7 @@ class Tensaku::WriteSafetyTest < Tensaku::TestCase
         reader.close
         done_writer.close
         session = SecureRandom.hex(16)
-        Tensaku::Notes.agent_seen!(session, name: "Agent #{i}", listening: true, pid: Process.pid)
+        Tensaku::Notes.agent_seen!(session, name: "Agent #{i}", listening: true)
         claimed = Tensaku::Notes.claim_sent(since, Time.now.utc, session:, agent: "Agent #{i}")
         writer.puts(JSON.generate(claimed.map { it["id"] }))
         writer.flush

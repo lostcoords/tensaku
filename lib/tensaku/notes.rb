@@ -136,14 +136,22 @@ module Tensaku
     #
     # to (from the page) gives an open note to the agent session with that handle, or to whichever
     # agent takes it first when blank, and sends it again.
-    def update(id, status: nil, comment: nil, message: nil, from: "agent", agent: nil, session: nil, send: false, to: nil)
+    #
+    # started: true refuses a note nobody started, for resolve_note: an agent has to call start_note
+    # before changing anything, so two sessions can't work on one note unseen.
+    def update(id, status: nil, comment: nil, message: nil, from: "agent", agent: nil, session: nil, send: false, to: nil, started: false)
       write do |db, app|
         note = find(id)
         check_owner!(note, session) if session
+        raise Error, "Note #{note["id"]} isn't started. Call start_note before you change anything for a note, then resolve it." if started && note["status"] != "working"
+        # Assigning: to a session's handle, or blank for anyone. A note in progress can be taken back
+        # from its session this way, for an agent stopped mid-work whose process still runs: it is open
+        # again, and the old session's start_note and resolve_note are refused.
         unless to.nil?
-          raise Error, "Only an open note can be sent to another agent" unless (status || note["status"]).to_s == "open"
+          raise Error, "Only an open or in-progress note can be assigned" unless %w[open working].include?((status || note["status"]).to_s)
 
           note = note.merge("session" => nil, "agent" => nil, "delivered_at" => nil, "delivered_to" => nil).merge(addressed(db, app, to))
+          status = "open"
           send = true
         end
         apply(db, app, note, status:, comment:, message:, from:, agent:, send:)
@@ -183,9 +191,9 @@ module Tensaku
     def addressed(db, app, handle)
       return {} if handle.blank?
 
-      row = db.execute("SELECT session, name, handle, pid FROM agents WHERE project = ? AND handle = ? AND seen_at > ?", [ app, handle.to_s, Time.now.to_f - AGENT_WINDOW ])
-        .find { alive?(it["pid"]) }
-      raise Error, "#{handle} isn't connected any more. Send the note to another agent." unless row
+      row = db.execute("SELECT session, name, handle FROM agents WHERE project = ? AND handle = ? AND seen_at > ?", [ app, handle.to_s, Time.now.to_f - AGENT_WINDOW ])
+        .find { Presence.alive?(it["session"]) }
+      raise Error, "#{handle} isn't connected any more. Assign the note to another session." unless row
 
       { "session" => row["session"], "agent" => "#{row["name"].presence || "MCP agent"} · #{row["handle"]}" }
     end
@@ -307,8 +315,8 @@ module Tensaku
 
     # Another connected session that is waiting in watch_notes and working on no note.
     def idle_listener?(db, app, except:)
-      db.execute("SELECT session, pid FROM agents WHERE project = ? AND session != ? AND listening = 1 AND seen_at > ?", [ app, except.to_s, Time.now.to_f - AGENT_WINDOW ])
-        .any? { alive?(it["pid"]) && !busy?(db, app, it["session"]) }
+      db.execute("SELECT session FROM agents WHERE project = ? AND session != ? AND listening = 1 AND seen_at > ?", [ app, except.to_s, Time.now.to_f - AGENT_WINDOW ])
+        .any? { Presence.alive?(it["session"]) && !busy?(db, app, it["session"]) }
     end
 
     # What the overlay last selected, in any tab, for the MCP `current_selection` tool.
@@ -343,29 +351,44 @@ module Tensaku
 
     # Each `tensaku mcp` process checks in every few seconds while it runs: the client's name, its
     # handle, the directory it runs in, when it started, whether a watch_notes call is waiting, and its
-    # last tool call ({ "tool", "note", "at" }). The page reads them to say who is connected and what each is doing. A check-in with nothing new isn't a change.
-    def agent_seen!(session, name:, handle: nil, listening: false, cwd: nil, started_at: nil, last: nil, pid: Process.pid)
-      row = [ name.to_s, (handle || self.handle(session)).to_s, listening ? 1 : 0, cwd, pid, started_at, last && JSON.generate(last) ]
+    # last tool call ({ "tool", "note", "at" }), and the fingerprint of the code it runs (Build). The page
+    # reads them to say who is connected and what each is doing. A check-in with nothing new isn't a
+    # change.
+    def agent_seen!(session, name:, handle: nil, listening: false, channel: false, cwd: nil, started_at: nil, last: nil, version: Build.started)
+      Presence.hold(session)
+      pid = Process.pid
+      row = [ name.to_s, (handle || self.handle(session)).to_s, listening ? 1 : 0, cwd, pid, started_at, last && JSON.generate(last), version, channel ? 1 : 0 ]
       write do |db, app|
-        before = db.get_first_row("SELECT name, handle, listening, cwd, pid, started_at, last, seen_at FROM agents WHERE session = ? AND project = ?", [ session, app ])
+        before = db.get_first_row("SELECT name, handle, listening, cwd, pid, started_at, last, version, channel, seen_at FROM agents WHERE session = ? AND project = ?", [ session, app ])
         db.execute(<<~SQL, [ session, app, *row, Time.now.to_f ])
-          INSERT INTO agents (session, project, name, handle, listening, cwd, pid, started_at, last, seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO agents (session, project, name, handle, listening, cwd, pid, started_at, last, version, channel, seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT (session, project) DO UPDATE SET name = excluded.name, handle = excluded.handle, listening = excluded.listening,
-            cwd = excluded.cwd, pid = excluded.pid, started_at = excluded.started_at, last = excluded.last, seen_at = excluded.seen_at
+            cwd = excluded.cwd, pid = excluded.pid, started_at = excluded.started_at, last = excluded.last, version = excluded.version, channel = excluded.channel, seen_at = excluded.seen_at
         SQL
         reconnected = before && before["seen_at"] < Time.now.to_f - AGENT_WINDOW
-        changed!(db, app, "agent") if before.nil? || reconnected || before.values_at("name", "handle", "listening", "cwd", "pid", "started_at", "last") != row
+        changed!(db, app, "agent") if before.nil? || reconnected || before.values_at("name", "handle", "listening", "cwd", "pid", "started_at", "last", "version", "channel") != row
       end
     end
 
     # Changes whenever a note, the selection or an agent changes, or an agent connects or goes away.
+    # When an agent last said something on a note in this app (a resolve, a question, a reply), which
+    # follows its changes to files. The page refreshes itself when this changes.
+    def last_agent_message_at
+      read do |db, app|
+        db.get_first_value(<<~SQL, [ app ])
+          SELECT MAX(messages.at) FROM messages JOIN notes ON notes.id = messages.note_id
+          WHERE notes.project = ? AND messages.author = 'agent'
+        SQL
+      end
+    end
+
     # The last change's number plus who is connected: one query, not a read of every note. Read it in a
     # write transaction (Notes.write) when a note written just before must show in it.
     def version(now: Time.now)
       read do |db, app|
         seq = db.get_first_value("SELECT MAX(seq) FROM changes WHERE project = ?", [ app ]).to_i
-        connected = db.execute("SELECT session, pid FROM agents WHERE project = ? AND seen_at > ?", [ app, now.to_f - AGENT_WINDOW ])
-          .select { alive?(it["pid"]) }.map { it["session"] }.sort
+        connected = db.execute("SELECT session FROM agents WHERE project = ? AND seen_at > ?", [ app, now.to_f - AGENT_WINDOW ])
+          .map { it["session"] }.select { Presence.alive?(it) }.sort
         [ seq, connected ].hash
       end
     end
@@ -390,14 +413,15 @@ module Tensaku
     # The first handle for session that no other connected session of this app has.
     def free_handle(session)
       taken = read do |db, app|
-        db.execute("SELECT session, handle, pid FROM agents WHERE project = ? AND session != ? AND seen_at > ?", [ app, session.to_s, Time.now.to_f - AGENT_WINDOW ])
-          .select { alive?(it["pid"]) }.map { it["handle"] }
+        db.execute("SELECT session, handle FROM agents WHERE project = ? AND session != ? AND seen_at > ?", [ app, session.to_s, Time.now.to_f - AGENT_WINDOW ])
+          .select { Presence.alive?(it["session"]) }.map { it["handle"] }
       end
       (0...(HANDLE_WORDS.first.size * HANDLE_WORDS.last.size)).lazy.map { handle(session, it) }.find { !taken.include?(it) } || handle(session)
     end
 
     def agent_gone!(session)
       write do |db, app|
+        Presence.release(session)
         db.execute("DELETE FROM agents WHERE session = ? AND project = ?", [ session.to_s, app ])
         changed!(db, app, "agent") if db.changes.positive?
       end
@@ -410,20 +434,10 @@ module Tensaku
       return false unless session.to_s.match?(SESSION)
 
       read do |db, app|
-        row = db.get_first_row("SELECT pid, seen_at FROM agents WHERE session = ? AND project = ?", [ session.to_s, app ])
-        row && alive?(row["pid"])
+        db.get_first_value("SELECT 1 FROM agents WHERE session = ? AND project = ?", [ session.to_s, app ]) && Presence.alive?(session)
       end
     end
 
-    # Whether a process on this machine is running.
-    def alive?(pid)
-      Process.kill(0, pid.to_i)
-      true
-    rescue Errno::ESRCH
-      false
-    rescue Errno::EPERM
-      true
-    end
 
     # The agents connected to this app, oldest first: name, handle, the directory it runs in (relative
     # to the app when inside it), when it started, whether it is listening, its last tool call, and the
@@ -431,7 +445,7 @@ module Tensaku
     def agents(now: Time.now)
       working = all.select { it["status"] == "working" }.group_by { it["session"] }
       rows = read { |db, app| db.execute("SELECT * FROM agents WHERE project = ? AND seen_at > ?", [ app, now.to_f - AGENT_WINDOW ]) }
-      rows.select { alive?(it["pid"]) }.map do |row|
+      rows.select { Presence.alive?(it["session"]) }.map do |row|
         last = row["last"] && JSON.parse(row["last"])
         {
           "name" => row["name"].presence || "MCP agent",
@@ -439,7 +453,11 @@ module Tensaku
           "folder" => folder(row["cwd"]),
           "started_at" => row["started_at"],
           "listening" => row["listening"] == 1,
+          # Notes are pushed into the session over a Claude Code channel (see Mcp).
+          "channel" => row["channel"] == 1,
           "last" => last.is_a?(Hash) ? last.slice("tool", "note", "at") : nil,
+          # Started before Tensaku's code last changed: it should reconnect to run the new code.
+          "outdated" => row["version"] != Build.current,
           "working" => Array(working[row["session"]]).map { { "id" => it["id"], "url" => it["url"], "comment" => it["comment"].to_s.squish.truncate(80) } }
         }.compact
       end.sort_by { [ it["started_at"].to_s, it["name"] ] }
@@ -491,7 +509,11 @@ module Tensaku
       page = base && note["url"].to_s.start_with?("/") ? "#{base.chomp("/")}#{note["url"]}" : note["url"]
       lines = [ "## Tensaku note #{note["id"]} (#{note["status"]}) on #{page}#{" in #{app}" if app}", "" ]
       if session && ACTIVE.include?(note["status"])
-        lines << (note["session"] == session ? "*Yours.*" : "*Nobody's yet: call start_note before you work on it, so no other session takes it.*") << ""
+        lines << if note["session"] == session then "*Yours.*"
+        elsif note["stopped"] then "*Its session stopped while working on it, so it is nobody's now. Part of the change may already be made: check the file before you redo it. Call start_note to take it.*"
+        else "*Nobody's yet: call start_note before you work on it, so no other session takes it.*"
+        end
+        lines << ""
       end
       lines << note["comment"]
       targets = Array(note["targets"])
@@ -610,8 +632,11 @@ module Tensaku
       marks = ("?, " * ids.size).chomp(", ")
       threads = db.execute("SELECT * FROM messages WHERE note_id IN (#{marks}) ORDER BY id", ids).group_by { it["note_id"] }
       shots = db.execute("SELECT note_id, width, height FROM screenshots WHERE note_id IN (#{marks})", ids).to_h { [ it["note_id"], it.slice("width", "height") ] }
+      # A note in progress whose session's process ended: anyone can take it (available_to?).
+      gone = rows.select { it["status"] == "working" && it["session"] }.map { it["session"] }.uniq.reject { Presence.alive?(it) }
       rows.map do |row|
         note = COLUMNS.to_h { [ it, row[it] ] }
+        note["stopped"] = true if note["status"] == "working" && gone.include?(note["session"])
         note["targets"] = JSON.parse(note["targets"] || "[]")
         note["rect"] = note["rect"] && JSON.parse(note["rect"])
         note["screenshot"] = shots[row["id"]]

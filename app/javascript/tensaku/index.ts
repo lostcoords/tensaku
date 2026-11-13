@@ -292,7 +292,10 @@ historyTool.addEventListener("click", () => openPopover(historyTool, renderHisto
 
 // What an agent can be asked, in its own chat. Tensaku can't start an agent's turn, so listening is
 // something the person asks for.
-const PROMPTS = { watch: "Watch my Tensaku notes", once: "Do my Tensaku notes", install: "bin/rails generate tensaku:install" }
+const PROMPTS = {
+  watch: "Watch my Tensaku notes", once: "Do my Tensaku notes", install: "bin/rails generate tensaku:install",
+  channel: "claude --dangerously-load-development-channels server:tensaku",
+}
 function copyRow(text: string, done: string) {
   return div("command", h("code", {}, text),
     h("button", { type: "button", className: "icon-button", title: "Copy", "aria-label": `Copy ${text}`, onclick: async () => { await copy(text); toast(done) } }, icon("copy")))
@@ -303,13 +306,15 @@ function lastAction(agent: Agent) {
   if (agent.working.length) return agent.working.map((note) => h("a", { className: "doing", href: note.url, title: `“${note.comment}”` }, `Working on ${note.id}: “${note.comment}”`))
   const last = agent.last
   const did = last ? `${DID[last.tool] ?? last.tool}${last.note ? ` ${last.note}` : ""} ${ago(new Date(last.at))}` : null
-  const text = agent.listening ? `Waiting for your notes${did ? ` · ${did}` : ""}` : did ? `Last ${did}` : "No calls yet"
+  const waiting = agent.channel ? "Live: notes reach its chat as you save them" : "Waiting for your notes"
+  const text = agent.listening ? `${waiting}${did ? ` · ${did}` : ""}` : did ? `Last ${did}` : "No calls yet"
   return [h("span", { className: "doing" }, text)]
 }
 // One agent: its name and handle, the folder it runs in, and what it did last.
 function agentRow(agent: Agent) {
-  return div(`agent${agent.listening ? " listening" : ""}${agent.working.length ? " working" : ""}`,
+  return div(`agent${agent.listening ? " listening" : ""}${agent.channel ? " live" : ""}${agent.working.length ? " working" : ""}`,
     div("who", h("strong", {}, agentLabel(agent)), h("span", { className: "where" }, agent.folder ?? "")),
+    agent.outdated ? div("outdated", "Runs older Tensaku code. Reconnect it (/mcp in Claude Code) or restart it.") : null,
     ...lastAction(agent))
 }
 let idleOpen = false
@@ -317,11 +322,15 @@ function renderAgents(): Node[] {
   const agents = currentAgents()
   const listening = agents.filter((agent) => agent.listening)
   const idle = agents.filter((agent) => !agent.listening)
-  const ask = [
-    h("p", {}, "Ask an agent to listen, and each note you save reaches it as you write it:"),
-    copyRow(PROMPTS.watch, "Copied. Paste it into your agent."),
-    h("p", {}, "Or have it work through the open notes once:"),
-    copyRow(PROMPTS.once, "Copied. Paste it into your agent."),
+  // An agent only reads notes when it calls Tensaku, so it has to be asked, in its own chat.
+  const ask = (lead: string) => [
+    h("p", {}, lead),
+    copyRow(PROMPTS.watch, "Copied. Paste it into your agent's chat."),
+    h("p", { className: "where" }, "It waits for notes and takes each one as you save it."),
+    copyRow(PROMPTS.once, "Copied. Paste it into your agent's chat."),
+    h("p", { className: "where" }, "It works through the open notes, then stops."),
+    h("p", {}, h("strong", {}, "Claude Code, without asking: "), "start it with Tensaku as a channel, and each note you save starts it working. Experimental, and it asks you to confirm at start:"),
+    copyRow(PROMPTS.channel, "Copied. Run it in the app's folder."),
   ]
   // Listeners first. The rest, connected but not listening, are one line that expands, unless they are all there is.
   const rest = listening.length && idle.length
@@ -329,13 +338,15 @@ function renderAgents(): Node[] {
         `${idle.length} more connected, not listening`), ...(idleOpen ? idle.map(agentRow) : [])]
     : idle.map(agentRow)
   return [
-    h("h3", {}, "Agents", h("span", { className: "where" }, "Coding agents running tensaku mcp in this app. A note belongs to the agent that takes it.")),
+    h("h3", {}, "Agents", h("span", { className: "where" }, "Coding agents connected to this app. Each note goes to one of them.")),
     ...(agents.length
-      ? [...listening.map(agentRow), ...rest]
+      ? [...listening.map(agentRow), ...rest, ...(listening.length ? [] : [div("connect", ...ask("None is listening. Agents read notes when you ask them to, so say this in your agent's chat:"))])]
       : [div("empty", "No agent connected."),
-          div("connect", h("p", {}, "An agent gets Tensaku's tools from tensaku mcp in its project config. This adds it for Claude Code, Codex, Cursor, Gemini CLI and OpenCode:"),
-            copyRow(PROMPTS.install, "Copied. Run it in the app, then restart your agent."))]),
-    ...(listening.length ? [] : [div("connect", ...ask)]),
+          div("connect",
+            h("p", {}, h("strong", {}, "Set up once per project. "), "Run this in the app, then restart your agent. It adds Tensaku to Claude Code, Codex, Cursor, Gemini CLI and OpenCode:"),
+            copyRow(PROMPTS.install, "Copied. Run it in the app, then restart your agent."),
+            h("p", { className: "where" }, "Already set up? Start your agent in this project and it shows here. In Claude Code, /mcp reconnects it."),
+            ...ask("Then say this in your agent's chat:"))]),
   ]
 }
 agentsTool.addEventListener("click", () => openPopover(agentsTool, renderAgents))
@@ -573,20 +584,22 @@ function reference(element: Element): string {
   return lines.join("\n")
 }
 
-function openMenu(element: Element, selectedText?: string) {
+// The menu and its note form open at `at`, the click point, and below the element without one.
+function openMenu(element: Element, selectedText?: string, at?: DOMRect) {
   closeMenu()
   const rect = documentRect(element)
+  const spot = at ?? rect
   const kind = editKind(element)
   const item = (name: IconName, text: string, action: () => void, shortcut?: string) =>
     h("button", { type: "button", onclick: () => { closeMenu(); action() } }, icon(name), h("span", {}, text), shortcut ? h("kbd", {}, shortcut) : null)
   const undoable = undoFor(element)
   const list = element.closest(`ul[${MARKDOWN}], ol[${MARKDOWN}]`)
-  menu = panel(rect, "menu",
+  menu = panel(spot, "menu",
     h("h3", {}, label(element)[0], h("span", { className: "where" }, label(element)[1])),
     kind ? item(kind === "attributes" ? "tag" : "pen", kind === "attributes" ? "Edit attributes" : "Edit text", () => edit(element, kind), "E") : null,
     kind && kind !== "attributes" && editKind(element) !== "attributes" && hasAttributes(element) ? item("tag", "Edit attributes", () => edit(element, "attributes")) : null,
     list && list !== element ? item("pen", "Edit the whole list", () => edit(list, "markdown"), "L") : null,
-    item("pad", selectedText ? "Note on selected text" : "Add note", () => noteForm(rect, targetsFor(element, selectedText)), "N"),
+    item("pad", selectedText ? "Note on selected text" : "Add note", () => noteForm(rect, targetsFor(element, selectedText), {}, undefined, undefined, spot), "N"),
     item("copy", "Copy reference", async () => { await copy(reference(element)); toast("Copied reference") }, "C"),
     undoable ? item("undo", `Undo ${undoable.label}`, () => undo(undoable), "U") : null,
     item("code", "Open in editor", () => openInEditor(element), "O"))
@@ -677,7 +690,7 @@ onDocument("mouseup", (event) => {
   noteForm(rect, targets, { rect: { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) } }, () => {
     area.remove()
     highlights.forEach((b) => b.remove())
-  })
+  }, undefined, new DOMRect(event.pageX, event.pageY, 0, 0))
   api("POST", "/selection", { url: location.pathname, tab: TAB, targets, text: "" }).catch(() => {})
 }, true)
 
@@ -685,6 +698,7 @@ onDocument("click", (event) => {
   if (suppressClick) { suppressClick = false; event.preventDefault(); event.stopPropagation(); return }
   if (isUi(event.target as Element)) return
   const element = pageTarget(event)
+  const at = new DOMRect(event.pageX, event.pageY, 0, 0)
   const selectedIn = (within: Element) => {
     const selection = getSelection()?.toString().trim()
     return selection && within.contains(getSelection()!.anchorNode) ? selection : undefined
@@ -695,8 +709,8 @@ onDocument("click", (event) => {
     event.preventDefault()
     event.stopImmediatePropagation()
     closeMenu()
-    if (event.shiftKey) noteForm(documentRect(element), targetsFor(element, selectedIn(element)))
-    else openMenu(element, selectedIn(element))
+    if (event.shiftKey) noteForm(documentRect(element), targetsFor(element, selectedIn(element)), {}, undefined, undefined, at)
+    else openMenu(element, selectedIn(element), at)
     return
   }
   if (mode === "off" && !menu) return
@@ -712,7 +726,7 @@ onDocument("click", (event) => {
   }
   if (event.shiftKey) { togglePicked(element); return }
   if (picked.length) clearPicked()
-  openMenu(element, selectedIn(element))
+  openMenu(element, selectedIn(element), at)
 }, true)
 
 

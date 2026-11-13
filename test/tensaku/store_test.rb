@@ -51,18 +51,59 @@ class Tensaku::StoreTest < Tensaku::TestCase
     assert_not dead.exist?
   end
 
-  test "a heartbeat with nothing new isn't a change, and an agent whose process is gone isn't connected" do
+  test "a heartbeat with nothing new isn't a change" do
     session = SecureRandom.hex(16)
-    Tensaku::Notes.agent_seen!(session, name: "Codex", pid: Process.pid)
+    Tensaku::Notes.agent_seen!(session, name: "Codex")
     before = Tensaku::Notes.version
-    Tensaku::Notes.agent_seen!(session, name: "Codex", pid: Process.pid)
+    Tensaku::Notes.agent_seen!(session, name: "Codex")
     assert_equal before, Tensaku::Notes.version
     assert Tensaku::Notes.agent_connected?(session)
+  end
 
-    gone = Process.spawn(RbConfig.ruby, "-e", "exit").tap { Process.wait(it) }
-    Tensaku::Notes.agent_seen!(session, name: "Codex", pid: gone)
+  test "a session is connected while its process holds its lock, and not once the process ends, whatever its pid" do
+    session = SecureRandom.hex(16)
+    Tensaku::Store.reset!
+    reader, writer = IO.pipe
+    child = fork do
+      reader.close
+      Tensaku::Notes.agent_seen!(session, name: "Codex")
+      writer.puts "ready"
+      writer.flush
+      sleep
+    end
+    writer.close
+    reader.gets
+    assert Tensaku::Notes.agent_connected?(session)
+    assert_equal [ "Codex" ], Tensaku::Notes.agents.map { it["name"] }
+
+    Process.kill(:KILL, child)
+    Process.wait(child)
+    # The row still names the dead process's pid, which the system may give to a new process.
+    Tensaku::Store.write { it.execute("UPDATE agents SET pid = ?", [ Process.pid ]) }
     assert_not Tensaku::Notes.agent_connected?(session)
     assert_empty Tensaku::Notes.agents
+    assert_not Tensaku::Presence.path(session).exist?, "the free lock file is cleaned up"
+  end
+
+  test "an agent that started before Tensaku's code changed is marked outdated" do
+    Tensaku::Notes.agent_seen!(SecureRandom.hex(16), name: "Current")
+    Tensaku::Notes.agent_seen!(SecureRandom.hex(16), name: "Old", version: "000000000000")
+
+    assert_equal({ "Current" => false, "Old" => true }, Tensaku::Notes.agents.to_h { [ it["name"], it["outdated"] ] })
+  end
+
+  test "a database at an older schema version gets the later migrations" do
+    Tensaku::Store.reset!
+    path = Tensaku::Store.path
+    path.dirname.mkpath
+    old = SQLite3::Database.new(path.to_s)
+    old.execute_batch(Tensaku::Store::SCHEMA)
+    old.execute("PRAGMA user_version = 2")
+    old.close
+
+    Tensaku::Notes.agent_seen!(SecureRandom.hex(16), name: "Codex")
+    assert_equal Tensaku::Store::VERSION, Tensaku::Store.read { it.get_first_value("PRAGMA user_version") }
+    assert Tensaku::Store.read { it.execute("PRAGMA table_info(agents)").any? { it["name"] == "version" } }
   end
 
   test "a new session gets a handle no connected session of the app has" do

@@ -15,7 +15,7 @@ Use whichever is available, in this order:
 
 1. **MCP**: the `tensaku` server (`bundle exec tensaku mcp`, started from the project's MCP config).
    Tools: `list_notes`, `get_note`, `get_screenshot`, `start_note`, `resolve_note`, `decline_note`, `reply_to_note`,
-   `ask_question`, `watch_notes`, `current_selection`. It reads Tensaku's database, so the dev server
+   `ask_question`, `watch_notes`, `channel_ready`, `current_selection`. It reads Tensaku's database, so the dev server
    doesn't have to be running.
 2. **Command line**: `bundle exec tensaku notes`, when the MCP server isn't configured. It does what the
    tools do and prints the same text: `tensaku notes` lists the open notes, then `tensaku notes start
@@ -59,7 +59,10 @@ A note looks like this:
 1. List the open notes (`list_notes`, or `tensaku notes`). Each is marked *Yours* or *Nobody's yet*;
    notes other sessions hold aren't listed.
 2. Call `start_note` on the note you take, before you change anything, so the person sees it's being
-   worked on and no other session takes it. If it fails, leave that note. Then open the target file at the range, read the comment, and make the change. Look at
+   worked on and no other session takes it. If it fails, leave that note. `resolve_note` refuses a
+   note you didn't start, and a note the person took back from you. A note marked as stopped was
+   started by a session that ended: part of its change may already be in the file. Then open the
+   target file at the range, read the comment, and make the change. Look at
    `context.partials` when the fix belongs in a parent template, and at the translation target when the
    text comes from a locale file (change every locale that needs it).
 3. Read the note's `thread`: the person's answers to earlier questions are there. Use `reply_to_note`
@@ -80,10 +83,14 @@ so don't make every change first and update the notes at the end. These calls ar
 `resolve_note` answer with one line. `list_notes` already has each note's text, so don't call
 `get_note` after it, unless a thread says earlier messages were left out and you need them.
 
-Once you have called `watch_notes`, notes the person sends while you work come with the answer of
-your next Tensaku call ("Notes the person sent while you worked"), already yours: work through them
+In Claude Code, Tensaku may arrive as a channel: a `<channel source="tensaku">` message asks you to
+call `channel_ready` with a code, and later ones hold notes the person saved, already yours. Work
+through those like notes from `watch_notes`; there's no need to call `watch_notes` then.
+
+Once you have called `watch_notes`, notes the person saves while you work come with the answer of
+your next Tensaku call ("Notes the person saved while you worked"), already yours: work through them
 after the current note. Call `watch_notes` again only when you have nothing else to do. When an answer
-ends with "notes were sent from the page since you last looked", call `watch_notes` or `list_notes`
+ends with "notes were saved on the page since you last looked", call `watch_notes` or `list_notes`
 after finishing the current note.
 
 When the person asks you to watch or listen for their notes, call `watch_notes` in a loop: work through

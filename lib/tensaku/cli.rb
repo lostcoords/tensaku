@@ -20,7 +20,7 @@ module Tensaku
         tensaku notes screenshot ID [FILE]              save the note's screenshot as a PNG (default:
                                                         tmp/tensaku/screenshots/ID.png in its app)
         tensaku notes start ID                          mark it as being worked on
-        tensaku notes resolve ID REPLY                  mark it resolved, with a one-line reply
+        tensaku notes resolve ID REPLY                  mark a started note resolved, with a one-line reply
         tensaku notes decline ID REASON                 close it without a change
         tensaku notes ask ID QUESTION                   ask the person something
         tensaku notes reply ID MESSAGE                  add a message to its thread

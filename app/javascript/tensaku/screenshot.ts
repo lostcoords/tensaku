@@ -1,6 +1,7 @@
 // A screenshot of what a note points at, taken in the page when the note form opens, so it shows the
 // page as the person saw it. modern-screenshot draws the DOM into a canvas: no browser permission,
-// no extension. The overlay is left out. Images and fonts it can't fetch (another origin without CORS headers) can be missing.
+// no extension. The overlay is left out. An image from another origin without CORS headers is left out
+// too (checked in Chromium and WebKit); same-origin images and data URLs show.
 import { domToCanvas } from "modern-screenshot"
 
 const MARGIN = 40
@@ -13,18 +14,30 @@ const MAX_OUTPUT = 1600
 
 const isOverlay = (node: Node) => node instanceof Element && node.hasAttribute("data-tensaku-ui")
 
-// The smallest element that contains rect (viewport coordinates), starting from what is at its centre.
-// Something covering that point, such as a sticky header, is skipped when it doesn't contain it.
+// Drawing copies the container's whole subtree, so the cost grows with its size: a container with
+// more elements than this is drawn without the margin (see containerOf).
+const MAX_NODES = 2000
+
+// The element to draw for rect (viewport coordinates): the smallest one that contains rect plus a
+// margin, starting from what is at its centre. When that one has more than MAX_NODES elements (a long
+// page), the smallest element that contains rect itself, so a note on one row of a big table costs
+// that row, not the table. Something covering the point, such as a sticky header, is skipped when it
+// doesn't contain it.
 function containerOf(rect: DOMRect): Element {
   const x = Math.min(Math.max(rect.left + rect.width / 2, 0), innerWidth - 1)
   const y = Math.min(Math.max(rect.top + rect.height / 2, 0), innerHeight - 1)
+  const contains = (box: DOMRect, margin: number) =>
+    box.left <= rect.left - margin && box.top <= rect.top - margin && box.right >= rect.right + margin && box.bottom >= rect.bottom + margin
   let node: Element | null = document.elementsFromPoint(x, y).find((el) => !el.closest("[data-tensaku-ui]")) ?? document.body
+  let tight: Element | null = null
   while (node && node !== document.documentElement) {
     const box = node.getBoundingClientRect()
-    if (box.left <= rect.left - MARGIN && box.top <= rect.top - MARGIN && box.right >= rect.right + MARGIN && box.bottom >= rect.bottom + MARGIN) break
+    tight ??= contains(box, -0.5) ? node : null
+    if (tight && node.getElementsByTagName("*").length > MAX_NODES) return tight
+    if (contains(box, MARGIN)) return node
     node = node.parentElement
   }
-  return node ?? document.body
+  return tight ?? document.body
 }
 
 // A PNG data URL of area (document coordinates, as the note form gets them) and a margin around it,

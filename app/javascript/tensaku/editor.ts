@@ -28,7 +28,8 @@ interface MarkdownDescription { file: string; range: string; editable: boolean; 
 type Op =
   | { kind: "template"; stamp: string; changes: { index: number; from: string; to: string }[] }
   | { kind: "attribute"; stamp: string; changes: { name: string; index: number; from: string; to: string }[] }
-  | { kind: "translation"; locale: string; key: string; from: string; to: string }
+  // Every locale saved from one translation editor, undone and redone together.
+  | { kind: "translation"; key: string; changes: { locale: string; from: string; to: string }[] }
   // range covers the block as it reads now: after `to` when done, after `from` when undone.
   | { kind: "markdown"; range: string; prefix: string; from: string; to: string; tag?: string }
 export interface Entry { id: number; label: string; key: string | null; file?: string; at: string; op: Op }
@@ -140,9 +141,13 @@ async function apply(op: Op, reverse: boolean): Promise<SaveResult> {
     return { ...result, changed: true }
   }
   if (op.kind === "translation") {
-    const [current, target] = reverse ? [op.to, op.from] : [op.from, op.to]
-    const result = await api<SaveResult>("POST", "/translation", { locale: op.locale, key: op.key, original: current, text: target })
-    showTranslation({ locale: op.locale, key: op.key }, current, target)
+    let result: SaveResult = {}
+    for (const { locale, from, to } of op.changes) {
+      const [current, target] = reverse ? [to, from] : [from, to]
+      const saved = await api<SaveResult>("POST", "/translation", { locale, key: op.key, original: current, text: target })
+      result = { ...saved, file: result.file ?? saved.file, changed: true }
+      showTranslation({ locale, key: op.key }, current, target)
+    }
     return result
   }
   const [current, target] = reverse ? [op.to, op.from] : [op.from, op.to]
@@ -417,7 +422,7 @@ async function editAttributes(element: Element) {
       savers.push(async () => {
         const text = read()
         if (text === entry.value) return
-        await saveTranslation(element, key, entry.value!, text)
+        await saveTranslations(element, key, [ { locale: key.locale, from: entry.value!, to: text } ])
         // A retry after a later save fails starts from what is in the file now.
         entry.value = text
       })
@@ -515,25 +520,33 @@ async function editTranslation(element: Element, key: TranslationKey) {
   frame(element, main.surface, `${key.locale}.${key.key} · ${entry.file}:${entry.line}`, async () => {
     // Each write that succeeds updates what the editor holds as the file's value, so a retry after a
     // later write fails doesn't resend it with an outdated original.
-    const text = main.read()
-    if (text !== entry.value) {
-      await saveTranslation(element, key, entry.value!, text)
-      entry.value = text
-    }
-    for (const other of otherReaders) {
-      const value = other.read()
-      if (value === other.entry.value) continue
-      await api("POST", "/translation", { locale: other.locale, key: key.key, original: other.entry.value, text: value })
-      other.entry.value = value
-    }
+    const sources = [ { locale: key.locale, entry, read: main.read }, ...otherReaders ]
+    const changes = sources.flatMap(({ locale, entry, read }) => {
+      const to = read()
+      return to === entry.value ? [] : [ { locale, from: entry.value!, to, entry } ]
+    })
+    await saveTranslations(element, key, changes, (change) => { change.entry.value = change.to })
   }, extra)
 }
 
-async function saveTranslation(element: Element, key: TranslationKey, original: string, text: string) {
-  const result = await api<SaveResult>("POST", "/translation", { locale: key.locale, key: key.key, original, text })
-  showTranslation(key, original, text)
-  const entry = result.changed ? record(element, key.key, { kind: "translation", locale: key.locale, key: key.key, from: original, to: text }, result.file) : undefined
-  done_(result, "translation", entry)
+// Saves each locale in turn and records them as one edit, so one undo reverts them all. A failure
+// keeps the locales saved before it in the history, and then reports.
+async function saveTranslations<T extends { locale: string; from: string; to: string }>(element: Element, key: TranslationKey, changes: T[], onSaved: (change: T) => void = () => {}) {
+  const saved: { locale: string; from: string; to: string }[] = []
+  let result: SaveResult = {}
+  try {
+    for (const change of changes) {
+      const reply = await api<SaveResult>("POST", "/translation", { locale: change.locale, key: key.key, original: change.from, text: change.to })
+      showTranslation({ locale: change.locale, key: key.key }, change.from, change.to)
+      onSaved(change)
+      if (reply.changed) saved.push({ locale: change.locale, from: change.from, to: change.to })
+      result = { ...reply, file: result.file ?? reply.file, changed: result.changed || reply.changed }
+    }
+  } finally {
+    const label = saved.length > 1 ? `${key.key} in ${saved.length} locales` : key.key
+    const entry = saved.length ? record(element, label, { kind: "translation", key: key.key, changes: saved }, result.file) : undefined
+    if (saved.length) done_(result, "translation", entry)
+  }
 }
 
 // Markdown -------------------------------------------------------------------------------------

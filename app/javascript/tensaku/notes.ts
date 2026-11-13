@@ -8,6 +8,7 @@ import { icon, type IconName } from "./icons"
 import { settings } from "./settings"
 import { activeInShadow, copy, div, h, layer, fixed, panel, storage, store, toast } from "./ui"
 import { capture } from "./screenshot"
+import { refreshAfterAgent } from "./refresh"
 
 interface Target {
   kind: "element" | "text" | "translation" | "markdown"
@@ -35,6 +36,8 @@ export interface Note {
   // Set when watch_notes handed the note to an agent.
   delivered_at?: string
   delivered_to?: string
+  // In progress, but its session's process ended.
+  stopped?: boolean
   // Set when the page took a screenshot of what the note points at (GET /notes/ID/screenshot).
   screenshot?: { width: number; height: number }
   thread?: { from: "you" | "agent"; text: string; agent?: string; at: string }[]
@@ -54,6 +57,10 @@ export interface Agent {
   listening: boolean
   last?: { tool: string; note?: string; at: string }
   working: { id: string; url: string; comment: string }[]
+  // Started before Tensaku's code last changed.
+  outdated?: boolean
+  // Notes are pushed into its chat over a Claude Code channel.
+  channel?: boolean
 }
 
 let notes: Note[] = []
@@ -124,8 +131,6 @@ export function poll() {
 // The agents waiting in watch_notes.
 export const agentLabel = (agent: Agent) => agent.handle ? `${agent.name} · ${agent.handle}` : agent.name
 const listeners = () => agents.filter((agent) => agent.listening).map(agentLabel)
-// Who a sent note goes to: the one listener by name, or, with several, whichever claims it first.
-const sendTarget = () => { const names = listeners(); return names.length === 1 ? names[0] : `the first of ${names.length} listening agents` }
 
 // Changes made from this page, so they aren't announced as the agent's.
 const localChanges = new Set<string>()
@@ -257,21 +262,17 @@ export function elementsInArea(rect: DOMRect): Element[] {
   return fallback ? [fallback] : []
 }
 
-export function noteForm(anchor: DOMRect, targets: Target[], extra: Partial<Note> = {}, onDone?: () => void, heading?: string) {
+// `anchor` is what the screenshot captures; `at` is where the form opens, the click point when there is one.
+export function noteForm(anchor: DOMRect, targets: Target[], extra: Partial<Note> = {}, onDone?: () => void, heading?: string, at = anchor) {
   // Taken now, before anything moves, and only sent if the box is still ticked on save.
   const shot = capture(anchor)
   const textarea = h("textarea", { rows: 3, placeholder: "What should change?", "aria-label": "Note" })
   const where = targets.filter((t) => t.kind !== "translation" && t.kind !== "markdown").map((t) => t.stamp ?? t.tag).filter(Boolean)
   const close = () => { element.remove(); onDone?.() }
-  const picker = agentPicker(storage<string>("send-to", ""))
+  const picker = agentPicker(storage<string>("assign-to", ""))
   const withShot = h("input", { type: "checkbox", checked: storage("screenshots", true), "aria-label": "Attach a screenshot", onchange: () => store("screenshots", withShot.checked) })
-  const sendLabel = () => {
-    // The menu names the agent, so the button only says Send.
-    if (picker) return picker.value || listeners().length ? "Send" : "Save note"
-    return listeners().length === 1 ? `Send to ${listeners()[0]}` : listeners().length ? "Send" : "Save note"
-  }
-  const button = h("button", { type: "button", className: "primary", onclick: () => save() }, sendLabel())
-  picker?.addEventListener("change", () => { store("send-to", picker.value); button.textContent = sendLabel() })
+  const button = h("button", { type: "button", className: "primary", onclick: () => save() }, "Save note")
+  picker?.addEventListener("change", () => store("assign-to", picker.value))
   const save = async () => {
     const comment = textarea.value.trim()
     if (!comment) return textarea.focus()
@@ -280,7 +281,7 @@ export function noteForm(anchor: DOMRect, targets: Target[], extra: Partial<Note
       const note = await api<Note>("POST", "/notes", { url: location.pathname, comment, targets, viewport: `${innerWidth}x${innerHeight}`, to, ...extra })
       close()
       const chosen = agents.find((agent) => agent.handle === to)
-      toast(chosen ? `Note sent to ${agentLabel(chosen)}` : listeners().length ? `Note sent to ${sendTarget()}` : "Note saved")
+      toast(chosen ? `Note saved and assigned to ${agentLabel(chosen)}` : "Note saved")
       const png = withShot.checked ? await shot : null
       if (png) await api("PUT", `/notes/${note.id}/screenshot`, { png }).catch((error) => toast(`The screenshot wasn't saved: ${(error as Error).message}`, { error: true }))
       await load()
@@ -294,34 +295,33 @@ export function noteForm(anchor: DOMRect, targets: Target[], extra: Partial<Note
   })
   const title = heading ? heading : extra.rect ? `Area, ${targets.length} ${targets.length === 1 ? "element" : "elements"}` : targets[0]?.tag ?? "Note"
   const quoted = !heading && !extra.rect && targets[0]?.text ? `${title} · "${targets[0].text.slice(0, 48)}${targets[0].text.length > 48 ? "…" : ""}"` : title
-  const element = panel(anchor, "postit note-form",
+  const element = panel(at, "postit note-form",
     div("head",
       div("what", div("title", quoted), div("where", where.slice(0, 3).join(", ") + (where.length > 3 ? ` and ${where.length - 3} more` : ""))),
       h("button", { type: "button", className: "icon-button", onclick: close, "aria-label": "Cancel" }, icon("close"))),
     textarea,
     div("options",
       h("label", { className: "shot" }, withShot, "Screenshot"),
-      picker ? h("label", { className: "to" }, "To", picker) : noAgent()),
-    // With an agent listening, saving is sending: the button says to whom.
-    div("foot", h("span", { className: "hint" }, `${isApple ? "⌘↵" : "Ctrl+Enter"} ${listeners().length || picker?.value ? "sends" : "saves"}`), h("button", { type: "button", className: "quiet", onclick: close }, "Cancel"), button))
+      picker ? h("label", { className: "to" }, "Assign to", picker) : noAgent()),
+    div("foot", h("span", { className: "hint" }, `${isApple ? "⌘↵" : "Ctrl+Enter"} saves`), h("button", { type: "button", className: "quiet", onclick: close }, "Cancel"), button))
   textarea.focus()
   return element
 }
 
-// A menu of the connected agents, listening ones first, or null when none is connected. The empty
-// value means the first agent that takes the note.
-// The To row with no agent connected: it says so, and opens the Agents popover, which lists the
+// The Assign row with no agent connected: it says so, and opens the Agents popover, which lists the
 // commands that start one.
 function noAgent() {
-  return h("span", { className: "to" }, "To", h("button", { type: "button", className: "link", onclick: () => showAgents() }, "no agent connected, connect one"))
+  return h("span", { className: "to" }, "Assign to", h("button", { type: "button", className: "link", onclick: () => showAgents() }, "no agent connected, connect one"))
 }
 
+// A menu of the connected agent sessions, listening ones first, or null when none is connected. The
+// empty value leaves the note unassigned: the first session that checks for notes takes it.
 function agentPicker(selected: string) {
   const named = agents.filter((agent) => agent.handle)
   if (!named.length) return null
   const ordered = [...named.filter((agent) => agent.listening), ...named.filter((agent) => !agent.listening)]
-  const select = h("select", { "aria-label": "Send to" },
-    h("option", { value: "" }, listeners().length ? "First listening agent" : "Any agent"),
+  const select = h("select", { "aria-label": "Assign to" },
+    h("option", { value: "" }, "Anyone"),
     ...ordered.map((agent) => h("option", { value: agent.handle! }, `${agentLabel(agent)}${agent.listening ? "" : " (not listening)"}`)))
   select.value = ordered.some((agent) => agent.handle === selected) ? selected : ""
   return select
@@ -336,12 +336,24 @@ let loadSequence = 0
 // A 403 means the page's token no longer matches the server's (tmp/tensaku/token changed). Said once, not on every
 // poll; the notes already drawn stay.
 let tokenWarned = false
+// Said once per page load.
+let restartWarned = false
+let agentChangedAt: string | undefined
 export async function load({ force = false } = {}) {
   const sequence = ++loadSequence
   try {
-    const data = await api<{ notes: Note[]; open: number; agents?: Agent[] }>("GET", "/notes" + query({ url: location.pathname }))
+    const data = await api<{ notes: Note[]; open: number; agents?: Agent[]; restart?: boolean; changed_at?: string }>("GET", "/notes" + query({ url: location.pathname }))
     if (sequence !== loadSequence) return
     tokenWarned = false
+    // An agent resolved a note since the last load, on any page: the page shows the change.
+    if (primed && data.changed_at && data.changed_at !== agentChangedAt) refreshAfterAgent()
+    agentChangedAt = data.changed_at
+    if (data.restart && !restartWarned) {
+      restartWarned = true
+      toast("Tensaku's code changed since this dev server started, so the page runs a newer overlay than the server. Restart the dev server.", { error: true, timeout: 20000 })
+    }
+    // A note deleted from the page waits a few seconds on the server, for its Undo.
+    data.notes = data.notes.filter((note) => !pendingDeletes.has(note.id))
     agents = data.agents ?? []
     agentListeners.forEach((listener) => listener(agents))
     const signature = location.pathname + JSON.stringify([data.notes, data.open, listeners()])
@@ -352,8 +364,8 @@ export async function load({ force = false } = {}) {
     primed = true
     notes = normalized(data.notes)
     openCount = data.open
-    if (sidebarScope === "all" && sidebar?.isConnected) {
-      const all = normalized((await api<{ notes: Note[] }>("GET", "/notes")).notes)
+    if (sidebarScope !== "page" && sidebar?.isConnected) {
+      const all = await scopeNotes(sidebarScope)
       if (sequence !== loadSequence) return
       allNotes = all
     }
@@ -367,6 +379,7 @@ export async function load({ force = false } = {}) {
   }
   countListeners.forEach((listener) => listener(openCount))
   drawPins()
+  followShownNote()
   // A card being edited or answered is left alone when the poll redraws.
   const typing = activeInShadow()?.matches("textarea, input")
   if (sidebar?.isConnected && (force || !(typing && sidebar.contains(activeInShadow())))) renderSidebar()
@@ -479,20 +492,81 @@ function sourceLines(note: Note) {
 const STATUS_LABELS = { open: "Open", question: "Question", resolved: "Resolved", declined: "Declined" }
 const closed = (note: Note) => note.status === "resolved" || note.status === "declined"
 
-function noteCard(note: Note, onChange = () => {}) {
-  // Failures show as a toast; the card stays as it was. update reports whether it saved.
-  const attempt = async (run: () => Promise<void>) => {
+// What a change made from the page will look like once saved, to show it before the server answers.
+type CardChange = { status?: Note["status"]; comment?: string; message?: string; to?: string }
+function predicted(note: Note, change: CardChange): Note {
+  const next: Note = { ...note, thread: [...(note.thread ?? [])] }
+  if (change.comment) next.comment = change.comment
+  if (change.message) next.thread!.push({ from: "you", text: change.message, at: new Date().toISOString() })
+  if (change.status) next.status = change.status
+  if (change.to !== undefined) {
+    const chosen = agents.find((agent) => agent.handle === change.to)
+    Object.assign(next, { status: "open", agent: chosen ? agentLabel(chosen) : undefined, delivered_at: undefined, delivered_to: undefined, stopped: undefined })
+  }
+  // Only an edit, a message or an assignment sends the note to an agent again.
+  if (next.status === "open" && (change.comment || change.message || change.to !== undefined)) next.sent_at = new Date().toISOString()
+  return next
+}
+
+// A deleted note leaves the page at once and is deleted on the server a few seconds later, so its
+// toast can undo it. Leaving the page deletes it right away.
+const pendingDeletes = new Map<string, () => void>()
+addEventListener("pagehide", () => pendingDeletes.forEach((commit) => commit()))
+function deleteLater(note: Note) {
+  notes = notes.filter((other) => other.id !== note.id)
+  allNotes = allNotes.filter((other) => other.id !== note.id)
+  lastSignature = ""
+  drawPins()
+  if (sidebar?.isConnected) renderSidebar()
+  let done = false
+  const commit = () => {
+    if (done) return
+    done = true
+    pendingDeletes.delete(note.id)
+    api("DELETE", `/notes/${note.id}`).catch((error) => toast((error as Error).message, { error: true })).finally(() => load({ force: true }))
+  }
+  pendingDeletes.set(note.id, commit)
+  const timer = setTimeout(commit, 6000)
+  toast("Note deleted", { timeout: 6000, actions: { Undo: () => { done = true; clearTimeout(timer); pendingDeletes.delete(note.id); load({ force: true }) } } })
+}
+
+// Puts a note's new state everywhere it shows: pins, the panel and an open card.
+function showChanged(note: Note) {
+  notes = notes.map((other) => other.id === note.id ? note : other)
+  allNotes = allNotes.map((other) => other.id === note.id ? note : other)
+  lastSignature = ""
+  drawPins()
+  if (sidebar?.isConnected) renderSidebar()
+  if (shownNote?.id === note.id) showNote(note)
+}
+
+// onChange(note) is called with the note's new state, or without one once it is deleted.
+function noteCard(note: Note, onChange: (note?: Note) => void = () => {}) {
+  // Optimistic: the change shows at once, and goes back with a toast if the server refuses it.
+  // Resolves once the server answered, with whether it saved.
+  const update = async (change: CardChange) => {
+    const after = predicted(note, change)
+    localChanges.add(note.id)
+    showChanged(after)
+    onChange(after)
     try {
-      await run()
+      await api("PATCH", `/notes/${note.id}`, change)
+      load({ force: true })
       return true
     } catch (error) {
       localChanges.delete(note.id)
+      showChanged(note)
+      onChange(note)
       toast((error as Error).message, { error: true })
       return false
     }
   }
-  const update = (body: Record<string, unknown>) => attempt(async () => { localChanges.add(note.id); await api("PATCH", `/notes/${note.id}`, body); await load({ force: true }); onChange() })
-  const remove = () => attempt(async () => { await deleteNotes([note]); onChange() })
+  const remove = () => { deleteLater(note); onChange() }
+  // Done and reopen are one click, so each toast can put the note back as it was.
+  const setStatus = async (status: Note["status"], said: string) => {
+    const before = note.status
+    if (await update({ status })) toast(said, { actions: { Undo: () => update({ status: before }) } })
+  }
   const tool = (name: IconName, label: string, onclick: () => void, className = "") =>
     h("button", { type: "button", className: `icon-button ${className}`, title: label, "aria-label": label, onclick }, icon(name))
   const comment = h("div", { className: "comment" }, note.comment)
@@ -520,7 +594,8 @@ function noteCard(note: Note, onChange = () => {}) {
   const here = note.url === location.pathname
   const done = closed(note)
   const actions = div("tools",
-    done ? tool("undo", "Reopen", () => update({ status: "open" })) : tool("check", "Mark as done", () => update({ status: "resolved" }), "resolve"),
+    done ? h("button", { type: "button", className: "reopen", title: "Reopen: back to open, without sending it to an agent", "aria-label": "Reopen", onclick: () => setStatus("open", "Note reopened") }, "Reopen")
+      : tool("check", "Mark as done", () => setStatus("resolved", "Marked as done"), "resolve"),
     tool("pen", "Edit", startEditing),
     tool("trash", "Delete", remove, "delete"))
   // When the agent spoke last (a question, or a reply on a resolved, declined or reopened note), you
@@ -540,25 +615,46 @@ function noteCard(note: Note, onChange = () => {}) {
   const thread = threadView(note)
   const missing = !done && here && !anchorFor(note) ? div("missing", "Not found on this page any more.") : null
   const delivered = note.status === "open" && note.delivered_at && note.sent_at && note.delivered_at >= note.sent_at
-  const status = note.status === "working" ? `${note.agent ?? "Agent"} is working` : delivered ? `Delivered to ${note.delivered_to}` : STATUS_LABELS[note.status]
-  // An open note can be sent again, to an agent session or to whichever agent takes it first: after
-  // it was saved with no agent listening, or to move it to another session.
+  // An open note assigned to one session says so until that session picks it up. A note in progress
+  // whose session's process ended says so: anyone can take it.
+  const status = note.status === "working" ? (note.stopped ? `${note.agent ?? "Agent"} stopped. Anyone can take it` : `${note.agent ?? "Agent"} is working`)
+    : delivered ? `Picked up by ${note.delivered_to}`
+    : note.status === "open" ? (note.agent ? `Assigned to ${note.agent}` : "Unassigned") : STATUS_LABELS[note.status]
+  // An open note can be assigned to a session or left to anyone. A note in progress can be taken back
+  // the same way, for an agent you stopped mid-work: the note is open again, and that session's
+  // resolve is refused.
   const owner = agents.find((agent) => agent.handle && agentLabel(agent) === note.agent)
-  const picker = note.status === "open" ? agentPicker(owner?.handle ?? "") : null
-  const sendTo = async () => {
+  const assignable = note.status === "open" || note.status === "working"
+  const picker = assignable ? agentPicker(note.status === "open" ? owner?.handle ?? "" : "") : null
+  // The handle the note is assigned to now; on a note in progress, nobody yet in the menu's terms.
+  const current = note.status === "open" ? owner?.handle ?? "" : null
+  const assign = async () => {
     const chosen = agents.find((agent) => agent.handle === picker!.value)
-    if (await update({ to: picker!.value })) toast(chosen ? `Note sent to ${agentLabel(chosen)}` : "Note sent to the first agent that takes it")
+    const undo = current === null ? undefined : { Undo: () => update({ to: current }) }
+    if (await update({ to: picker!.value })) {
+      toast(chosen ? `Note assigned to ${agentLabel(chosen)}` : "Note unassigned: the first session that checks takes it", { actions: undo })
+    }
   }
-  const sendRow = note.status !== "open" ? null
-    : picker ? div("send", h("label", { className: "to" }, "To", picker), h("button", { type: "button", onclick: sendTo }, "Send"))
-    : div("send", noAgent())
+  const assignButton = h("button", { type: "button", onclick: assign })
+  // Says when the menu already shows who has the note, so a click that changes nothing isn't offered.
+  const syncAssign = () => {
+    const same = picker?.value === current
+    assignButton.disabled = same
+    assignButton.textContent = same ? "Assigned" : note.status === "working" ? "Reassign" : "Assign"
+  }
+  picker?.addEventListener("change", syncAssign)
+  syncAssign()
+  const assignRow = !assignable ? null
+    : picker ? div("assign", h("label", { className: "to" }, "Assign to", picker), assignButton)
+    : div("assign", noAgent())
+  const statusLabel = h("span", {}, status)
   return div(`postit note-card ${note.status}`,
-    div("head", h("span", { className: `status ${note.status}` }, note.status === "resolved" ? icon("check") : null, status), actions),
+    div("head", h("span", { className: `status ${note.status}` }, note.status === "resolved" ? icon("check") : null, statusLabel), actions),
     comment,
     screenshotView(note),
     thread,
     missing,
-    sendRow,
+    assignRow,
     answer,
     sourceLines(note))
 }
@@ -595,14 +691,34 @@ function threadView(note: Note) {
   return view
 }
 
+// The note card opened from a pin, and the note it shows. It follows the note's changes, from this
+// page or from an agent, unless you are typing in it.
 let shown: HTMLElement | null = null
-function showNote(note: Note, rect: DOMRect) {
+let shownNote: Note | null = null
+function showNote(note: Note, rect?: DOMRect) {
+  const onChange = (next?: Note) => { if (!next) shown?.remove() }
+  if (!rect) {
+    if (!shown?.isConnected) return
+    shownNote = note
+    shown.replaceChildren(noteCard(note, onChange))
+    return
+  }
   shown?.remove()
-  shown = panel(rect, "note-pop", noteCard(note, () => shown?.remove()))
+  shownNote = note
+  shown = panel(rect, "note-pop", noteCard(note, onChange))
   const close = (event: Event) => {
     if (!event.composedPath().includes(shown!)) { shown?.remove(); document.removeEventListener("pointerdown", close, true) }
   }
   setTimeout(() => document.addEventListener("pointerdown", close, true))
+}
+
+function followShownNote() {
+  if (!shown?.isConnected || !shownNote) return
+  const latest = notes.find((note) => note.id === shownNote!.id)
+  if (!latest || JSON.stringify(latest) === JSON.stringify(shownNote)) return
+  const typing = activeInShadow()
+  if (typing?.matches("textarea, input") && shown.contains(typing) && (typing as HTMLTextAreaElement).value) return
+  showNote(latest)
 }
 
 let sidebar: HTMLElement | null = null
@@ -618,12 +734,17 @@ export function toggleSidebar(force?: boolean) {
 
 export const sidebarOpen = () => Boolean(sidebar?.isConnected)
 
-let sidebarScope: "page" | "all" = "page"
+type Scope = "page" | "all" | "archived"
+let sidebarScope: Scope = "page"
 let allNotes: Note[] = []
 
-async function showScope(scope: "page" | "all") {
+// Every page's notes, or the archive: resolved and declined notes moved out of the panel.
+const scopeNotes = async (scope: Exclude<Scope, "page">) =>
+  normalized((await api<{ notes: Note[] }>("GET", "/notes" + (scope === "archived" ? query({ archived: "1" }) : ""))).notes).filter((note) => !pendingDeletes.has(note.id))
+
+async function showScope(scope: Scope) {
   sidebarScope = scope
-  if (scope === "all") allNotes = normalized((await api<{ notes: Note[] }>("GET", "/notes")).notes)
+  if (scope !== "page") allNotes = await scopeNotes(scope)
   renderSidebar()
 }
 
@@ -647,7 +768,7 @@ function renderSidebar() {
     await copy(markdown)
     toast(all ? "Copied all open notes" : "Copied this page's open notes")
   }
-  const tab = (scope: "page" | "all", text: string) =>
+  const tab = (scope: Scope, text: string) =>
     h("button", { type: "button", role: "tab", "aria-selected": String(sidebarScope === scope), onclick: () => showScope(scope) }, text)
   const card = (note: Note) => noteCard(note)
   const scoped = sidebarScope === "page" ? notes : allNotes
@@ -657,16 +778,19 @@ function renderSidebar() {
         h("a", { className: `page${url === location.pathname ? " current" : ""}`, href: url }, url, h("span", {}, String(list.filter((note) => note.url === url).length))),
         ...list.filter((note) => note.url === url).map(card),
       ])
-  const done = scoped.filter(closed)
-  const body: Node[] = grouped(scoped.filter((note) => !closed(note)))
-  if (done.length) {
+  const archive = sidebarScope === "archived"
+  const done = archive ? [] : scoped.filter(closed)
+  const body: Node[] = grouped(archive ? scoped.slice().reverse() : scoped.filter((note) => !closed(note)))
+  if (archive) {
+    if (!scoped.length) body.push(div("empty", "Nothing archived. Archive done moves resolved and declined notes here."))
+  } else if (done.length) {
     body.push(div("section", h("span", {}, `Done (${done.length})`), h("button", { type: "button", onclick: () => clearDone(done) }, "Archive done")), ...grouped(done))
   } else if (!scoped.length) {
     body.push(div("empty", sidebarScope === "page" ? "No notes on this page. Select an element or drag over an area to add one." : "No notes yet."))
   }
   sidebar.replaceChildren(
-    h("header", {}, h("strong", {}, sidebarScope === "page" ? `Notes on ${location.pathname}` : "Notes on every page"), h("button", { type: "button", className: "icon-button", onclick: () => toggleSidebar(false), "aria-label": "Close notes" }, icon("close"))),
-    div("tabs", tab("page", "This page"), tab("all", "All pages")),
+    h("header", {}, h("strong", {}, sidebarScope === "page" ? `Notes on ${location.pathname}` : archive ? "Archived notes" : "Notes on every page"), h("button", { type: "button", className: "icon-button", onclick: () => toggleSidebar(false), "aria-label": "Close notes" }, icon("close"))),
+    div("tabs", tab("page", "This page"), tab("all", "All pages"), tab("archived", "Archive")),
     ...body,
     ...(openCount ? [sendBar(copyAll)] : []))
 }
@@ -678,7 +802,7 @@ export const setAgentsHandler = (handler: () => void) => { showAgents = handler 
 function sendBar(copyAll: (all: boolean) => void) {
   const names = listeners()
   const status = names.length
-    ? div("listener on", h("span", { className: "dot" }), `Notes go to ${sendTarget()}`)
+    ? div("listener on", h("span", { className: "dot" }), names.length === 1 ? `${names[0]} is checking for notes` : `${names.length} agents are checking for notes`)
     : div("listener", h("span", { className: "dot" }), "No agent listening",
         h("button", { type: "button", className: "link", onclick: () => showAgents() }, "Connect one"))
   // The copy buttons act on the notes above them, so they sit above the rule; who gets the notes is below it.

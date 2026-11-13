@@ -14,5 +14,5 @@ gem "rubocop-rails-omakase", require: false
 
 group :test do
   gem "capybara"
-  gem "cuprite"
+  gem "capybara-playwright-driver"
 end

@@ -475,7 +475,6 @@
   height: 1.75rem;
 }
 
-
 /* A band across the whole window, out of the page's column. */
 .agent-stripe {
   margin-inline: calc(50% - 50vw);
@@ -737,18 +736,38 @@
   color: var(--foreground);
 }
 
-.rk__caret {
+/* A word circled in red ink, twice round like a quick pen loop, with the comment trailing below. */
+.rk__ring {
   position: relative;
-  margin: 0 0.1em;
-  color: var(--wada-red-text);
+  display: inline-block;
+  padding: 0.1em 0.45em;
+  color: var(--foreground);
 }
 
-.rk__caret em {
+.rk__ring::before,
+.rk__ring::after {
+  content: "";
   position: absolute;
-  bottom: 1em;
-  left: 50%;
-  transform: translateX(-50%) rotate(-4deg);
-  font-size: 0.85em;
+  inset: -0.35em -0.3em;
+  border: 2px solid var(--wada-red);
+  border-radius: 52% 46% 55% 44% / 58% 50% 48% 44%;
+  transform: rotate(-3deg);
+}
+
+.rk__ring::after {
+  inset: -0.25em -0.45em -0.4em;
+  border-width: 1.5px;
+  border-radius: 46% 54% 42% 58% / 50% 44% 56% 48%;
+  transform: rotate(4deg);
+  opacity: 0.7;
+}
+
+.rk--circled em {
+  display: block;
+  margin: 0.45rem 0 0 1.6rem;
+  color: var(--wada-red-text);
+  font-size: 0.95em;
+  transform: rotate(5deg);
 }
 
 .rk--note {
@@ -763,6 +782,8 @@
   width: 8.5rem;
 }
 
+.rk--pink { --note: #eab9b5; }
+
 .rk--note::after {
   content: "";
   position: absolute;
@@ -774,7 +795,6 @@
 }
 
 .rk--yellow { --note: #efe39a; }
-.rk--pink { --note: #eab9b5; }
 
 /* Page load and scroll animations. They are CSS only, because the morph after a Tensaku save removes
    classes that scripts add. `translate` and `scale` leave each doodle's `transform` rotation alone. */
