@@ -236,6 +236,36 @@ class NotesTest < ApplicationSystemTestCase
     assert_equal closed, rect.call(".corner")
   end
 
+  test "each Escape closes one thing: a field, the note from a pin, the notes panel, the mode, then the toolbar" do
+    note = Tensaku::Notes.create(url: "/about", comment: "Make it blink", targets: [ { kind: "element", stamp: "app/views/pages/about.html.erb:1:1" } ])
+    Tensaku::Notes.update(note["id"], status: "question", message: "How fast?", agent: "Codex")
+    visit "/about"
+    wait_for_overlay
+    open_toolbar
+    overlay.find(".toolbar button[aria-label=Select]").click
+    overlay.find(".toolbar button[aria-label^=Notes]").click
+    assert overlay.has_css?(".sidebar header", text: "Notes on /about")
+    overlay.find(".pin").click
+    assert overlay.has_css?(".note-pop")
+    overlay.find(".note-pop textarea").click
+
+    press(:escape)
+    assert overlay.has_css?(".note-pop")
+    assert page.evaluate_script(%(!document.querySelector("tensaku-overlay").shadowRoot.activeElement?.matches("textarea"))), "Escape leaves the field first"
+    press(:escape)
+    assert overlay.has_no_css?(".note-pop")
+    assert overlay.has_css?(".sidebar")
+    press(:escape)
+    assert overlay.has_no_css?(".sidebar")
+    assert overlay.has_css?(".toolbar button[aria-label^=Notes][aria-pressed=false]")
+    assert overlay.has_css?(".toolbar button[aria-label=Select][aria-pressed=true]")
+    press(:escape)
+    assert overlay.has_css?(".toolbar button[aria-label=Select][aria-pressed=false]")
+    assert overlay.has_css?(".dock.open")
+    press(:escape)
+    assert overlay.has_no_css?(".dock.open")
+  end
+
   test "the tools stay in place while the toolbar reveals them from the corner button" do
     visit "/about"
     wait_for_overlay

@@ -16,13 +16,13 @@ module Tensaku
   # or reopened it.
   module Notes
     autoload :Markdown, "tensaku/notes/markdown"
+    autoload :Target, "tensaku/notes/target"
 
     STATUSES = %w[open working question resolved declined].freeze
     # The statuses that still need something from an agent or from you.
     ACTIVE = %w[open working question].freeze
     SCREENSHOT_LIMIT = 4_000_000
     ID = /\A[a-z0-9]{4,12}\z/
-    TARGET_KINDS = %w[element text translation markdown].freeze
     AUTHORS = %w[you agent].freeze
 
     class NotFound < Error; end
@@ -70,8 +70,8 @@ module Tensaku
       note = {
         "url" => attributes["url"].to_s,
         "comment" => comment,
-        "targets" => Array(attributes["targets"]).map { target(it) },
-        "rect" => rect(attributes["rect"]),
+        "targets" => Array(attributes["targets"]).map { Target.from(it) },
+        "rect" => Target.rect(attributes["rect"]),
         "viewport" => attributes["viewport"]&.to_s,
         "status" => "open",
         "commit" => Repo.head(Tensaku.root)
@@ -257,52 +257,6 @@ module Tensaku
           WHERE notes.project = ? AND messages.author = 'agent'
         SQL
       end
-    end
-
-    # Fills in file positions from what the overlay saw: a Herb stamp, a translation key or a Markdown
-    # range. A target whose source can't be read keeps what the page said about it.
-    def target(raw)
-      raise Error, "A note target must be a JSON object" unless raw.is_a?(Hash)
-
-      raw = raw.stringify_keys
-      kind = TARGET_KINDS.include?(raw["kind"]) ? raw["kind"] : "element"
-      target = { "kind" => kind, "text" => raw["text"]&.to_s&.truncate(500), "tag" => raw["tag"]&.to_s }
-
-      if raw["stamp"].present?
-        target["stamp"] = raw["stamp"].to_s
-        path, line, column = Source::Template.parse_stamp(raw["stamp"])
-        target["file"] = path
-        target["range"] = "#{line}:#{column}"
-        begin
-          target.merge!(Source::Template.new(path).element_range(line, column).stringify_keys)
-        rescue Error
-          nil
-        end
-      end
-
-      if kind == "translation"
-        target["key"] = raw["key"].to_s
-        target["locale"] = raw["locale"].to_s
-        if (entry = Source::Locale.find(target["locale"], target["key"]))
-          target["file"] = entry[:file]
-          target["range"] = entry[:line].to_s
-        end
-      end
-
-      if kind == "markdown" && raw["md"].present?
-        target["md"] = raw["md"].to_s
-        target["file"], target["range"] = raw["md"].to_s.split(/:(?=\d+:\d+-)/, 2)
-      end
-
-      target["classes"] = Array(raw["classes"]).map(&:to_s).grep(/\A[^\s]{1,80}\z/).first(12)
-      target["context"] = raw["context"].to_h.slice("partials", "controller", "frame").transform_values { Array(it).map(&:to_s).first(10) }.compact_blank
-      target.compact_blank
-    end
-
-    def rect(raw)
-      return nil unless raw.is_a?(Hash)
-
-      raw.to_h.stringify_keys.slice("x", "y", "width", "height").transform_values { it.to_f.round }
     end
 
     def new_id(db)

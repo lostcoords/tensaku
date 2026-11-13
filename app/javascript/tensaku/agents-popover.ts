@@ -1,6 +1,7 @@
 // The Agents popover: the coding agents connected to this app, what each is doing, and how to connect
 // one or have it listen.
 
+import { clientIcon } from "./client-icons"
 import { icon } from "./icons"
 import { type Agent, agentLabel, currentAgents } from "./notes"
 import { ago, redrawPopover } from "./popover"
@@ -26,10 +27,10 @@ function lastAction(agent: Agent) {
   const text = agent.listening ? `${waiting}${did ? ` · ${did}` : ""}` : did ? `Last ${did}` : "No calls yet"
   return [h("span", { className: "doing" }, text)]
 }
-// One agent: its name and handle, the folder it runs in, and what it did last.
+// One agent: its client's mark, its name and handle, the folder it runs in, and what it did last.
 function agentRow(agent: Agent) {
   return div(`agent${agent.listening ? " listening" : ""}${agent.channel ? " live" : ""}${agent.working.length ? " working" : ""}`,
-    div("who", h("strong", {}, agentLabel(agent)), h("span", { className: "where" }, agent.folder ?? "")),
+    div("who", h("strong", {}, clientIcon(agent.name), agentLabel(agent)), h("span", { className: "where" }, agent.folder ?? "")),
     agent.outdated ? div("outdated", "Runs older Tensaku code. Reconnect it (/mcp in Claude Code) or restart it.") : null,
     ...lastAction(agent))
 }
@@ -54,7 +55,7 @@ export function renderAgents(): Node[] {
         `${idle.length} more connected, not listening`), ...(idleOpen ? idle.map(agentRow) : [])]
     : idle.map(agentRow)
   return [
-    h("h3", {}, "Agents", h("span", { className: "where" }, "Coding agents connected to this app. Each note goes to one of them.")),
+    h("h3", {}, "Agents"),
     ...(agents.length
       ? [...listening.map(agentRow), ...rest, ...(listening.length ? [] : [div("connect", ...ask("None is listening. Agents read notes when you ask them to, so say this in your agent's chat:"))])]
       : [div("empty", "No agent connected."),

@@ -141,3 +141,9 @@ export function contentRect(element: Element): DOMRect {
 export function utf8Length(text: string): number {
   return new TextEncoder().encode(text).length
 }
+
+// Focus in one of the page's own fields: its keys (arrows, Enter, Cmd+C, Cmd+Z) belong to the field.
+export function typingInPage() {
+  const active = document.activeElement
+  return active instanceof HTMLElement && !isUi(active) && (active.matches("input, textarea, select") || active.isContentEditable)
+}

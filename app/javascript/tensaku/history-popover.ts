@@ -1,7 +1,7 @@
 // The Edit history popover: the saves made in this tab, with undo and redo.
 
 import { isApple } from "./api"
-import { editHistory, redo, undo } from "./editor"
+import { editHistory, redo, undo } from "./history"
 import { ago, closePopover } from "./popover"
 import { div, h } from "./ui"
 

@@ -251,6 +251,13 @@ export function showNote(note: Note, rect?: DOMRect) {
   setTimeout(() => document.addEventListener("pointerdown", close, true))
 }
 
+// Closes the note card opened from a pin, for Escape. Returns whether one was open.
+export function closeNote(): boolean {
+  if (!shown?.isConnected) return false
+  shown.remove()
+  return true
+}
+
 onRender(({ changed }) => {
   if (changed) {
     if (shownNote?.id === changed.id) showNote(changed)

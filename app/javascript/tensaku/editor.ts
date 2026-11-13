@@ -3,185 +3,15 @@
 // break breaks, an element's text keeps its style and opens its own editor on a click, and an element
 // without text is a small mark.
 
-import { diffRows, type Diff } from "./diff"
 import { api, ApiError, query } from "./api"
-import { attributeKey, nodesForKey, elementsWithAttributeKey, type TranslationKey } from "./markers"
-import { contentRect, copiesOf, editableAttributes, MARKDOWN, stampOf, STAMP, translationOf, utf8Length, editKind, visibleText } from "./dom"
-import { refresh, replaceText, type SourceKind } from "./refresh"
+import { attributeKey, type TranslationKey } from "./markers"
+import { contentRect, copiesOf, editableAttributes, MARKDOWN, stampOf, STAMP, translationOf, editKind, visibleText } from "./dom"
+import { type Entry, record, undo } from "./history"
+import { replaceText, type SourceKind } from "./refresh"
+import { type Description, type ElementPiece, finish, INTERPOLATION, type LocaleEntry, type MarkdownDescription, type Piece, rangeAfter, report, type SaveResult, showTranslation, textNodesOf, type TextPiece } from "./save"
 import { activeInShadow, div, h, layer, place, toast } from "./ui"
 
-interface TextPiece { kind: "text"; start: number; end: number; raw: string; text: string; index?: number }
-interface ElementPiece { kind: "element"; tag: string; label: string; stamp?: string | null }
-type Piece = TextPiece | { kind: "ruby"; code: string } | ElementPiece | { kind: "hidden" }
-interface Attribute { name: string; quote: string | null; pieces: Piece[] }
-interface Description { file: string; stamp: string; range: string; tag: string; helper: boolean; editable: boolean; pieces: Piece[]; attributes: Attribute[] }
-interface LocaleEntry { file?: string; line?: number; value: string | null; editable: boolean }
-interface MarkdownDescription { file: string; range: string; editable: boolean; prefix: string; text: string; original: string }
-
-// Undo and redo ------------------------------------------------------------------------------
-//
-// Every save is an entry: what changed, from what to what, as data, so the stacks survive a reload
-// (sessionStorage, per tab). Undo reverts the latest save, or a chosen one, and moves it to the redo
-// stack; redo applies the latest undone edit again; a new save clears the redo stack. Each step checks
-// that the source still holds the text it expects, like any save.
-
-type Op =
-  | { kind: "template"; stamp: string; changes: { index: number; from: string; to: string }[] }
-  | { kind: "attribute"; stamp: string; changes: { name: string; index: number; from: string; to: string }[] }
-  // Every locale saved from one translation editor, undone and redone together.
-  | { kind: "translation"; key: string; changes: { locale: string; from: string; to: string }[] }
-  // range covers the block as it reads now: after `to` when done, after `from` when undone.
-  | { kind: "markdown"; range: string; prefix: string; from: string; to: string; tag?: string }
-export interface Entry { id: number; label: string; key: string | null; file?: string; at: string; op: Op }
-
-const HISTORY_LIMIT = 50
-const HISTORY_KEY = "tensaku:history"
-let done: Entry[] = []
-let undone: Entry[] = []
-try {
-  const saved = JSON.parse(sessionStorage.getItem(HISTORY_KEY) ?? "null")
-  if (saved && Array.isArray(saved.done) && Array.isArray(saved.undone)) ({ done, undone } = saved)
-} catch {
-  // Blocked storage: the stacks start empty and last until the page is left.
-}
-function persist() {
-  try {
-    sessionStorage.setItem(HISTORY_KEY, JSON.stringify({ done, undone }))
-  } catch {
-    // Blocked storage: the stacks still work on this page.
-  }
-}
-const nextId = () => Math.max(0, ...done.map((entry) => entry.id), ...undone.map((entry) => entry.id)) + 1
-
-function record(element: Element | null, label: string, op: Op, file?: string): Entry {
-  const entry: Entry = { id: nextId(), label, key: element ? undoKey(element) : null, file, at: new Date().toISOString(), op }
-  done.push(entry)
-  if (done.length > HISTORY_LIMIT) done.shift()
-  undone = []
-  persist()
-  return entry
-}
-
-// The saves for the history popover, newest first: those that can be undone, and those that can be
-// redone (only the latest of these with Redo).
-export function editHistory() {
-  return { done: done.slice().reverse(), undone: undone.slice().reverse() }
-}
-
-export const canUndo = () => done.length > 0
-export const canRedo = () => undone.length > 0
-
-// Reverts entry, or the latest save, and puts it on the redo stack.
-export async function undo(entry: Entry | undefined = done[done.length - 1]) {
-  if (!entry || !done.includes(entry)) return toast("That edit was undone already.")
-  try {
-    const result = await apply(entry.op, true)
-    done = done.filter((item) => item !== entry)
-    undone.push(entry)
-    persist()
-    finish(result, sourceKind(entry.op), `Undid ${entry.label}`, { Redo: () => redo(entry) })
-  } catch (error) {
-    report(error)
-  }
-}
-
-export async function redo(entry: Entry | undefined = undone[undone.length - 1]) {
-  if (!entry || undone[undone.length - 1] !== entry) return toast("Only the latest undone edit can be redone.")
-  try {
-    const result = await apply(entry.op, false)
-    undone.pop()
-    done.push(entry)
-    persist()
-    finish(result, sourceKind(entry.op), `Redid ${entry.label}`, { Undo: () => undo(entry) })
-  } catch (error) {
-    report(error)
-  }
-}
-
-const sourceKind = (op: Op): SourceKind => op.kind === "attribute" ? "template" : op.kind
-
-// The latest save on element that can still be undone.
-export function undoFor(element: Element): Entry | undefined {
-  const key = undoKey(element)
-  return key ? done.slice().reverse().find((entry) => entry.key === key) : undefined
-}
-
-// Writes op's `from` back over `to` (undo), or `to` over `from` (redo), after checking the source
-// still reads what the step expects.
-async function apply(op: Op, reverse: boolean): Promise<SaveResult> {
-  const verb = reverse ? "undone" : "redone"
-  const stale = (what: string) => new ApiError(`The ${what} changed since the edit, so it can't be ${verb} here.`, 409, true)
-  if (op.kind === "template") {
-    const fresh = await api<Description>("GET", "/source" + query({ stamp: op.stamp }))
-    const texts = fresh.pieces.filter((p): p is TextPiece => p.kind === "text")
-    const edits = op.changes.map(({ index, from, to }) => {
-      const [current, target] = reverse ? [to, from] : [from, to]
-      const now = texts[index]
-      if (!now || now.text !== current) throw stale("text")
-      return { piece: now, current, target }
-    })
-    const result = await api<SaveResult>("POST", "/text", { stamp: op.stamp, edits: edits.map(({ piece, target }) => ({ start: piece.start, end: piece.end, original: piece.raw, text: target })) })
-    const nodes = textNodesOf(op.stamp)
-    edits.forEach(({ current, target }) => replaceText(nodes, current, target))
-    return result
-  }
-  if (op.kind === "attribute") {
-    let result: SaveResult = {}
-    for (const { name, index, from, to } of op.changes) {
-      const [current, target] = reverse ? [to, from] : [from, to]
-      const fresh = await api<Description>("GET", "/source" + query({ stamp: op.stamp }))
-      const now = fresh.attributes.find((a) => a.name === name)?.pieces.filter((p): p is TextPiece => p.kind === "text")[index]
-      if (!now || now.text !== current) throw stale("attribute")
-      result = await api<SaveResult>("POST", "/attribute", { stamp: op.stamp, name, start: now.start, end: now.end, original: now.raw, text: target })
-      document.querySelectorAll(`[${STAMP}="${CSS.escape(op.stamp)}"]`).forEach((el) => {
-        const value = el.getAttribute(name)
-        if (value !== null) el.setAttribute(name, value.replace(current, target))
-      })
-    }
-    return { ...result, changed: true }
-  }
-  if (op.kind === "translation") {
-    let result: SaveResult = {}
-    for (const { locale, from, to } of op.changes) {
-      const [current, target] = reverse ? [to, from] : [from, to]
-      const saved = await api<SaveResult>("POST", "/translation", { locale, key: op.key, original: current, text: target })
-      result = { ...saved, file: result.file ?? saved.file, changed: true }
-      showTranslation({ locale, key: op.key }, current, target)
-    }
-    return result
-  }
-  const [current, target] = reverse ? [op.to, op.from] : [op.from, op.to]
-  const result = await api<SaveResult>("POST", "/markdown", { range: op.range, original: op.prefix + current, text: target, tag: op.tag })
-  op.range = rangeAfter(op.range, op.prefix + target)
-  return result
-}
-
-// A Markdown block's range once its source is text: same start, the end moved to where text ends.
-function rangeAfter(range: string, text: string) {
-  const [, path, startLine, startColumn] = range.match(/^(.+):(\d+):(\d+)-/)!
-  const lines = text.split("\n")
-  const endLine = Number(startLine) + lines.length - 1
-  const endColumn = (lines.length === 1 ? Number(startColumn) - 1 : 0) + utf8Length(lines[lines.length - 1])
-  return `${path}:${startLine}:${startColumn}-${endLine}:${endColumn}`
-}
-
-const textNodesOf = (stamp: string) => Array.from(document.querySelectorAll(`[${STAMP}="${CSS.escape(stamp)}"]`)).flatMap((el) =>
-  Array.from(el.childNodes).filter((node): node is Text => node.nodeType === Node.TEXT_NODE))
-
-function showTranslation(key: TranslationKey, from: string, to: string) {
-  if (INTERPOLATION.test(from)) return
-  replaceText(nodesForKey(key), from, to)
-  elementsWithAttributeKey(key).forEach(({ element: el, name }) => { if (el.getAttribute(name) === from) el.setAttribute(name, to) })
-}
-
 let open: { element: HTMLElement; save: () => Promise<void>; close: () => void } | null = null
-
-// The element's source position, so the element menu can undo its latest save, or null when it has
-// none (a translated attribute on an element without a stamp).
-function undoKey(element: Element): string | null {
-  const translation = translationOf(element)
-  return element.getAttribute(STAMP) ?? element.getAttribute(MARKDOWN) ?? (translation ? `${translation.locale}.${translation.key}` : null)
-}
 
 // Enter that confirms an IME composition (Japanese, Chinese, Korean input) must not save or insert.
 const composing = (event: KeyboardEvent) => event.isComposing || event.keyCode === 229
@@ -205,11 +35,6 @@ export async function edit(element: Element, kind = editKind(element)) {
   } catch (error) {
     report(error)
   }
-}
-
-function report(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error)
-  toast(message, { error: true, actions: error instanceof ApiError && error.stale ? { Reload: () => location.reload() } : undefined })
 }
 
 const normal = (text: string) => text.replace(/\s+/g, " ").trim()
@@ -397,7 +222,7 @@ async function saveTemplate(element: Element, stamp: string, changes: { piece: T
   const nodes = textNodesOf(stamp)
   changes.forEach(({ piece, text }) => replaceText(nodes, piece.text, text))
   const entry = result.changed ? record(element, `edit in ${stamp}`, { kind: "template", stamp, changes: changes.map(({ piece, text }) => ({ index: piece.index ?? -1, from: piece.text, to: text })) }, result.file) : undefined
-  done_(result, "template", entry)
+  afterSave(result, "template", entry)
 }
 
 // Attributes -----------------------------------------------------------------------------------
@@ -471,14 +296,12 @@ async function saveAttributePieces(element: Element, stamp: string, fields: { na
     if (saved.length) {
       const names = Array.from(new Set(saved.map((change) => change.name))).join(", ")
       const entry = record(element, names, { kind: "attribute", stamp, changes: saved }, last.file)
-      done_({ ...last, changed: true }, "template", entry)
+      afterSave({ ...last, changed: true }, "template", entry)
     }
   }
 }
 
 // Translations ---------------------------------------------------------------------------------
-
-const INTERPOLATION = /(%\{[^}]+\})/
 
 function interpolationSurface(value: string) {
   const surface = div("")
@@ -545,7 +368,7 @@ async function saveTranslations<T extends { locale: string; from: string; to: st
   } finally {
     const label = saved.length > 1 ? `${key.key} in ${saved.length} locales` : key.key
     const entry = saved.length ? record(element, label, { kind: "translation", key: key.key, changes: saved }, result.file) : undefined
-    if (saved.length) done_(result, "translation", entry)
+    if (saved.length) afterSave(result, "translation", entry)
   }
 }
 
@@ -576,28 +399,7 @@ async function saveMarkdown(element: Element, range: string, original: string, p
   const result = await api<SaveResult>("POST", "/markdown", { range, original, text, tag })
   if (!tag?.match(/^[uo]l$/) && !/[*_`\[\]<>#]/.test(previous + text)) replaceText(Array.from(element.childNodes).filter((n): n is Text => n.nodeType === Node.TEXT_NODE), previous, text)
   const entry = result.changed ? record(element, "Markdown edit", { kind: "markdown", range: rangeAfter(range, prefix + text), prefix, from: previous, to: text, tag }, result.file) : undefined
-  done_(result, "markdown", entry)
-}
-
-// After any save --------------------------------------------------------------------------------
-
-type SaveResult = { changed?: boolean; file?: string; warning?: string; diff?: Diff }
-
-// A save made in the editor: its toast offers Undo while the entry can still be undone.
-function done_(result: SaveResult, kind: SourceKind, entry?: Entry) {
-  finish(result, kind, "Saved", entry ? { Undo: () => undo(entry) } : undefined)
-}
-
-function finish(result: SaveResult, kind: SourceKind, verb: string, actions?: Record<string, () => void>) {
-  if (!result.changed) return
-  const where = result.diff ? `${result.file}:${result.diff.line}` : result.file ?? ""
-  toast(`${verb} ${where}`.trim(), {
-    timeout: result.diff ? 8000 : undefined,
-    detail: result.diff ? diffRows(result.diff) : undefined,
-    actions,
-  })
-  if (result.warning) toast(result.warning, { timeout: 8000 })
-  refresh(kind)
+  afterSave(result, "markdown", entry)
 }
 
 // Text pieces get their index among text pieces, which survives an edit (the offsets don't).
@@ -613,4 +415,9 @@ function attributeNode(element: Element, name: string) {
   const node = document.createElement("span")
   node.textContent = element.getAttribute(name) ?? ""
   return node
+}
+
+// A save made in the editor: its toast offers Undo while the entry can still be undone.
+function afterSave(result: SaveResult, kind: SourceKind, entry?: Entry) {
+  finish(result, kind, "Saved", entry ? { Undo: () => undo(entry) } : undefined)
 }

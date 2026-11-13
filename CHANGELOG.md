@@ -11,6 +11,10 @@
 - The editor shows child elements as they look on the page instead of as code. `<br>` breaks the line,
   an element's text keeps its style, dimmed, and opens that element's editor on a click, and an element
   without text is a small mark. Whitespace between elements is no longer an editable field.
+- Escape closes one thing at a time, the innermost first: it leaves a field in Tensaku's panels, then
+  closes the popover, the element menu, the note opened from a pin, the settings or notes panel, turns
+  select or edit mode off, and last folds the toolbar away. A focused field of the page keeps its own
+  Escape.
 - Locked chips have a fixed size, so they stay small in a heading, and long ones are cut off with an
   ellipsis.
 
@@ -21,6 +25,9 @@
   be running and no port is configured. It serves the app that contains the agent's directory, or the
   apps below it that list tensaku in `Gemfile.lock`, or those given with `--app`. Rerun the generator
   to replace the old `.mcp.json` entry.
+- The Agents popover shows each agent's mark when its client is known (Claude Code, Cursor, Gemini CLI,
+  OpenCode, GitHub Copilot, Windsurf, Zed, Cline), from Simple Icons. Codex and other clients show a
+  paper plane.
 - `bundle exec tensaku notes` does what the MCP tools do, from a shell, for agents without MCP.
 - Notes are kept in a SQLite database, `tensaku.sqlite3` in your user data folder (`TENSAKU_HOME` to
   change it), for every app and checkout on the machine, instead of JSON files in `tmp/tensaku/notes`.

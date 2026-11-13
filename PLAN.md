@@ -250,6 +250,7 @@ lib/tensaku/caches.rb           clears template caches and reloads I18n after a 
 lib/tensaku/project.rb          an app as a database row: change log, version, selection, base URL
 lib/tensaku/notes.rb            notes: create, list, claim, resolve, archive
 lib/tensaku/notes/markdown.rb   notes as Markdown for agents
+lib/tensaku/notes/target.rb     what a note points at, with file and line filled in from the source
 lib/tensaku/agents.rb           connected agent sessions, handles, note ownership
 lib/tensaku/presence.rb         file locks that tell whether a session's process still runs
 lib/tensaku/store.rb            the SQLite database in the user data folder, schema
@@ -259,7 +260,20 @@ lib/tensaku/session.rb          one agent session: the tools, watching, claiming
 lib/tensaku/mcp.rb              JSON-RPC over stdio in front of a session (`tensaku mcp`), no Rails
 lib/tensaku/cli.rb              the `tensaku` command
 skills/tensaku/SKILL.md         Claude Code skill
-app/javascript/tensaku/         overlay source (TypeScript)
+app/javascript/tensaku/         overlay source (TypeScript):
+  index.ts                      page events routed to the modules below, redraws, boot
+  mode.ts                       off, select or edit, and who follows it
+  dock.ts                       corner button and toolbar
+  inspect.ts                    select mode: highlight, arrow keys, element menu, Shift-click picks
+  outlines.ts                   edit mode outlines
+  editor.ts                     the in-place editor
+  history.ts                    undo and redo of saves, kept per tab
+  save.ts                       source endpoint replies, what follows a save
+  notes.ts                      notes and agents from the server, change events
+  note-card.ts, notes-panel.ts  the note form and card, the notes side panel
+  pins.ts, announce.ts          pins on the page, toasts when an agent answers
+  agents-popover.ts             connected agents; client-icons.ts gives each its client's mark
+  ui.ts, overlay.css            shadow root, element helpers, the stylesheet
 app/assets/tensaku.js           compiled overlay, committed
 test/dummy/                     Rails 8.1 app used by the test suite
 docs/                           documentation site, a separate Rails app built with Kiln
@@ -518,9 +532,11 @@ adds a second one.
     `TENSAKU_HOME` changes. Binary strings (ids from a request path) are bound as text, or SQLite
     compares them as blobs and finds nothing.
   - Notes from the file era aren't imported: Tensaku isn't released, so nobody has notes to keep.
-  - Migrations (2026-11-13): `Store::SCHEMA` is the base as of `user_version` 2, and `MIGRATIONS` lists
-    every later change in order, each applied once in the same immediate transaction that reads the
-    version. A step that may have run is never changed. The first step adds `agents.version`.
+  - Migrations (2026-11-13): `Store::SCHEMA` is the base as of `user_version` 5 (`Store::BASE`), and
+    `MIGRATIONS` lists every later change in order, each applied once in the same immediate transaction
+    that reads the version. A step that may have run is never changed. A database below the base is
+    from before the first release: its tables are dropped and made again. The base was reset on
+    2026-11-13 to fold in `agents.version` and `agents.channel` and drop the unused `agents.idle`.
   - Cost: the `sqlite3` gem, a native gem, for apps on Postgres or MySQL too. Agents can't edit notes
     as files; `tensaku notes` replaces that.
 - **Data folder (added 2026-11-13):** the database is in the platform's per-user data folder

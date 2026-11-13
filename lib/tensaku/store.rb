@@ -13,8 +13,11 @@ module Tensaku
     FILE = "tensaku.sqlite3"
     BUSY_TIMEOUT = 5000
 
-    # The tables as they were at schema version 2. A database at version 0 or 1 gets them (the scripts
-    # only create what is missing), and every database then runs the MIGRATIONS after its version.
+    # The tables at schema version BASE. A database below BASE is from before Tensaku's first release:
+    # its tables are dropped and made again from this script. Every database then runs the MIGRATIONS
+    # after its version.
+    BASE = 5
+    TABLES = %w[screenshots messages changes selections agents notes projects].freeze
     SCHEMA = <<~SQL
       CREATE TABLE IF NOT EXISTS projects (
         root TEXT PRIMARY KEY,
@@ -57,11 +60,12 @@ module Tensaku
         name TEXT NOT NULL,
         handle TEXT NOT NULL,
         listening INTEGER NOT NULL DEFAULT 0,
-        idle INTEGER NOT NULL DEFAULT 0,
+        channel INTEGER NOT NULL DEFAULT 0,
         cwd TEXT,
         pid INTEGER NOT NULL,
         started_at TEXT,
         last TEXT,
+        version TEXT,
         seen_at REAL NOT NULL,
         PRIMARY KEY (session, project)
       );
@@ -89,13 +93,10 @@ module Tensaku
       );
     SQL
 
-    # Each change to the schema after version 2, in order, applied once: MIGRATIONS[0] takes a database
-    # from version 2 to 3. Add to the end; never change a step that may have run.
-    MIGRATIONS = [
-      "ALTER TABLE agents ADD COLUMN version TEXT",
-      "ALTER TABLE agents ADD COLUMN channel INTEGER NOT NULL DEFAULT 0"
-    ].freeze
-    VERSION = 2 + MIGRATIONS.size
+    # Each change to the schema after BASE, in order, applied once: MIGRATIONS[0] takes a database from
+    # BASE to BASE + 1. Add to the end; never change a step that may have run.
+    MIGRATIONS = [].freeze
+    VERSION = BASE + MIGRATIONS.size
 
     LOCK = Monitor.new
 
@@ -164,8 +165,11 @@ module Tensaku
         current = connection.get_first_value("PRAGMA user_version").to_i
         next if current >= VERSION
 
-        connection.execute_batch(SCHEMA) if current < 2
-        MIGRATIONS.drop([ current - 2, 0 ].max).each { connection.execute_batch(it) }
+        if current < BASE
+          TABLES.each { connection.execute("DROP TABLE IF EXISTS #{it}") }
+          connection.execute_batch(SCHEMA)
+        end
+        MIGRATIONS.drop([ current - BASE, 0 ].max).each { connection.execute_batch(it) }
         connection.execute("PRAGMA user_version = #{VERSION}")
       end
     end

@@ -76,7 +76,7 @@ Click the corner button and choose **Select**, or press Alt+Shift+T. Hover to se
 | Arrow keys | Move the highlight to the parent, the first child or a sibling |
 | Enter | Opens the menu |
 | Cmd+C (Ctrl+C) | Copies the highlighted element's reference, when no text is selected |
-| Esc | Leaves select mode |
+| Esc | Closes the innermost open thing: the menu, the note from a pin, the side panel, then select mode, then the toolbar |
 
 The menu has these items, with the key that picks each one:
 

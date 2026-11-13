@@ -92,18 +92,22 @@ class Tensaku::StoreTest < Tensaku::TestCase
     assert_equal({ "Current" => false, "Old" => true }, Tensaku::Agents.list.to_h { [ it["name"], it["outdated"] ] })
   end
 
-  test "a database at an older schema version gets the later migrations" do
+  test "a database from before the base schema is made again" do
     Tensaku::Store.reset!
     path = Tensaku::Store.path
     path.dirname.mkpath
     old = SQLite3::Database.new(path.to_s)
-    old.execute_batch(Tensaku::Store::SCHEMA)
-    old.execute("PRAGMA user_version = 2")
+    old.execute("CREATE TABLE agents (session TEXT, idle INTEGER)")
+    old.execute("INSERT INTO agents VALUES ('a', 0)")
+    old.execute("PRAGMA user_version = 4")
     old.close
 
     Tensaku::Agents.seen!(SecureRandom.hex(16), name: "Codex")
     assert_equal Tensaku::Store::VERSION, Tensaku::Store.read { it.get_first_value("PRAGMA user_version") }
-    assert Tensaku::Store.read { it.execute("PRAGMA table_info(agents)").any? { it["name"] == "version" } }
+    columns = Tensaku::Store.read { it.execute("PRAGMA table_info(agents)").map { it["name"] } }
+    assert_includes columns, "channel"
+    assert_not_includes columns, "idle"
+    assert_equal 1, Tensaku::Store.read { it.get_first_value("SELECT COUNT(*) FROM agents") }
   end
 
   test "a new session gets a handle no connected session of the app has" do
