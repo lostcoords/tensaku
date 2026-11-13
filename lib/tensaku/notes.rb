@@ -32,18 +32,32 @@ module Tensaku
 
     module_function
 
-    def all(archived: false)
-      Project.read { |db, app| load_notes(db, "project = ? AND archived_at IS #{archived ? "NOT " : ""}NULL ORDER BY created_at", [ app ]) }
-    end
+    # The notes not in the archive.
+    def all = list
 
-    # session leaves out the notes another running agent session owns. status "archived" lists the
-    # archive.
+    # url and status narrow the list; status "archived" lists the archive. session leaves out the notes
+    # another running agent session owns.
     def list(url: nil, status: nil, session: nil)
       statuses = Array(status).map(&:to_s)
       archived = statuses.delete("archived")
-      notes = archived ? all(archived: true) : all
-      notes.select do |note|
-        (url.nil? || note["url"] == url) && (statuses.empty? || archived || statuses.include?(note["status"])) && available_to?(note, session)
+      where = [ "project = ?", "archived_at IS #{"NOT " if archived}NULL" ]
+      params = []
+      if url
+        where << "url = ?"
+        params << text(url)
+      end
+      if statuses.any? && !archived
+        where << "status IN (#{(%w[?] * statuses.size).join(", ")})"
+        params.concat(statuses)
+      end
+      notes = Project.read { |db, app| load_notes(db, "#{where.join(" AND ")} ORDER BY created_at", [ app, *params ]) }
+      session ? notes.select { available_to?(it, session) } : notes
+    end
+
+    # How many notes need something from an agent or from you.
+    def active_count
+      Project.read do |db, app|
+        db.get_first_value("SELECT COUNT(*) FROM notes WHERE project = ? AND archived_at IS NULL AND status IN (#{ACTIVE.map { "'#{it}'" }.join(", ")})", [ app ])
       end
     end
 
@@ -52,6 +66,16 @@ module Tensaku
       raise NotFound, "No note #{id.inspect}" unless id.match?(ID)
 
       Project.read { |db, app| load_notes(db, "project = ? AND id = ?", [ app, id ]).first } or raise NotFound, "No note #{id.inspect}"
+    end
+
+    # The note with id in one of several apps (root directories): [app, note].
+    def locate(apps, id)
+      apps.each do |app|
+        return [ app, Tensaku.with_root(app) { find(id) } ]
+      rescue NotFound
+        next
+      end
+      raise NotFound, "No note #{text(id).inspect}"
     end
 
     # A string as SQLite should compare it. A binary string (a note id from a request path) would be
@@ -222,7 +246,7 @@ module Tensaku
     # passes it as the next since sees every note exactly once.
     def sent_between(since, upto, session: nil)
       Project.write do
-        all.select { it["status"] == "open" && it["sent_at"] && it["sent_at"] > Project.timestamp(since) && it["sent_at"] <= Project.timestamp(upto) && available_to?(it, session) }
+        list(status: "open", session:).select { it["sent_at"] && it["sent_at"] > Project.timestamp(since) && it["sent_at"] <= Project.timestamp(upto) }
       end
     end
 

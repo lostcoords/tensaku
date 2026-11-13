@@ -15,76 +15,6 @@ module Tensaku
 
     CHANNEL_INSTRUCTIONS = " This server may also be a Claude Code channel. Its events arrive as <channel source=\"tensaku\"> messages. The first one asks you to call channel_ready with a code: do that, then tell the person in one line that Tensaku notes now arrive in this chat. Each later event holds notes the person saved on the page, already yours: work through them like notes from watch_notes. There's no need to call watch_notes while the channel works."
 
-    TOOLS = [
-      {
-        name: "list_notes",
-        description: "List Tensaku notes left on pages of this Rails app. Each note has a comment and targets with the exact file and line range that rendered the element. Defaults to notes that need work (open, working and question), sent or not.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            status: { type: "string", enum: %w[open working question resolved declined active all], description: "active (default) means open, working or question." },
-            url: { type: "string", description: "Only notes left on this path, for example /about." }
-          }
-        }
-      },
-      {
-        name: "get_note",
-        description: "Get one Tensaku note by id.",
-        inputSchema: { type: "object", properties: { id: { type: "string" } }, required: [ "id" ] }
-      },
-      {
-        name: "get_screenshot",
-        description: "Get the screenshot the page took of what a note points at, as a PNG, when the note says it has one. It shows the page as the person saw it when writing the note.",
-        inputSchema: { type: "object", properties: { id: { type: "string" } }, required: [ "id" ] }
-      },
-      {
-        name: "start_note",
-        description: "Mark a note as being worked on before you make the change. The pin on the page shows that an agent has picked it up, and the note becomes this session's. Fails when the note belongs to another running agent session: then leave it. Call resolve_note as soon as the change is made.",
-        inputSchema: { type: "object", properties: { id: { type: "string" } }, required: [ "id" ] }
-      },
-      {
-        name: "resolve_note",
-        description: "Mark a note resolved as soon as its change is made, before starting the next note. Only a note you started with start_note can be resolved. The person is watching the page, so don't save these up for the end. The reply is shown next to a green pin: say in one line what changed and where (for example: changed the heading in app/views/pages/_hero.html.erb:4).",
-        inputSchema: { type: "object", properties: { id: { type: "string" }, reply: { type: "string" } }, required: %w[id reply] }
-      },
-      {
-        name: "decline_note",
-        description: "Close a note without changing anything, when the change shouldn't be made or can't be made here. The reason is shown on the page next to the note.",
-        inputSchema: { type: "object", properties: { id: { type: "string" }, reason: { type: "string" } }, required: %w[id reason] }
-      },
-      {
-        name: "ask_question",
-        description: "Ask the person who wrote a note for clarification instead of guessing. The question shows on the page; the note's status becomes question until they answer on the note.",
-        inputSchema: { type: "object", properties: { id: { type: "string" }, question: { type: "string" } }, required: %w[id question] }
-      },
-      {
-        name: "reply_to_note",
-        description: "Add a message to a note's thread without changing its status, for example to say what you found or what you will do. It shows on the page under the note.",
-        inputSchema: { type: "object", properties: { id: { type: "string" }, message: { type: "string" } }, required: %w[id message] }
-      },
-      {
-        name: "watch_notes",
-        description: "Wait for notes the person saves on the page, so you can work through them as they arrive. Returns as soon as there are any, or empty after the timeout. While you wait, the page shows you as listening. Pass the checked_at value of the previous call as since so nothing is missed, and call it again after working through the notes to keep listening.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            since: { type: "string", description: "ISO 8601 time. Defaults to now." },
-            timeout_seconds: { type: "integer", minimum: 1, maximum: Session::MAX_WATCH, description: "Defaults to 60." }
-          }
-        }
-      },
-      {
-        name: "channel_ready",
-        description: "Only when a Tensaku channel event asks for it: confirms that Tensaku's channel messages reach this session, so the person's notes are pushed here as they save them.",
-        inputSchema: { type: "object", properties: { code: { type: "string", description: "The code from the channel event" } }, required: %w[code] }
-      },
-      {
-        name: "current_selection",
-        description: "What the person last selected in the Tensaku overlay (elements with file and line), for questions like 'what is this?'.",
-        inputSchema: { type: "object", properties: {} }
-      }
-    ].freeze
-
     INSTRUCTIONS = "Tensaku notes are comments a person left on pages of this Rails app, each with the file and line that rendered the element. Work through open notes one at a time: start_note, make the change, then resolve_note with a one-line reply before the next note, so the page shows progress as it happens. Ask a question when a note is unclear, and decline_note when the change shouldn't be made. When the person asks you to watch or listen for notes, call watch_notes in a loop, and tell them the session name its first answer gives you (such as amber-fox), which the page shows next to your name. A note belongs to the session the person assigned it to, was handed it or started it: call start_note before you change anything for a note, and leave notes another session owns. A note with a screenshot says so; get_screenshot returns it. Once you have called watch_notes, notes sent while you work come with the answer of whichever Tensaku tool you call next, already yours: work through them, and call watch_notes again only when you have nothing else to do."
 
     # Claude Code registers its channel listener a moment after initialization, and drops what comes
@@ -161,7 +91,7 @@ module Tensaku
       result = case message["method"]
       when "initialize" then initialize_result(message["params"].to_h)
       when "ping" then {}
-      when "tools/list" then { tools: TOOLS }
+      when "tools/list" then { tools: Session::TOOLS }
       when "tools/call" then session.call(message.dig("params", "name"), message.dig("params", "arguments") || {})
       else return error_payload(id, -32601, "Method not found: #{message["method"]}")
       end

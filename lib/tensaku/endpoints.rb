@@ -15,6 +15,9 @@ module Tensaku
     # checking in, and to write a comment so a closed tab is noticed.
     STREAM_CHECK = 10
 
+    # /notes/ID and /notes/ID/screenshot.
+    NOTE_PATH = %r{\A/notes/([a-z0-9]+)(?:/screenshot)?\z}
+
     def self.asset_digest
       Digest::SHA256.file(ASSET).hexdigest[0, 12]
     rescue Errno::ENOENT
@@ -47,6 +50,7 @@ module Tensaku
 
     def route(request, path)
       params = request.get? ? request.GET : body(request)
+      note_id = path[NOTE_PATH, 1]
 
       case [ request.request_method, path ]
       in [ "GET", "/source" ]
@@ -83,7 +87,7 @@ module Tensaku
         listed = Notes.list(url: params["url"].presence, status: ("archived" if params["archived"] == "1"))
         # changed_at: the last time an agent said something on a note in this app, so the page fetches
         # itself again to show its change, whatever page the note was on.
-        json(notes: listed, open: Notes.list(status: Notes::ACTIVE).size, agents: Agents.list, restart: Build.stale?, changed_at: Notes.last_agent_message_at)
+        json(notes: listed, open: Notes.active_count, agents: Agents.list, restart: Build.stale?, changed_at: Notes.last_agent_message_at)
       in [ "GET", "/events" ]
         events(request)
       in [ "GET", "/notes.md" ]
@@ -92,22 +96,21 @@ module Tensaku
         [ 200, { "content-type" => "text/markdown; charset=utf-8" }, [ markdown ] ]
       in [ "POST", "/notes" ]
         json(Notes.create(params), 201)
-      in [ "PUT", %r{\A/notes/([a-z0-9]+)/screenshot\z} ]
-        json(Notes.attach_screenshot(path.split("/")[-2], params["png"]))
-      in [ "GET", %r{\A/notes/([a-z0-9]+)/screenshot\z} ]
-        shot = Notes.screenshot(path.split("/")[-2]) or raise Notes::NotFound, "That note has no screenshot"
+      in [ "PUT", %r{\A/notes/[a-z0-9]+/screenshot\z} ]
+        json(Notes.attach_screenshot(note_id, params["png"]))
+      in [ "GET", %r{\A/notes/[a-z0-9]+/screenshot\z} ]
+        shot = Notes.screenshot(note_id) or raise Notes::NotFound, "That note has no screenshot"
         [ 200, { "content-type" => "image/png", "cache-control" => "no-store" }, [ shot["png"] ] ]
-      in [ "PATCH", %r{\A/notes/([a-z0-9]+)\z} ]
-        id = path.split("/").last
+      in [ "PATCH", %r{\A/notes/[a-z0-9]+\z} ]
         # An edit or a message is for the agent: the note is sent again. A status change alone (done,
         # reopened, or undoing either) isn't.
         changed = params["message"].present? || params["comment"].present?
-        json(Notes.update(id, status: params["status"], comment: params["comment"],
+        json(Notes.update(note_id, status: params["status"], comment: params["comment"],
           message: params["message"], from: "you", send: changed && params["status"] == "open", to: params["to"]))
       in [ "POST", "/notes/archive" ]
         json(archived: Notes.archive!(params["ids"]))
-      in [ "DELETE", %r{\A/notes/([a-z0-9]+)\z} ]
-        Notes.delete(path.split("/").last)
+      in [ "DELETE", %r{\A/notes/[a-z0-9]+\z} ]
+        Notes.delete(note_id)
         json({ deleted: true })
       in [ "GET", "/editor" ]
         json(url: editor_url(params["file"], params["line"]))

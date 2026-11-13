@@ -82,14 +82,14 @@ module Tensaku
 
     # Writes a note's screenshot to file, for an agent that reads images from disk, and prints where.
     def screenshot(id, file, apps, output:)
-      app = apps.find { |root| Tensaku.with_root(root) { Notes.find(id) } rescue Notes::NotFound }
-      abort "No note #{id.inspect}" unless app
-
+      app, = Notes.locate(apps, id)
       shot = Tensaku.with_root(app) { Notes.screenshot(id) } or abort "Note #{id} has no screenshot."
       path = Pathname(file || app.join("tmp/tensaku/screenshots/#{id}.png")).expand_path
       path.dirname.mkpath
       path.binwrite(shot["png"])
       output.puts("#{path} (#{shot["width"]}x#{shot["height"]})")
+    rescue Notes::NotFound => error
+      abort error.message
     end
 
     def note_call(words, options)

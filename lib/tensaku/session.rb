@@ -2,8 +2,8 @@ require "json"
 require "securerandom"
 
 module Tensaku
-  # One agent session over one or more apps: the tools an agent calls, by `tensaku mcp` (Mcp) or
-  # `tensaku notes` (CLI). It runs without Rails and works on Tensaku's database for each app.
+  # One agent session over one or more apps, behind `tensaku mcp` (Mcp) and `tensaku notes` (CLI). It
+  # answers the tools in Session::Tools, and runs without Rails on Tensaku's database for each app.
   #
   # While it runs it checks in to each app's agents table (Agents.seen!), so the page shows the agent as
   # connected, and as listening while a watch_notes call waits.
@@ -13,12 +13,16 @@ module Tensaku
   # channel_ready with that code. From then on it claims each note saved on the page, as watch_notes
   # would, and pushes it into the session.
   class Session
+    autoload :Tools, "tensaku/session/tools"
+
     MAX_WATCH = 300
     HEARTBEAT = 5
     # A watch sleeps on the doorbell, and looks anyway this often, for a note whose owner went away.
     RECHECK = 10
     LOG = "tmp/tensaku/mcp.log"
     LOG_LIMIT = 1_000_000
+
+    include Tools
 
     attr_reader :apps, :id, :channel_code
     attr_accessor :name
@@ -97,64 +101,10 @@ module Tensaku
 
     private
 
-    # Replies are text only. A reply that repeated itself as structured data would cost an agent the
-    # tokens twice, and a state change only needs an acknowledgement.
     def run(name, arguments)
-      case name
-      when "list_notes"
-        status = arguments["status"].presence || "active"
-        statuses = { "active" => Notes::ACTIVE, "all" => nil }.fetch(status, status)
-        @checked_at = Time.now.utc
-        url = arguments["url"].presence
-        text = markdown { Notes.list(url:, status: statuses, session: id) }
-        taken = apps.sum { |app| Tensaku.with_root(app) { Notes.list(url:, status: statuses).size - Notes.list(url:, status: statuses, session: id).size } }
-        text += "\n\n#{taken} more #{taken == 1 ? "note belongs" : "notes belong"} to other running agent sessions and #{taken == 1 ? "isn't" : "aren't"} listed. Leave #{taken == 1 ? "it" : "them"} to those sessions." if taken.positive?
-        result(text)
-      when "get_note"
-        app, note = find(arguments["id"])
-        result(Tensaku.with_root(app) { Notes::Markdown.note(note, app: app_label(app)) })
-      when "get_screenshot"
-        shot = in_app_of(arguments["id"]) { Notes.screenshot(arguments["id"]) }
-        return result("Note #{arguments["id"]} has no screenshot.", error: true) unless shot
+      return result("Unknown tool #{name}", error: true) unless Tools::NAMES.include?(name.to_s)
 
-        { content: [ { type: "image", data: [ shot["png"] ].pack("m0"), mimeType: "image/png" } ], isError: false }
-      when "start_note"
-        note = in_app_of(arguments["id"]) { Notes.start(arguments["id"], agent: label, session: id) }
-        result("Started note #{note["id"]}. The page shows you as #{label}.")
-      when "resolve_note"
-        note = change(arguments["id"], status: "resolved", message: arguments["reply"], started: true)
-        result("Resolved note #{note["id"]}.#{" Call watch_notes to keep listening." if @watched && !@channel}")
-      when "decline_note"
-        note = change(arguments["id"], status: "declined", message: arguments["reason"])
-        result("Declined note #{note["id"]}.")
-      when "ask_question"
-        note = change(arguments["id"], status: "question", message: arguments["question"])
-        result("Asked on note #{note["id"]}.")
-      when "reply_to_note"
-        note = change(arguments["id"], message: arguments["message"])
-        result("Added a message to note #{note["id"]}.")
-      when "watch_notes"
-        since = arguments["since"].present? ? Time.iso8601(arguments["since"]) : Time.now.utc
-        timeout = arguments["timeout_seconds"].nil? ? 60 : arguments["timeout_seconds"].to_i.clamp(1, MAX_WATCH)
-        first = !@watched
-        @watched = true
-        found, checked_at = watch(since, timeout)
-        @checked_at = [ @checked_at, checked_at ].max
-        text = found.empty? ? "No new notes in #{timeout}s." : found_markdown(found)
-        intro = "You are listening as #{label}. Tell the person this name: the page shows it, and the notes handed to you are yours.\n\n" if first
-        result("#{intro}#{text}\n\nchecked_at: #{checked_at.iso8601(6)}").merge(handed: ids(found))
-      when "channel_ready"
-        return result("That isn't the code from Tensaku's channel event.", error: true) unless @push && arguments["code"].to_s == @channel_code
-
-        start_channel
-        waiting = apps.sum { |app| Tensaku.with_root(app) { Notes.list(status: Notes::ACTIVE, session: id).size } }
-        result("Tensaku's channel works. Notes the person saves on the page arrive in this chat as #{label}, already yours. Tell the person in one line#{", and that #{waiting} earlier #{waiting == 1 ? "note is" : "notes are"} open (list_notes has them), without starting on them unless they ask" if waiting.positive?}.")
-      when "current_selection"
-        selection = apps.filter_map { |app| Tensaku.with_root(app) { Project.selection } }.max_by { it["at"].to_s }
-        result(selection ? JSON.pretty_generate(selection) : "Nothing selected in the Tensaku overlay yet.")
-      else
-        result("Unknown tool #{name}", error: true)
-      end
+      send(name.to_s, arguments)
     rescue Error, ArgumentError => error
       result(error.message, error: true)
     rescue StandardError => error
@@ -167,11 +117,11 @@ module Tensaku
         found = claim_since(@checked_at)
         return [] if found.empty?
 
-        result[:content] << { type: "text", text: "Notes the person saved while you worked. They are yours now; work through them next:\n\n#{found_markdown(found)}" }
+        result[:content] << { type: "text", text: "Notes the person saved while you worked. They are yours now; work through them next:\n\n#{notes_markdown(found)}" }
         ids(found)
       else
         now = Time.now.utc
-        sent = apps.flat_map { |app| Tensaku.with_root(app) { Notes.sent_between(@checked_at, now, session: id) } }.map { it["id"] }
+        sent = per_app { Notes.sent_between(@checked_at, now, session: id) }.flat_map(&:last).map { it["id"] }
         result[:content] << { type: "text", text: "#{sent.size == 1 ? "1 note was" : "#{sent.size} notes were"} saved on the page since you last looked (#{sent.join(", ")}). Call watch_notes or list_notes next." } if sent.any?
         []
       end
@@ -242,7 +192,7 @@ module Tensaku
         loop do
           found = claim_since(@checked_at)
           if found.any?
-            @push.call("Notes the person saved on the page. They are yours: work through them one at a time with start_note and resolve_note.\n\n#{found_markdown(found)}", kind: "notes", notes: ids(found).join(" "))
+            @push.call("Notes the person saved on the page. They are yours: work through them one at a time with start_note and resolve_note.\n\n#{notes_markdown(found)}", kind: "notes", notes: ids(found).join(" "))
             log("channel", Process.clock_gettime(Process::CLOCK_MONOTONIC), { content: [] }, ids(found))
           end
           doorbell.wait(RECHECK)
@@ -280,38 +230,25 @@ module Tensaku
       apps.each { |app| Tensaku.with_root(app, &block) }
     end
 
+    # Runs the block in each app: [[app, value], ...].
+    def per_app(&block)
+      apps.map { |app| [ app, Tensaku.with_root(app, &block) ] }
+    end
+
     def change(note_id, **changes)
       in_app_of(note_id) { Notes.update(note_id, agent: label, session: id, **changes) }
     end
 
     def in_app_of(note_id, &block)
-      app, = find(note_id)
+      app, = Notes.locate(apps, note_id)
       Tensaku.with_root(app, &block)
     end
 
-    # The app that has the note, and the note.
-    def find(note_id)
-      apps.each do |app|
-        return [ app, Tensaku.with_root(app) { Notes.find(note_id) } ]
-      rescue Notes::NotFound
-        next
-      end
-      raise Notes::NotFound, "No note #{note_id.inspect}"
-    end
-
-    # The notes the block lists in each app, as one Markdown text.
-    def markdown(&block)
-      parts = apps.filter_map do |app|
-        Tensaku.with_root(app) do
-          notes = block.call
-          Notes::Markdown.list(notes, app: app_label(app), latest: true, session: id) if notes.any?
-        end
-      end
-      parts.empty? ? "No notes." : parts.join("\n\n")
-    end
-
-    def found_markdown(found)
-      found.map { |app, notes| Tensaku.with_root(app) { Notes::Markdown.list(notes, app: app_label(app), latest: true, session: id) } }.join("\n\n")
+    # Notes from several apps ([[app, notes], ...]) as one Markdown text, or "" when there are none.
+    def notes_markdown(found)
+      found.filter_map do |app, notes|
+        Tensaku.with_root(app) { Notes::Markdown.list(notes, app: app_label(app), latest: true, session: id) } if notes.any?
+      end.join("\n\n")
     end
 
     def ids(found)

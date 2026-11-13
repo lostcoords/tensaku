@@ -65,7 +65,7 @@ module Tensaku
     # directory it runs in, when it started, whether it is listening, its last tool call, and the notes
     # it is working on.
     def list(now: Time.now)
-      working = Notes.all.select { it["status"] == "working" }.group_by { it["session"] }
+      working = Notes.list(status: "working").group_by { it["session"] }
       rows = Project.read { |db, app| db.execute("SELECT * FROM agents WHERE project = ? AND seen_at > ?", [ app, now.to_f - WINDOW ]) }
       rows.select { Presence.alive?(it["session"]) }.map do |row|
         last = row["last"] && JSON.parse(row["last"])

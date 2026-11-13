@@ -256,7 +256,8 @@ lib/tensaku/presence.rb         file locks that tell whether a session's process
 lib/tensaku/store.rb            the SQLite database in the user data folder, schema
 lib/tensaku/doorbell.rb         Unix sockets that wake waiting readers after a write
 lib/tensaku/repo.rb             the commit and origin of an app, read from .git
-lib/tensaku/session.rb          one agent session: the tools, watching, claiming, the channel push
+lib/tensaku/session.rb          one agent session: check-ins, watching, claiming, the channel push
+lib/tensaku/session/tools.rb    the agent tools: each one's schema and the method that answers it
 lib/tensaku/mcp.rb              JSON-RPC over stdio in front of a session (`tensaku mcp`), no Rails
 lib/tensaku/cli.rb              the `tensaku` command
 skills/tensaku/SKILL.md         Claude Code skill
