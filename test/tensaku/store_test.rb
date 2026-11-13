@@ -53,11 +53,11 @@ class Tensaku::StoreTest < Tensaku::TestCase
 
   test "a heartbeat with nothing new isn't a change" do
     session = SecureRandom.hex(16)
-    Tensaku::Notes.agent_seen!(session, name: "Codex")
-    before = Tensaku::Notes.version
-    Tensaku::Notes.agent_seen!(session, name: "Codex")
-    assert_equal before, Tensaku::Notes.version
-    assert Tensaku::Notes.agent_connected?(session)
+    Tensaku::Agents.seen!(session, name: "Codex")
+    before = Tensaku::Project.version
+    Tensaku::Agents.seen!(session, name: "Codex")
+    assert_equal before, Tensaku::Project.version
+    assert Tensaku::Agents.connected?(session)
   end
 
   test "a session is connected while its process holds its lock, and not once the process ends, whatever its pid" do
@@ -66,30 +66,30 @@ class Tensaku::StoreTest < Tensaku::TestCase
     reader, writer = IO.pipe
     child = fork do
       reader.close
-      Tensaku::Notes.agent_seen!(session, name: "Codex")
+      Tensaku::Agents.seen!(session, name: "Codex")
       writer.puts "ready"
       writer.flush
       sleep
     end
     writer.close
     reader.gets
-    assert Tensaku::Notes.agent_connected?(session)
-    assert_equal [ "Codex" ], Tensaku::Notes.agents.map { it["name"] }
+    assert Tensaku::Agents.connected?(session)
+    assert_equal [ "Codex" ], Tensaku::Agents.list.map { it["name"] }
 
     Process.kill(:KILL, child)
     Process.wait(child)
     # The row still names the dead process's pid, which the system may give to a new process.
     Tensaku::Store.write { it.execute("UPDATE agents SET pid = ?", [ Process.pid ]) }
-    assert_not Tensaku::Notes.agent_connected?(session)
-    assert_empty Tensaku::Notes.agents
+    assert_not Tensaku::Agents.connected?(session)
+    assert_empty Tensaku::Agents.list
     assert_not Tensaku::Presence.path(session).exist?, "the free lock file is cleaned up"
   end
 
   test "an agent that started before Tensaku's code changed is marked outdated" do
-    Tensaku::Notes.agent_seen!(SecureRandom.hex(16), name: "Current")
-    Tensaku::Notes.agent_seen!(SecureRandom.hex(16), name: "Old", version: "000000000000")
+    Tensaku::Agents.seen!(SecureRandom.hex(16), name: "Current")
+    Tensaku::Agents.seen!(SecureRandom.hex(16), name: "Old", version: "000000000000")
 
-    assert_equal({ "Current" => false, "Old" => true }, Tensaku::Notes.agents.to_h { [ it["name"], it["outdated"] ] })
+    assert_equal({ "Current" => false, "Old" => true }, Tensaku::Agents.list.to_h { [ it["name"], it["outdated"] ] })
   end
 
   test "a database at an older schema version gets the later migrations" do
@@ -101,7 +101,7 @@ class Tensaku::StoreTest < Tensaku::TestCase
     old.execute("PRAGMA user_version = 2")
     old.close
 
-    Tensaku::Notes.agent_seen!(SecureRandom.hex(16), name: "Codex")
+    Tensaku::Agents.seen!(SecureRandom.hex(16), name: "Codex")
     assert_equal Tensaku::Store::VERSION, Tensaku::Store.read { it.get_first_value("PRAGMA user_version") }
     assert Tensaku::Store.read { it.execute("PRAGMA table_info(agents)").any? { it["name"] == "version" } }
   end
@@ -109,23 +109,23 @@ class Tensaku::StoreTest < Tensaku::TestCase
   test "a new session gets a handle no connected session of the app has" do
     first = SecureRandom.hex(16)
     second = first[0, 4] + SecureRandom.hex(14)
-    Tensaku::Notes.agent_seen!(first, name: "Codex")
+    Tensaku::Agents.seen!(first, name: "Codex")
 
-    assert_equal Tensaku::Notes.handle(first), Tensaku::Notes.handle(second)
-    assert_not_equal Tensaku::Notes.handle(first), Tensaku::Notes.free_handle(second)
-    assert_equal Tensaku::Notes.handle(second, 1), Tensaku::Notes.free_handle(second)
+    assert_equal Tensaku::Agents.handle(first), Tensaku::Agents.handle(second)
+    assert_not_equal Tensaku::Agents.handle(first), Tensaku::Agents.free_handle(second)
+    assert_equal Tensaku::Agents.handle(second, 1), Tensaku::Agents.free_handle(second)
   end
 
   test "a session busy with a note leaves new ones to an idle listener, and takes them when nobody is idle" do
     busy, idle = 2.times.map { SecureRandom.hex(16) }
-    Tensaku::Notes.agent_seen!(busy, name: "Busy", listening: true)
-    Tensaku::Notes.agent_seen!(idle, name: "Idle", listening: true)
+    Tensaku::Agents.seen!(busy, name: "Busy", listening: true)
+    Tensaku::Agents.seen!(idle, name: "Idle", listening: true)
     Tensaku::Notes.start(Tensaku::Notes.create(url: "/", comment: "Working on it")["id"], agent: "Busy", session: busy)
     since = Time.now.utc
     note = Tensaku::Notes.create(url: "/", comment: "New")
 
     assert_empty Tensaku::Notes.claim_sent(since, Time.now.utc, session: busy, agent: "Busy")
-    Tensaku::Notes.agent_seen!(idle, name: "Idle", listening: false)
+    Tensaku::Agents.seen!(idle, name: "Idle", listening: false)
     assert_equal [ note["id"] ], Tensaku::Notes.claim_sent(since, Time.now.utc, session: busy, agent: "Busy").map { it["id"] }
   end
 

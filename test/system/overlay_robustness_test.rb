@@ -35,7 +35,7 @@ class OverlayRobustnessTest < ApplicationSystemTestCase
   end
 
   test "agent status lives on the Agents button: its tooltip stays hidden until hovered, and the corner button has no dot" do
-    Tensaku::Notes.agent_seen!(SecureRandom.hex(16), name: "Codex")
+    Tensaku::Agents.seen!(SecureRandom.hex(16), name: "Codex")
     visit "/about"
     wait_for_overlay
     style = ->(selector, property, pseudo = "null") { page.evaluate_script(%(getComputedStyle(document.querySelector("tensaku-overlay").shadowRoot.querySelector("#{selector}"), #{pseudo}).#{property})) }

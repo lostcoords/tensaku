@@ -1,16 +1,15 @@
-// Notes: comments on elements or areas that an agent reads with the file and line attached. Stored
-// by the server in Tensaku's database; this module draws pins, the note form and the notes panel.
+// Notes: comments on elements or areas that an agent reads with the file and line attached, stored by
+// the server in Tensaku's database. This module holds the page's copy of the notes and the connected
+// agents, keeps it current, and tells the views (pins.ts, note-card.ts, notes-panel.ts, announce.ts)
+// when it changes.
 
-import { api, ApiError, isApple, meta, query } from "./api"
-import { contentRect, contextOf, MARKDOWN, nearestStamp, STAMP, tagLabel, translationOf, visibleText } from "./dom"
-import { textKeys } from "./markers"
-import { icon, type IconName } from "./icons"
+import { api, ApiError, meta, query } from "./api"
+import type { contextOf } from "./dom"
 import { settings } from "./settings"
-import { activeInShadow, copy, div, h, layer, fixed, panel, storage, store, toast } from "./ui"
-import { capture } from "./screenshot"
+import { toast } from "./ui"
 import { refreshAfterAgent } from "./refresh"
 
-interface Target {
+export interface Target {
   kind: "element" | "text" | "translation" | "markdown"
   stamp?: string
   text?: string
@@ -63,28 +62,109 @@ export interface Agent {
   channel?: boolean
 }
 
+// Which notes the notes panel lists besides this page's: every page's, or the archive. null while the
+// panel is closed or shows this page.
+export type Scope = "page" | "all" | "archived"
+
 let notes: Note[] = []
+let scoped: Note[] = []
+let scope: Scope | null = null
 let openCount = 0
 let agents: Agent[] = []
-const pinLayer = div("pins")
-layer.append(pinLayer)
+
+export const currentNotes = () => notes
+export const scopedNotes = () => scoped
+export const currentAgents = () => agents
+export const openNotes = () => openCount
+export const agentLabel = (agent: Agent) => agent.handle ? `${agent.name} · ${agent.handle}` : agent.name
+// The agents waiting in watch_notes.
+export const listeners = () => agents.filter((agent) => agent.listening).map(agentLabel)
+export const closed = (note: Note) => note.status === "resolved" || note.status === "declined"
+
+// What happened, for the views: a load (forced, or from a poll that found something new; first for the
+// page's first), or one note changed from this page, which an open card shows even while you type in it.
+export interface Render { force: boolean; first?: boolean; changed?: Note }
+const renderListeners: ((render: Render) => void)[] = []
 const countListeners: ((count: number) => void)[] = []
 const agentListeners: ((agents: Agent[]) => void)[] = []
+const changeListeners: ((before: Note[], after: Note[]) => void)[] = []
 
+export const onRender = (listener: (render: Render) => void) => renderListeners.push(listener)
 export const onCount = (listener: (count: number) => void) => countListeners.push(listener)
 export const onAgents = (listener: (agents: Agent[]) => void) => agentListeners.push(listener)
-export const currentAgents = () => agents
+// Every load after the first that found the notes changed, with the notes before and after.
+export const onChanges = (listener: (before: Note[], after: Note[]) => void) => changeListeners.push(listener)
 
-export function setPinsHidden(hidden: boolean) {
-  pinLayer.hidden = hidden
+// The server leaves out empty fields, so a note made without targets has none.
+const normalized = (list: Note[]) => list.map((note) => ({ ...note, targets: note.targets ?? [] }))
+
+let lastSignature = ""
+// Polls and forced loads can overlap; only the newest request's answer is used.
+let loadSequence = 0
+// A 403 means the page's token no longer matches the server's (tmp/tensaku/token changed). Said once, not on every
+// poll; the notes already drawn stay.
+let tokenWarned = false
+// Said once per page load.
+let restartWarned = false
+let agentChangedAt: string | undefined
+let primed = false
+
+export async function load({ force = false } = {}) {
+  const sequence = ++loadSequence
+  let first = false
+  try {
+    const data = await api<{ notes: Note[]; open: number; agents?: Agent[]; restart?: boolean; changed_at?: string }>("GET", "/notes" + query({ url: location.pathname }))
+    if (sequence !== loadSequence) return
+    tokenWarned = false
+    // An agent resolved a note since the last load, on any page: the page shows the change.
+    if (primed && data.changed_at && data.changed_at !== agentChangedAt) refreshAfterAgent()
+    agentChangedAt = data.changed_at
+    if (data.restart && !restartWarned) {
+      restartWarned = true
+      toast("Tensaku's code changed since this dev server started, so the page runs a newer overlay than the server. Restart the dev server.", { error: true, timeout: 20000 })
+    }
+    // A note deleted from the page waits a few seconds on the server, for its Undo.
+    data.notes = data.notes.filter((note) => !pendingDeletes.has(note.id))
+    agents = data.agents ?? []
+    agentListeners.forEach((listener) => listener(agents))
+    const signature = location.pathname + JSON.stringify([data.notes, data.open, listeners()])
+    if (!force && signature === lastSignature) return
+    lastSignature = signature
+    const after = normalized(data.notes)
+    if (primed && data.notes.length && notes.length) changeListeners.forEach((listener) => listener(notes, after))
+    first = !primed
+    primed = true
+    notes = after
+    openCount = data.open
+    if (scope && scope !== "page") {
+      const all = await scopeNotes(scope)
+      if (sequence !== loadSequence) return
+      scoped = all
+    }
+  } catch (error) {
+    if (sequence !== loadSequence) return
+    if (error instanceof ApiError && error.status === 403 && !tokenWarned) {
+      tokenWarned = true
+      toast(`${error.message} Notes can't be loaded until then.`, { error: true, timeout: 15000, actions: { Reload: () => location.reload() } })
+    }
+    return
+  }
+  countListeners.forEach((listener) => listener(openCount))
+  render({ force, first })
 }
 
-export async function deleteNotes(list: Note[]) {
-  try {
-    for (const note of list) await api("DELETE", `/notes/${note.id}`)
-  } finally {
-    await load({ force: true })
-  }
+function render(what: Render) {
+  renderListeners.forEach((listener) => listener(what))
+}
+
+// Every page's notes, or the archive: resolved and declined notes moved out of the panel.
+const scopeNotes = async (which: Exclude<Scope, "page">) =>
+  normalized((await api<{ notes: Note[] }>("GET", "/notes" + (which === "archived" ? query({ archived: "1" }) : ""))).notes).filter((note) => !pendingDeletes.has(note.id))
+
+// The notes panel shows scope (null once it closes); every load from then on fetches its notes too.
+export async function setScope(which: Scope | null) {
+  scope = which
+  if (which && which !== "page") scoped = await scopeNotes(which)
 }
 
 // Notes change from outside the page too (an agent starts or resolves one). The dev server streams an
@@ -128,373 +208,22 @@ export function poll() {
   setTimeout(tick, 4000)
 }
 
-// The agents waiting in watch_notes.
-export const agentLabel = (agent: Agent) => agent.handle ? `${agent.name} · ${agent.handle}` : agent.name
-const listeners = () => agents.filter((agent) => agent.listening).map(agentLabel)
-
-// Changes made from this page, so they aren't announced as the agent's.
+// Changes made from this page, so they aren't announced as the agent's (see announce.ts).
 const localChanges = new Set<string>()
+export const changedHere = (id: string) => localChanges.delete(id)
 
-// The pulsing pin already shows that an agent started on a note, so only these get a toast.
-type Change = "resolved" | "declined" | "question" | "message"
-
-// An agent can change many notes between two polls. Toasts appear one at a time, at most three at
-// once, and a longer backlog becomes one toast that counts the changes.
-const SHOWN_AT_ONCE = 3
-const PACE = 1200
-const waiting: { note: Note; what: Change }[] = []
-let shownToasts: HTMLElement[] = []
-let paceTimer = 0
-
-const whoChanged = (note: Note) => note.agent ?? note.thread?.filter((entry) => entry.from === "agent").pop()?.agent ?? "The agent"
-
-function notify(text: string, tag: string) {
-  if (document.visibilityState !== "visible" && settings().notify && "Notification" in window && Notification.permission === "granted") {
-    new Notification("Tensaku", { body: text, tag })
-  }
+// Puts a note's new state everywhere it shows, or takes it away (removed).
+function replace(note: Note, removed = false) {
+  const swap = (list: Note[]) => removed ? list.filter((other) => other.id !== note.id) : list.map((other) => other.id === note.id ? note : other)
+  notes = swap(notes)
+  scoped = swap(scoped)
+  lastSignature = ""
+  render({ force: true, changed: removed ? undefined : note })
 }
-
-function announceOne(note: Note, what: Change) {
-  const who = whoChanged(note)
-  const about = `"${note.comment.length > 48 ? note.comment.slice(0, 48) + "…" : note.comment}"`
-  const text = { resolved: `${who} resolved ${about}`, declined: `${who} declined ${about}`, question: `${who} has a question on ${about}`, message: `${who} replied on ${about}` }[what]
-  notify(text, `tensaku-${note.id}`)
-  return toast(text, { actions: { Show: () => { const rect = anchorFor(note); if (rect) { scrollTo({ top: Math.max(0, rect.top - 120), behavior: "smooth" }); showNote(note, rect) } } } })
-}
-
-function announceSummary(changes: { note: Note; what: Change }[]) {
-  const names = new Set(changes.map((change) => whoChanged(change.note)))
-  const who = names.size === 1 ? Array.from(names)[0] : "Agents"
-  const count = (what: Change) => changes.filter((change) => change.what === what).length
-  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`
-  const parts = [
-    count("resolved") && `resolved ${plural(count("resolved"), "note")}`,
-    count("declined") && `declined ${plural(count("declined"), "note")}`,
-    count("question") && `asked ${plural(count("question"), "question")}`,
-    count("message") && `replied on ${plural(count("message"), "note")}`,
-  ].filter(Boolean) as string[]
-  const text = `${who} ${parts.slice(0, -1).join(", ")}${parts.length > 1 ? " and " : ""}${parts[parts.length - 1]}`
-  notify(text, "tensaku-summary")
-  return toast(text, { timeout: 8000, actions: { Show: () => toggleSidebar(true) } })
-}
-
-function nextAnnouncement() {
-  paceTimer = 0
-  if (!waiting.length) return
-  shownToasts = shownToasts.filter((element) => element.isConnected)
-  if (shownToasts.length < SHOWN_AT_ONCE) {
-    if (waiting.length > SHOWN_AT_ONCE) shownToasts.push(announceSummary(waiting.splice(0)))
-    else { const change = waiting.shift()!; shownToasts.push(announceOne(change.note, change.what)) }
-  }
-  if (waiting.length) paceTimer = window.setTimeout(nextAnnouncement, PACE)
-}
-
-function announce(note: Note, what: Change) {
-  // The latest change to a note replaces one still waiting.
-  const queued = waiting.findIndex((change) => change.note.id === note.id)
-  if (queued >= 0) waiting.splice(queued, 1)
-  waiting.push({ note, what })
-  // Not shown right away: every change from this poll has to be waiting first to count as a backlog.
-  if (!paceTimer) paceTimer = window.setTimeout(nextAnnouncement)
-}
-
-function announceChanges(before: Note[], after: Note[]) {
-  const old = new Map(before.map((note) => [note.id, note]))
-  for (const note of after) {
-    const previous = old.get(note.id)
-    if (!previous) continue
-    if (localChanges.delete(note.id)) continue
-    const messages = note.thread?.length ?? 0
-    if (messages > (previous.thread?.length ?? 0) && note.thread![messages - 1].from === "agent" && note.status === previous.status) announce(note, "message")
-    else if (note.status !== previous.status && note.status !== "open" && note.status !== "working") announce(note, note.status)
-  }
-}
-export const currentNotes = () => notes
-
-// The element's own classes, so an agent can tell why it looks the way it does.
-const classesOf = (element: Element) => Array.from(element.classList).filter((name) => !name.startsWith("tensaku")).slice(0, 12)
-
-export function targetsFor(element: Element, selectedText?: string): Target[] {
-  const block = element.closest(`[${MARKDOWN}]`)
-  const stamped = element.closest(`[${STAMP}]`)
-  // A Markdown block inside the nearest stamped element (Kiln renders pages into a layout) points at
-  // the source more precisely than that element, so it replaces it.
-  if (block && (!stamped || stamped.contains(block))) {
-    return [{
-      kind: "markdown",
-      md: block.getAttribute(MARKDOWN) ?? undefined,
-      text: selectedText || visibleText(element, 300),
-      tag: tagLabel(element),
-      context: contextOf(element),
-    }]
-  }
-  const stamp = nearestStamp(element)
-  const base: Target = {
-    kind: selectedText ? "text" : "element",
-    stamp: stamp?.value,
-    text: selectedText || visibleText(element, 300),
-    tag: tagLabel(element),
-    classes: classesOf(element),
-    context: contextOf(element),
-  }
-  const targets = [base]
-  const key = translationOf(element) ?? textKeys(element)[0]?.key
-  if (key) targets.push({ kind: "translation", key: key.key, locale: key.locale, text: visibleText(element, 300) })
-  const md = element.closest(`[${MARKDOWN}]`)?.getAttribute(MARKDOWN)
-  if (md) targets.push({ kind: "markdown", md, text: visibleText(element, 300), tag: tagLabel(element) })
-  return targets
-}
-
-// The elements an area covers: stamped elements mostly inside the rectangle, outermost first, or the
-// innermost element under its center when nothing fits.
-export function elementsInArea(rect: DOMRect): Element[] {
-  const candidates = Array.from(document.querySelectorAll(`[${STAMP}], [${MARKDOWN}]`)).filter((element) => {
-    if (element === document.body || element.closest("[data-tensaku-ui]")) return false
-    const box = contentRect(element)
-    if (!box.width || !box.height) return false
-    const overlap = Math.max(0, Math.min(box.right, rect.right) - Math.max(box.left, rect.left)) * Math.max(0, Math.min(box.bottom, rect.bottom) - Math.max(box.top, rect.top))
-    return overlap / (box.width * box.height) >= 0.5
-  })
-  const outermost = candidates.filter((element) => !candidates.some((other) => other !== element && other.contains(element)))
-  if (outermost.length) return outermost.slice(0, 20)
-  const center = document.elementFromPoint(rect.left + rect.width / 2 - scrollX, rect.top + rect.height / 2 - scrollY)
-  const fallback = center?.closest(`[${STAMP}], [${MARKDOWN}]`)
-  return fallback ? [fallback] : []
-}
-
-// `anchor` is what the screenshot captures; `at` is where the form opens, the click point when there is one.
-export function noteForm(anchor: DOMRect, targets: Target[], extra: Partial<Note> = {}, onDone?: () => void, heading?: string, at = anchor) {
-  // Taken now, before anything moves, and only sent if the box is still ticked on save.
-  const shot = capture(anchor)
-  const textarea = h("textarea", { rows: 3, placeholder: "What should change?", "aria-label": "Note" })
-  const where = targets.filter((t) => t.kind !== "translation" && t.kind !== "markdown").map((t) => t.stamp ?? t.tag).filter(Boolean)
-  const close = () => { element.remove(); onDone?.() }
-  const picker = agentPicker(storage<string>("assign-to", ""))
-  const withShot = h("input", { type: "checkbox", checked: storage("screenshots", true), "aria-label": "Attach a screenshot", onchange: () => store("screenshots", withShot.checked) })
-  const button = h("button", { type: "button", className: "primary", onclick: () => save() }, "Save note")
-  picker?.addEventListener("change", () => store("assign-to", picker.value))
-  const save = async () => {
-    const comment = textarea.value.trim()
-    if (!comment) return textarea.focus()
-    try {
-      const to = picker?.value || undefined
-      const note = await api<Note>("POST", "/notes", { url: location.pathname, comment, targets, viewport: `${innerWidth}x${innerHeight}`, to, ...extra })
-      close()
-      const chosen = agents.find((agent) => agent.handle === to)
-      toast(chosen ? `Note saved and assigned to ${agentLabel(chosen)}` : "Note saved")
-      const png = withShot.checked ? await shot : null
-      if (png) await api("PUT", `/notes/${note.id}/screenshot`, { png }).catch((error) => toast(`The screenshot wasn't saved: ${(error as Error).message}`, { error: true }))
-      await load()
-    } catch (error) {
-      toast((error as Error).message, { error: true })
-    }
-  }
-  textarea.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); save() }
-    if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close() }
-  })
-  const title = heading ? heading : extra.rect ? `Area, ${targets.length} ${targets.length === 1 ? "element" : "elements"}` : targets[0]?.tag ?? "Note"
-  const quoted = !heading && !extra.rect && targets[0]?.text ? `${title} · "${targets[0].text.slice(0, 48)}${targets[0].text.length > 48 ? "…" : ""}"` : title
-  const element = panel(at, "postit note-form",
-    div("head",
-      div("what", div("title", quoted), div("where", where.slice(0, 3).join(", ") + (where.length > 3 ? ` and ${where.length - 3} more` : ""))),
-      h("button", { type: "button", className: "icon-button", onclick: close, "aria-label": "Cancel" }, icon("close"))),
-    textarea,
-    div("options",
-      h("label", { className: "shot" }, withShot, "Screenshot"),
-      picker ? h("label", { className: "to" }, "Assign to", picker) : noAgent()),
-    div("foot", h("span", { className: "hint" }, `${isApple ? "⌘↵" : "Ctrl+Enter"} saves`), h("button", { type: "button", className: "quiet", onclick: close }, "Cancel"), button))
-  textarea.focus()
-  return element
-}
-
-// The Assign row with no agent connected: it says so, and opens the Agents popover, which lists the
-// commands that start one.
-function noAgent() {
-  return h("span", { className: "to" }, "Assign to", h("button", { type: "button", className: "link", onclick: () => showAgents() }, "no agent connected, connect one"))
-}
-
-// A menu of the connected agent sessions, listening ones first, or null when none is connected. The
-// empty value leaves the note unassigned: the first session that checks for notes takes it.
-function agentPicker(selected: string) {
-  const named = agents.filter((agent) => agent.handle)
-  if (!named.length) return null
-  const ordered = [...named.filter((agent) => agent.listening), ...named.filter((agent) => !agent.listening)]
-  const select = h("select", { "aria-label": "Assign to" },
-    h("option", { value: "" }, "Anyone"),
-    ...ordered.map((agent) => h("option", { value: agent.handle! }, `${agentLabel(agent)}${agent.listening ? "" : " (not listening)"}`)))
-  select.value = ordered.some((agent) => agent.handle === selected) ? selected : ""
-  return select
-}
-
-// The server leaves out empty fields, so a note made without targets has none.
-const normalized = (list: Note[]) => list.map((note) => ({ ...note, targets: note.targets ?? [] }))
-
-let lastSignature = ""
-// Polls and forced loads can overlap; only the newest request's answer is used.
-let loadSequence = 0
-// A 403 means the page's token no longer matches the server's (tmp/tensaku/token changed). Said once, not on every
-// poll; the notes already drawn stay.
-let tokenWarned = false
-// Said once per page load.
-let restartWarned = false
-let agentChangedAt: string | undefined
-export async function load({ force = false } = {}) {
-  const sequence = ++loadSequence
-  try {
-    const data = await api<{ notes: Note[]; open: number; agents?: Agent[]; restart?: boolean; changed_at?: string }>("GET", "/notes" + query({ url: location.pathname }))
-    if (sequence !== loadSequence) return
-    tokenWarned = false
-    // An agent resolved a note since the last load, on any page: the page shows the change.
-    if (primed && data.changed_at && data.changed_at !== agentChangedAt) refreshAfterAgent()
-    agentChangedAt = data.changed_at
-    if (data.restart && !restartWarned) {
-      restartWarned = true
-      toast("Tensaku's code changed since this dev server started, so the page runs a newer overlay than the server. Restart the dev server.", { error: true, timeout: 20000 })
-    }
-    // A note deleted from the page waits a few seconds on the server, for its Undo.
-    data.notes = data.notes.filter((note) => !pendingDeletes.has(note.id))
-    agents = data.agents ?? []
-    agentListeners.forEach((listener) => listener(agents))
-    const signature = location.pathname + JSON.stringify([data.notes, data.open, listeners()])
-    if (!force && signature === lastSignature) return
-    lastSignature = signature
-    if (!primed) data.notes.forEach((note) => drawn.set(note.id, note.status))
-    else if (data.notes.length && notes.length) announceChanges(notes, normalized(data.notes))
-    primed = true
-    notes = normalized(data.notes)
-    openCount = data.open
-    if (sidebarScope !== "page" && sidebar?.isConnected) {
-      const all = await scopeNotes(sidebarScope)
-      if (sequence !== loadSequence) return
-      allNotes = all
-    }
-  } catch (error) {
-    if (sequence !== loadSequence) return
-    if (error instanceof ApiError && error.status === 403 && !tokenWarned) {
-      tokenWarned = true
-      toast(`${error.message} Notes can't be loaded until then.`, { error: true, timeout: 15000, actions: { Reload: () => location.reload() } })
-    }
-    return
-  }
-  countListeners.forEach((listener) => listener(openCount))
-  drawPins()
-  followShownNote()
-  // A card being edited or answered is left alone when the poll redraws.
-  const typing = activeInShadow()?.matches("textarea, input")
-  if (sidebar?.isConnected && (force || !(typing && sidebar.contains(activeInShadow())))) renderSidebar()
-}
-
-// The selected text a "text" note is about, found again in its element.
-function phraseRects(note: Note): DOMRect[] {
-  const target = note.targets.find((t) => t.kind === "text" && t.text && t.stamp)
-  const element = target && targetElement(target)
-  if (!target || !element?.textContent?.includes(target.text!)) return []
-  const nodes: Text[] = []
-  const starts: number[] = []
-  let all = ""
-  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
-  while (walker.nextNode()) {
-    const node = walker.currentNode as Text
-    starts.push(all.length)
-    nodes.push(node)
-    all += node.data
-  }
-  const at = all.indexOf(target.text!)
-  if (at < 0) return []
-  const end = at + target.text!.length
-  const lastIndex = (test: (start: number) => boolean) => { for (let i = starts.length - 1; i >= 0; i--) if (test(starts[i])) return i; return 0 }
-  const first = lastIndex((start) => start <= at)
-  const last = lastIndex((start) => start < end)
-  const range = document.createRange()
-  range.setStart(nodes[first], at - starts[first])
-  range.setEnd(nodes[last], end - starts[last])
-  return Array.from(range.getClientRects()).filter((r) => r.width > 0).map((r) => new DOMRect(r.left + scrollX, r.top + scrollY, r.width, r.height))
-}
-
-function anchorFor(note: Note): DOMRect | null {
-  if (note.rect) return new DOMRect(note.rect.x, note.rect.y, note.rect.width, note.rect.height)
-  for (const target of note.targets) {
-    const element = targetElement(target)
-    if (element) return contentRect(element)
-  }
-  return null
-}
-
-// A stamp is shared by every copy of an element a loop renders; the note belongs to the copy whose
-// text it was written about. A stamp is also a line and a column, which go stale when the file changes:
-// the element is then looked for by its tag and text elsewhere in the same file. With no match the note
-// stays on an element of the same tag at its old position, whose text may have been edited, or nowhere.
-function targetElement(target: Target): Element | null {
-  const attribute = target.stamp ? STAMP : target.md ? MARKDOWN : null
-  const value = target.stamp ?? target.md
-  if (!attribute || !value) return null
-  const elements = Array.from(document.querySelectorAll(`[${attribute}="${CSS.escape(value)}"]`))
-  if (!target.text) return elements[0] ?? null
-
-  const text = target.text.replace(/…$/, "")
-  const written = (candidates: Element[]) =>
-    candidates.find((element) => visibleText(element, 300) === target.text)
-    ?? candidates.find((element) => visibleText(element, 300).startsWith(text))
-    ?? candidates.find((element) => target.kind === "text" && element.textContent?.includes(text))
-  const here = written(elements)
-  if (here) return here
-
-  const tag = target.tag?.split(/[.#]/)[0]
-  const sameTag = (element: Element) => !tag || element.tagName.toLowerCase() === tag
-  const file = value.match(/^(.+?):\d+/)?.[1]
-  const inFile = file ? Array.from(document.querySelectorAll(`[${attribute}^="${CSS.escape(file)}:"]`)).filter(sameTag) : []
-  return written(inFile) ?? elements.find(sameTag) ?? null
-}
-
-// Pins drop in when a note is added or changes status after the first load.
-const drawn = new Map<string, Note["status"]>()
-let primed = false
-export function drawPins() {
-  pinLayer.replaceChildren()
-  notes.forEach((note, index) => {
-    const phrase = phraseRects(note)
-    for (const r of phrase) {
-      const mark = div(`phrase ${note.status}`)
-      Object.assign(mark.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` })
-      pinLayer.append(mark)
-    }
-    const rect = phrase.length ? phrase[phrase.length - 1] : anchorFor(note)
-    if (!rect) return
-    const fresh = drawn.get(note.id) !== note.status
-    drawn.set(note.id, note.status)
-    const pin = h("button", { className: `pin ${note.status}${fresh ? " fresh" : ""}`, title: note.comment, "aria-label": `Note ${index + 1}: ${note.comment}`, "data-note": note.id },
-      note.status === "resolved" ? icon("check") : note.status === "declined" ? icon("close") : String(index + 1))
-    Object.assign(pin.style, { left: `${rect.right}px`, top: `${rect.top}px` })
-    pin.addEventListener("click", (event) => { event.stopPropagation(); showNote(note, rect) })
-    pinLayer.append(pin)
-  })
-}
-
-// One entry per file: _hero.html.erb:4, 9. The full paths are in the tooltip.
-function sourceLines(note: Note) {
-  const lines = new Map<string, Set<string>>()
-  for (const target of note.targets) {
-    if (!target.file) continue
-    if (!lines.has(target.file)) lines.set(target.file, new Set())
-    if (target.range) lines.get(target.file)!.add(target.range.split(/[:-]/)[0])
-  }
-  const files = Array.from(lines.keys())
-  if (!files.length) return null
-  const shortened = files.slice(0, 3).map((file) => {
-    const numbers = Array.from(lines.get(file)!).join(", ")
-    return file.split("/").pop() + (numbers ? `:${numbers}` : "")
-  })
-  if (files.length > 3) shortened.push(`${files.length - 3} more`)
-  return h("div", { className: "source", title: files.join("\n") }, shortened.join(" · "))
-}
-
-const STATUS_LABELS = { open: "Open", question: "Question", resolved: "Resolved", declined: "Declined" }
-const closed = (note: Note) => note.status === "resolved" || note.status === "declined"
 
 // What a change made from the page will look like once saved, to show it before the server answers.
-type CardChange = { status?: Note["status"]; comment?: string; message?: string; to?: string }
-function predicted(note: Note, change: CardChange): Note {
+export type NoteChange = { status?: Note["status"]; comment?: string; message?: string; to?: string }
+function predicted(note: Note, change: NoteChange): Note {
   const next: Note = { ...note, thread: [...(note.thread ?? [])] }
   if (change.comment) next.comment = change.comment
   if (change.message) next.thread!.push({ from: "you", text: change.message, at: new Date().toISOString() })
@@ -508,16 +237,32 @@ function predicted(note: Note, change: CardChange): Note {
   return next
 }
 
+// Optimistic: the change shows at once (onChange gets the note's new state), and goes back with a toast
+// if the server refuses it. Resolves once the server answered, with whether it saved.
+export async function updateNote(note: Note, change: NoteChange, onChange: (note: Note) => void = () => {}) {
+  const after = predicted(note, change)
+  localChanges.add(note.id)
+  replace(after)
+  onChange(after)
+  try {
+    await api("PATCH", `/notes/${note.id}`, change)
+    load({ force: true })
+    return true
+  } catch (error) {
+    localChanges.delete(note.id)
+    replace(note)
+    onChange(note)
+    toast((error as Error).message, { error: true })
+    return false
+  }
+}
+
 // A deleted note leaves the page at once and is deleted on the server a few seconds later, so its
 // toast can undo it. Leaving the page deletes it right away.
 const pendingDeletes = new Map<string, () => void>()
 addEventListener("pagehide", () => pendingDeletes.forEach((commit) => commit()))
-function deleteLater(note: Note) {
-  notes = notes.filter((other) => other.id !== note.id)
-  allNotes = allNotes.filter((other) => other.id !== note.id)
-  lastSignature = ""
-  drawPins()
-  if (sidebar?.isConnected) renderSidebar()
+export function deleteLater(note: Note) {
+  replace(note, true)
   let done = false
   const commit = () => {
     if (done) return
@@ -530,285 +275,10 @@ function deleteLater(note: Note) {
   toast("Note deleted", { timeout: 6000, actions: { Undo: () => { done = true; clearTimeout(timer); pendingDeletes.delete(note.id); load({ force: true }) } } })
 }
 
-// Puts a note's new state everywhere it shows: pins, the panel and an open card.
-function showChanged(note: Note) {
-  notes = notes.map((other) => other.id === note.id ? note : other)
-  allNotes = allNotes.map((other) => other.id === note.id ? note : other)
-  lastSignature = ""
-  drawPins()
-  if (sidebar?.isConnected) renderSidebar()
-  if (shownNote?.id === note.id) showNote(note)
-}
-
-// onChange(note) is called with the note's new state, or without one once it is deleted.
-function noteCard(note: Note, onChange: (note?: Note) => void = () => {}) {
-  // Optimistic: the change shows at once, and goes back with a toast if the server refuses it.
-  // Resolves once the server answered, with whether it saved.
-  const update = async (change: CardChange) => {
-    const after = predicted(note, change)
-    localChanges.add(note.id)
-    showChanged(after)
-    onChange(after)
-    try {
-      await api("PATCH", `/notes/${note.id}`, change)
-      load({ force: true })
-      return true
-    } catch (error) {
-      localChanges.delete(note.id)
-      showChanged(note)
-      onChange(note)
-      toast((error as Error).message, { error: true })
-      return false
-    }
-  }
-  const remove = () => { deleteLater(note); onChange() }
-  // Done and reopen are one click, so each toast can put the note back as it was.
-  const setStatus = async (status: Note["status"], said: string) => {
-    const before = note.status
-    if (await update({ status })) toast(said, { actions: { Undo: () => update({ status: before }) } })
-  }
-  const tool = (name: IconName, label: string, onclick: () => void, className = "") =>
-    h("button", { type: "button", className: `icon-button ${className}`, title: label, "aria-label": label, onclick }, icon(name))
-  const comment = h("div", { className: "comment" }, note.comment)
-  // Editing a note sends it back to the agent as open. The thread stays, as context.
-  const startEditing = () => {
-    const field = h("textarea", { rows: 3, "aria-label": "Edit note" }, note.comment)
-    const saveEdit = async () => {
-      const value = field.value.trim()
-      if (!value) return field.focus()
-      if (value === note.comment) return stopEditing()
-      if (await update({ comment: value, status: "open" })) toast("Note updated")
-    }
-    const stopEditing = () => { editing.replaceWith(comment); actions.hidden = false }
-    field.addEventListener("keydown", (event) => {
-      event.stopPropagation()
-      if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); saveEdit() }
-      if (event.key === "Escape") { event.preventDefault(); stopEditing() }
-    })
-    const editing = div("editing", field, div("row", h("button", { type: "button", className: "quiet", onclick: stopEditing }, "Cancel"), h("button", { type: "button", className: "primary", onclick: saveEdit }, "Save")))
-    comment.replaceWith(editing)
-    actions.hidden = true
-    field.focus()
-    field.setSelectionRange(field.value.length, field.value.length)
-  }
-  const here = note.url === location.pathname
-  const done = closed(note)
-  const actions = div("tools",
-    done ? h("button", { type: "button", className: "reopen", title: "Reopen: back to open, without sending it to an agent", "aria-label": "Reopen", onclick: () => setStatus("open", "Note reopened") }, "Reopen")
-      : tool("check", "Mark as done", () => setStatus("resolved", "Marked as done"), "resolve"),
-    tool("pen", "Edit", startEditing),
-    tool("trash", "Delete", remove, "delete"))
-  // When the agent spoke last (a question, or a reply on a resolved, declined or reopened note), you
-  // can answer or ask for changes. Either one sends the note back to the agent as open.
-  let answer: Node | null = null
-  if (note.status === "question" || note.thread?.at(-1)?.from === "agent") {
-    const asked = note.status === "question"
-    const label = asked ? "Answer" : "Ask for changes"
-    const field = h("textarea", { rows: 2, placeholder: asked ? "Answer the question" : "What should change?", "aria-label": label })
-    const send = () => field.value.trim() && update({ message: field.value.trim(), status: "open" })
-    field.addEventListener("keydown", (event) => {
-      event.stopPropagation()
-      if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); send() }
-    })
-    answer = div("answer", field, div("row end", h("button", { type: "button", className: "primary", onclick: send }, label)))
-  }
-  const thread = threadView(note)
-  const missing = !done && here && !anchorFor(note) ? div("missing", "Not found on this page any more.") : null
-  const delivered = note.status === "open" && note.delivered_at && note.sent_at && note.delivered_at >= note.sent_at
-  // An open note assigned to one session says so until that session picks it up. A note in progress
-  // whose session's process ended says so: anyone can take it.
-  const status = note.status === "working" ? (note.stopped ? `${note.agent ?? "Agent"} stopped. Anyone can take it` : `${note.agent ?? "Agent"} is working`)
-    : delivered ? `Picked up by ${note.delivered_to}`
-    : note.status === "open" ? (note.agent ? `Assigned to ${note.agent}` : "Unassigned") : STATUS_LABELS[note.status]
-  // An open note can be assigned to a session or left to anyone. A note in progress can be taken back
-  // the same way, for an agent you stopped mid-work: the note is open again, and that session's
-  // resolve is refused.
-  const owner = agents.find((agent) => agent.handle && agentLabel(agent) === note.agent)
-  const assignable = note.status === "open" || note.status === "working"
-  const picker = assignable ? agentPicker(note.status === "open" ? owner?.handle ?? "" : "") : null
-  // The handle the note is assigned to now; on a note in progress, nobody yet in the menu's terms.
-  const current = note.status === "open" ? owner?.handle ?? "" : null
-  const assign = async () => {
-    const chosen = agents.find((agent) => agent.handle === picker!.value)
-    const undo = current === null ? undefined : { Undo: () => update({ to: current }) }
-    if (await update({ to: picker!.value })) {
-      toast(chosen ? `Note assigned to ${agentLabel(chosen)}` : "Note unassigned: the first session that checks takes it", { actions: undo })
-    }
-  }
-  const assignButton = h("button", { type: "button", onclick: assign })
-  // Says when the menu already shows who has the note, so a click that changes nothing isn't offered.
-  const syncAssign = () => {
-    const same = picker?.value === current
-    assignButton.disabled = same
-    assignButton.textContent = same ? "Assigned" : note.status === "working" ? "Reassign" : "Assign"
-  }
-  picker?.addEventListener("change", syncAssign)
-  syncAssign()
-  const assignRow = !assignable ? null
-    : picker ? div("assign", h("label", { className: "to" }, "Assign to", picker), assignButton)
-    : div("assign", noAgent())
-  const statusLabel = h("span", {}, status)
-  return div(`postit note-card ${note.status}`,
-    div("head", h("span", { className: `status ${note.status}` }, note.status === "resolved" ? icon("check") : null, statusLabel), actions),
-    comment,
-    screenshotView(note),
-    thread,
-    missing,
-    assignRow,
-    answer,
-    sourceLines(note))
-}
-
-// The screenshot taken with the note, loaded with the token (an <img> can't send it), opening at full
-// size on a click.
-function screenshotView(note: Note) {
-  if (!note.screenshot) return null
-  const image = h("img", { alt: "Screenshot", width: note.screenshot.width, height: note.screenshot.height })
-  let url = ""
-  fetch(`${meta().root}/notes/${note.id}/screenshot`, { headers: { "X-Tensaku-Token": meta().token }, credentials: "same-origin" })
-    .then((response) => (response.ok ? response.blob() : null))
-    .then((blob) => { if (blob) image.src = url = URL.createObjectURL(blob) })
-    .catch(() => {})
-  return h("button", { type: "button", className: "screenshot", title: "Open the screenshot", "aria-label": "Open the screenshot", onclick: () => url && open(url, "_blank") }, image)
-}
-
-// A long back-and-forth shows the agent's latest message and what came after it, with the earlier
-// messages behind a button, as the agent sees it. Opened threads stay open across polls.
-const openThreads = new Set<string>()
-function threadView(note: Note) {
-  const entries = note.thread ?? []
-  if (!entries.length) return null
-  const lastAgent = entries.map((entry) => entry.from).lastIndexOf("agent")
-  const start = openThreads.has(note.id) ? 0 : lastAgent >= 0 ? lastAgent : Math.max(0, entries.length - 2)
-  const message = (entry: (typeof entries)[number]) =>
-    div(`message ${entry.from}`, h("span", { className: "who" }, entry.from === "you" ? "You" : entry.agent ?? "Agent"), h("span", {}, entry.text))
-  const view = div("thread")
-  const earlier = start > 0
-    ? h("button", { type: "button", className: "link earlier", onclick: () => { openThreads.add(note.id); view.replaceWith(threadView(note)!) } }, `Show ${start} earlier ${start === 1 ? "message" : "messages"}`)
-    : null
-  if (earlier) view.append(earlier)
-  view.append(...entries.slice(start).map(message))
-  return view
-}
-
-// The note card opened from a pin, and the note it shows. It follows the note's changes, from this
-// page or from an agent, unless you are typing in it.
-let shown: HTMLElement | null = null
-let shownNote: Note | null = null
-function showNote(note: Note, rect?: DOMRect) {
-  const onChange = (next?: Note) => { if (!next) shown?.remove() }
-  if (!rect) {
-    if (!shown?.isConnected) return
-    shownNote = note
-    shown.replaceChildren(noteCard(note, onChange))
-    return
-  }
-  shown?.remove()
-  shownNote = note
-  shown = panel(rect, "note-pop", noteCard(note, onChange))
-  const close = (event: Event) => {
-    if (!event.composedPath().includes(shown!)) { shown?.remove(); document.removeEventListener("pointerdown", close, true) }
-  }
-  setTimeout(() => document.addEventListener("pointerdown", close, true))
-}
-
-function followShownNote() {
-  if (!shown?.isConnected || !shownNote) return
-  const latest = notes.find((note) => note.id === shownNote!.id)
-  if (!latest || JSON.stringify(latest) === JSON.stringify(shownNote)) return
-  const typing = activeInShadow()
-  if (typing?.matches("textarea, input") && shown.contains(typing) && (typing as HTMLTextAreaElement).value) return
-  showNote(latest)
-}
-
-let sidebar: HTMLElement | null = null
-export function toggleSidebar(force?: boolean) {
-  const show = force ?? !sidebar?.isConnected
-  if (!show) { sidebar?.remove(); return }
-  sidebar ??= div("sidebar")
-  sidebar.setAttribute("role", "complementary")
-  sidebar.setAttribute("aria-label", "Tensaku notes")
-  fixed.append(sidebar)
-  renderSidebar()
-}
-
-export const sidebarOpen = () => Boolean(sidebar?.isConnected)
-
-type Scope = "page" | "all" | "archived"
-let sidebarScope: Scope = "page"
-let allNotes: Note[] = []
-
-// Every page's notes, or the archive: resolved and declined notes moved out of the panel.
-const scopeNotes = async (scope: Exclude<Scope, "page">) =>
-  normalized((await api<{ notes: Note[] }>("GET", "/notes" + (scope === "archived" ? query({ archived: "1" }) : ""))).notes).filter((note) => !pendingDeletes.has(note.id))
-
-async function showScope(scope: Scope) {
-  sidebarScope = scope
-  if (scope !== "page") allNotes = await scopeNotes(scope)
-  renderSidebar()
-}
-
-// Resolved and declined notes have served their purpose once checked. Archiving moves the ones in the
-// panel's scope out of it; agents can still list them, and reopening one brings it back.
-async function clearDone(done: Note[]) {
+export async function deleteNotes(list: Note[]) {
   try {
-    await api("POST", "/notes/archive", { ids: done.map((note) => note.id) })
+    for (const note of list) await api("DELETE", `/notes/${note.id}`)
+  } finally {
     await load({ force: true })
-    toast(`Archived ${done.length} done ${done.length === 1 ? "note" : "notes"}`)
-  } catch (error) {
-    toast((error as Error).message, { error: true })
   }
-}
-
-function renderSidebar() {
-  if (!sidebar) return
-  const format = settings().copyFormat === "short" ? "short" : undefined
-  const copyAll = async (all: boolean) => {
-    const markdown = await api<string>("GET", "/notes.md" + query(all ? { format } : { url: location.pathname, format }))
-    await copy(markdown)
-    toast(all ? "Copied all open notes" : "Copied this page's open notes")
-  }
-  const tab = (scope: Scope, text: string) =>
-    h("button", { type: "button", role: "tab", "aria-selected": String(sidebarScope === scope), onclick: () => showScope(scope) }, text)
-  const card = (note: Note) => noteCard(note)
-  const scoped = sidebarScope === "page" ? notes : allNotes
-  const grouped = (list: Note[]) => sidebarScope === "page"
-    ? list.map(card)
-    : Array.from(new Set(list.map((note) => note.url))).flatMap((url) => [
-        h("a", { className: `page${url === location.pathname ? " current" : ""}`, href: url }, url, h("span", {}, String(list.filter((note) => note.url === url).length))),
-        ...list.filter((note) => note.url === url).map(card),
-      ])
-  const archive = sidebarScope === "archived"
-  const done = archive ? [] : scoped.filter(closed)
-  const body: Node[] = grouped(archive ? scoped.slice().reverse() : scoped.filter((note) => !closed(note)))
-  if (archive) {
-    if (!scoped.length) body.push(div("empty", "Nothing archived. Archive done moves resolved and declined notes here."))
-  } else if (done.length) {
-    body.push(div("section", h("span", {}, `Done (${done.length})`), h("button", { type: "button", onclick: () => clearDone(done) }, "Archive done")), ...grouped(done))
-  } else if (!scoped.length) {
-    body.push(div("empty", sidebarScope === "page" ? "No notes on this page. Select an element or drag over an area to add one." : "No notes yet."))
-  }
-  sidebar.replaceChildren(
-    h("header", {}, h("strong", {}, sidebarScope === "page" ? `Notes on ${location.pathname}` : archive ? "Archived notes" : "Notes on every page"), h("button", { type: "button", className: "icon-button", onclick: () => toggleSidebar(false), "aria-label": "Close notes" }, icon("close"))),
-    div("tabs", tab("page", "This page"), tab("all", "All pages"), tab("archived", "Archive")),
-    ...body,
-    ...(openCount ? [sendBar(copyAll)] : []))
-}
-
-// The Agents button's popover, opened from the panel when nobody listens.
-let showAgents = () => {}
-export const setAgentsHandler = (handler: () => void) => { showAgents = handler }
-
-function sendBar(copyAll: (all: boolean) => void) {
-  const names = listeners()
-  const status = names.length
-    ? div("listener on", h("span", { className: "dot" }), names.length === 1 ? `${names[0]} is checking for notes` : `${names.length} agents are checking for notes`)
-    : div("listener", h("span", { className: "dot" }), "No agent listening",
-        h("button", { type: "button", className: "link", onclick: () => showAgents() }, "Connect one"))
-  // The copy buttons act on the notes above them, so they sit above the rule; who gets the notes is below it.
-  return div("copy-bar",
-    div("actions",
-      h("button", { type: "button", onclick: () => copyAll(false) }, "Copy page"),
-      h("button", { type: "button", onclick: () => copyAll(true) }, `Copy all (${openCount})`)),
-    status)
 }

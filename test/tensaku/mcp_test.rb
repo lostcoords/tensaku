@@ -18,7 +18,7 @@ class Tensaku::McpTest < Tensaku::TestCase
   end
 
   teardown do
-    @server.close_channel
+    @server.close
     Tensaku.root = nil
   end
 
@@ -48,7 +48,7 @@ class Tensaku::McpTest < Tensaku::TestCase
     init = initialize_as("Claude Code")
 
     assert_equal "2025-06-18", init.dig("result", "protocolVersion")
-    assert_equal [ "Claude Code" ], Tensaku::Notes.agents.map { it["name"] }
+    assert_equal [ "Claude Code" ], Tensaku::Agents.list.map { it["name"] }
     assert_equal %w[list_notes get_note get_screenshot start_note resolve_note decline_note ask_question reply_to_note watch_notes channel_ready current_selection], rpc("tools/list").dig("result", "tools").map { it["name"] }
   end
 
@@ -86,7 +86,7 @@ class Tensaku::McpTest < Tensaku::TestCase
     Tensaku::Notes.create(url: "/about", comment: "Rename this section")
     assert_includes text(tool("list_notes")), "on /about"
 
-    Tensaku::Notes.base_url = "https://shop-signup.localhost"
+    Tensaku::Project.base_url = "https://shop-signup.localhost"
     assert_includes text(tool("list_notes")), "on https://shop-signup.localhost/about"
   end
 
@@ -98,7 +98,7 @@ class Tensaku::McpTest < Tensaku::TestCase
     tool("reply_to_note", id: note["id"], message: "Renaming it to About")
 
     saved = Tensaku::Notes.find(note["id"])
-    label = "Claude Code · #{Tensaku::Notes.handle(@server.session)}"
+    label = "Claude Code · #{Tensaku::Agents.handle(@server.session.id)}"
     assert_equal [ "working", label ], saved.values_at("status", "agent")
     assert_equal [ [ "agent", label, "Renaming it to About" ] ], saved["thread"].map { it.values_at("from", "agent", "text") }
     assert_includes text(tool("list_notes")), "#{note["id"]} (working)"
@@ -115,15 +115,15 @@ class Tensaku::McpTest < Tensaku::TestCase
     assert_not tool_on(other, other_output, "start_note", id: note["id"])["isError"], "the same session can start it again"
     taken = tool("start_note", id: note["id"])
     assert taken["isError"]
-    assert_includes text(taken), "Note #{note["id"]} belongs to Codex · #{Tensaku::Notes.handle(other.session)}"
+    assert_includes text(taken), "Note #{note["id"]} belongs to Codex · #{Tensaku::Agents.handle(other.session.id)}"
 
     tool_on(other, other_output, "resolve_note", id: note["id"], reply: "Done")
     assert tool("start_note", id: note["id"])["isError"], "a resolved note still belongs to its session"
     assert tool("resolve_note", id: note["id"], reply: "Me too")["isError"]
 
-    Tensaku::Notes.agent_gone!(other.session)
+    Tensaku::Agents.gone!(other.session.id)
     assert_not tool("start_note", id: note["id"])["isError"]
-    assert_equal [ @server.session, "Claude Code · #{Tensaku::Notes.handle(@server.session)}" ], Tensaku::Notes.find(note["id"]).values_at("session", "agent")
+    assert_equal [ @server.session.id, "Claude Code · #{Tensaku::Agents.handle(@server.session.id)}" ], Tensaku::Notes.find(note["id"]).values_at("session", "agent")
   end
 
   test "watch_notes returns a note saved while it waits, and shows the agent as listening meanwhile" do
@@ -131,7 +131,7 @@ class Tensaku::McpTest < Tensaku::TestCase
     listening = nil
     Thread.new do
       sleep 0.3
-      listening = Tensaku::Notes.agents.select { it["listening"] }.map { it["name"] }
+      listening = Tensaku::Agents.list.select { it["listening"] }.map { it["name"] }
       Tensaku::Notes.create(url: "/", comment: "new one")
     end
 
@@ -140,8 +140,8 @@ class Tensaku::McpTest < Tensaku::TestCase
     assert_includes text(result), "new one"
     assert_match(/^checked_at: \d{4}-/, text(result))
     assert_equal [ "Codex" ], listening
-    assert_empty Tensaku::Notes.agents.select { it["listening"] }.map { it["name"] }
-    assert_equal [ "Codex" ], Tensaku::Notes.agents.map { it["name"] }, "still connected"
+    assert_empty Tensaku::Agents.list.select { it["listening"] }.map { it["name"] }
+    assert_equal [ "Codex" ], Tensaku::Agents.list.map { it["name"] }, "still connected"
   end
 
   test "watch_notes passes each note on once: checked_at as the next since skips what it returned" do
@@ -159,20 +159,20 @@ class Tensaku::McpTest < Tensaku::TestCase
     @server.handle(JSON.generate(jsonrpc: "2.0", id: "long", method: "tools/call", params: { name: "watch_notes", arguments: { timeout_seconds: 3 } }))
 
     assert_equal "short", @output.pop["id"]
-    assert_equal [ "Codex" ], Tensaku::Notes.agents.select { it["listening"] }.map { it["name"] }
+    assert_equal [ "Codex" ], Tensaku::Agents.list.select { it["listening"] }.map { it["name"] }
     assert_equal "long", @output.pop["id"]
-    assert_empty Tensaku::Notes.agents.select { it["listening"] }.map { it["name"] }
+    assert_empty Tensaku::Agents.list.select { it["listening"] }.map { it["name"] }
   end
 
   test "a cancelled watch stops waiting and stops listening, without a reply" do
     @server.handle(JSON.generate(jsonrpc: "2.0", id: "watch", method: "tools/call", params: { name: "watch_notes", arguments: { timeout_seconds: 60 } }))
     sleep 0.3
-    assert_equal [ "MCP agent" ], Tensaku::Notes.agents.select { it["listening"] }.map { it["name"] }
+    assert_equal [ "MCP agent" ], Tensaku::Agents.list.select { it["listening"] }.map { it["name"] }
 
     @server.handle(JSON.generate(jsonrpc: "2.0", method: "notifications/cancelled", params: { requestId: "watch" }))
     sleep 0.1
 
-    assert_empty Tensaku::Notes.agents.select { it["listening"] }.map { it["name"] }
+    assert_empty Tensaku::Agents.list.select { it["listening"] }.map { it["name"] }
     assert_equal "pong", rpc("ping").then { it["result"] == {} ? "pong" : it }
     assert @output.empty?
   end
@@ -183,12 +183,12 @@ class Tensaku::McpTest < Tensaku::TestCase
     writer.puts JSON.generate(jsonrpc: "2.0", id: 1, method: "initialize", params: { clientInfo: { name: "opencode", title: "OpenCode" } })
     @output.pop
 
-    assert Tensaku::Notes.agents.any?
-    travel_to(Time.now + Tensaku::Notes::AGENT_WINDOW + 1) { assert_not Tensaku::Notes.agents.any? }
+    assert Tensaku::Agents.list.any?
+    travel_to(Time.now + Tensaku::Agents::WINDOW + 1) { assert_not Tensaku::Agents.list.any? }
 
     writer.close
     server.join(5)
-    assert_not Tensaku::Notes.agents.any?
+    assert_not Tensaku::Agents.list.any?
     assert_equal 0, Tensaku::Store.read { it.get_first_value("SELECT COUNT(*) FROM agents") }
   end
 
@@ -251,12 +251,12 @@ class Tensaku::McpTest < Tensaku::TestCase
     note = Tensaku::Notes.create(url: "/", comment: "Rename")
 
     reply = text(tool("watch_notes", since: (Time.now.utc - 5).iso8601, timeout_seconds: 1))
-    handle = Tensaku::Notes.handle(@server.session)
+    handle = Tensaku::Agents.handle(@server.session.id)
     assert_includes reply, "You are listening as Codex · #{handle}"
     assert_not_includes text(tool("watch_notes", timeout_seconds: 1)), "You are listening as", "only the first watch says it"
 
     saved = Tensaku::Notes.find(note["id"])
-    assert_equal [ "Codex · #{handle}", @server.session ], saved.values_at("delivered_to", "session")
+    assert_equal [ "Codex · #{handle}", @server.session.id ], saved.values_at("delivered_to", "session")
     assert saved["delivered_at"]
     assert_equal note["sent_at"], saved["sent_at"]
   end
@@ -273,7 +273,7 @@ class Tensaku::McpTest < Tensaku::TestCase
     assert_equal "Resolved note #{first["id"]}. Call watch_notes to keep listening.", resolved.dig("content", 0, "text")
     assert_includes resolved.dig("content", 1, "text"), "Notes the person saved while you worked. They are yours now"
     assert_includes resolved.dig("content", 1, "text"), "## Tensaku note #{follow_up["id"]} (open)"
-    assert_equal @server.session, Tensaku::Notes.find(follow_up["id"])["session"]
+    assert_equal @server.session.id, Tensaku::Notes.find(follow_up["id"])["session"]
 
     assert_equal 1, tool("reply_to_note", id: follow_up["id"], message: "On it")["content"].size
     assert_not_includes text(tool("watch_notes", since:, timeout_seconds: 1)), follow_up["id"], "a watch with an older since doesn't repeat it"
@@ -297,7 +297,7 @@ class Tensaku::McpTest < Tensaku::TestCase
     lines = tmp_root.join("tmp/tensaku/mcp.log").readlines.map { JSON.parse(it) }
     assert_equal %w[watch_notes get_note], lines.map { it["tool"] }
     assert_equal [ note["id"] ], lines.first["notes"]
-    assert_equal [ Tensaku::Notes.handle(@server.session), "Codex" ], lines.first.values_at("session", "agent")
+    assert_equal [ Tensaku::Agents.handle(@server.session.id), "Codex" ], lines.first.values_at("session", "agent")
     assert lines.all? { it["ms"].is_a?(Integer) && it["bytes"].positive? }
     assert lines.last["error"]
   end
@@ -307,7 +307,7 @@ class Tensaku::McpTest < Tensaku::TestCase
     initialize_as("Claude Code")
     tool("start_note", id: note["id"])
 
-    agent = Tensaku::Notes.agents.sole
+    agent = Tensaku::Agents.list.sole
     assert_equal "Claude Code", agent["name"]
     assert_equal "#{Pathname(Dir.pwd).basename}/", agent["folder"]
     assert Time.iso8601(agent["started_at"])
@@ -330,7 +330,7 @@ class Tensaku::McpTest < Tensaku::TestCase
     ids = notes.map { it["id"] }
     got = replies.map { |reply| ids.select { reply.include?(it) } }
     assert_equal ids.sort, got.flatten.sort, "every note reached one session, none reached both"
-    got.zip([ @server, other ]).each { |found, server| found.each { assert_equal server.session, Tensaku::Notes.find(it)["session"] } }
+    got.zip([ @server, other ]).each { |found, server| found.each { assert_equal server.session.id, Tensaku::Notes.find(it)["session"] } }
   end
 
   test "a request for changes goes back to the session that owns the note, and to anyone once it is gone" do
@@ -348,10 +348,10 @@ class Tensaku::McpTest < Tensaku::TestCase
     assert_not_includes text(tool("list_notes")), note["id"]
     assert_includes text(tool_on(other, other_output, "watch_notes", since:, timeout_seconds: 1)), note["id"]
 
-    Tensaku::Notes.agent_gone!(other.session)
+    Tensaku::Agents.gone!(other.session.id)
     Tensaku::Notes.update(note["id"], status: "open", from: "you", message: "Shorter still", send: true)
     assert_includes text(tool("watch_notes", since:, timeout_seconds: 1)), note["id"]
-    assert_equal @server.session, Tensaku::Notes.find(note["id"])["session"]
+    assert_equal @server.session.id, Tensaku::Notes.find(note["id"])["session"]
   end
 
   test "in Claude Code, a channel that answers the hello gets each saved note pushed and claimed" do
@@ -366,14 +366,14 @@ class Tensaku::McpTest < Tensaku::TestCase
 
     assert tool("channel_ready", code: "wrong")["isError"]
     assert_includes text(tool("channel_ready", code:)), "channel works"
-    assert_equal [ [ true, true ] ], Tensaku::Notes.agents.map { it.values_at("channel", "listening") }
+    assert_equal [ [ true, true ] ], Tensaku::Agents.list.map { it.values_at("channel", "listening") }
 
     note = Tensaku::Notes.create(url: "/about", comment: "Bigger title")
     pushed = @output.pop(timeout: 5)
     assert_equal "notifications/claude/channel", pushed["method"]
     assert_equal({ "kind" => "notes", "notes" => note["id"] }, pushed.dig("params", "meta"))
     assert_includes pushed.dig("params", "content"), "Bigger title"
-    assert_equal @server.session, Tensaku::Notes.find(note["id"])["session"]
+    assert_equal @server.session.id, Tensaku::Notes.find(note["id"])["session"]
 
     # Answering the agent's question makes the note new again: it comes back to this session.
     tool("ask_question", id: note["id"], question: "How big?")
@@ -404,14 +404,14 @@ class Tensaku::McpTest < Tensaku::TestCase
     initialize_as("Claude Code")
     since = (Time.now.utc - 5).iso8601
     tool_on(other, other_output, "start_note", id: Tensaku::Notes.create(url: "/", comment: "Busy with this")["id"])
-    handle = Tensaku::Notes.handle(other.session)
+    handle = Tensaku::Agents.handle(other.session.id)
 
     note = Tensaku::Notes.create(url: "/", comment: "For Codex", to: handle)
     assert_equal "Codex · #{handle}", note["agent"]
     assert_not_includes text(tool("watch_notes", since:, timeout_seconds: 1)), note["id"]
     assert_includes text(tool("list_notes")), "2 more notes belong to other running agent sessions"
     assert tool("start_note", id: note["id"])["isError"]
-    Tensaku::Notes.agent_seen!(@server.session, name: "Claude Code", listening: true)
+    Tensaku::Agents.seen!(@server.session.id, name: "Claude Code", listening: true)
     reply = text(tool_on(other, other_output, "watch_notes", since:, timeout_seconds: 1))
     assert_includes reply, note["id"]
     assert_includes reply, "*Yours.*"
@@ -425,11 +425,11 @@ class Tensaku::McpTest < Tensaku::TestCase
     initialize_as("Codex", server: other, output: other_output)
     initialize_as("Claude Code")
     since = (Time.now.utc - 5).iso8601
-    note = Tensaku::Notes.create(url: "/", comment: "Rename", to: Tensaku::Notes.handle(other.session))
+    note = Tensaku::Notes.create(url: "/", comment: "Rename", to: Tensaku::Agents.handle(other.session.id))
 
-    Tensaku::Notes.update(note["id"], from: "you", to: Tensaku::Notes.handle(@server.session))
+    Tensaku::Notes.update(note["id"], from: "you", to: Tensaku::Agents.handle(@server.session.id))
     assert_includes text(tool("watch_notes", since:, timeout_seconds: 1)), note["id"]
-    assert_equal @server.session, Tensaku::Notes.find(note["id"])["session"]
+    assert_equal @server.session.id, Tensaku::Notes.find(note["id"])["session"]
 
     Tensaku::Notes.update(note["id"], from: "you", to: "")
     assert_includes text(tool("list_notes")), "*Nobody's yet: call start_note"
@@ -451,17 +451,17 @@ class Tensaku::McpTest < Tensaku::TestCase
     Tensaku::Store.write { it.execute("UPDATE agents SET seen_at = ?", [ Time.now.to_f - 600 ]) }
 
     assert_not Tensaku::Notes.available_to?(Tensaku::Notes.find(note["id"]), SecureRandom.hex(16))
-    assert_empty Tensaku::Notes.agents, "the page doesn't list it as connected"
+    assert_empty Tensaku::Agents.list, "the page doesn't list it as connected"
   end
 
   test "each session has a two word handle, kept with the agent and given to the page" do
     initialize_as("Claude Code")
-    handle = Tensaku::Notes.handle(@server.session)
+    handle = Tensaku::Agents.handle(@server.session.id)
 
     assert_match(/\A[a-z]+-[a-z]+\z/, handle)
-    assert_equal handle, Tensaku::Notes.handle(@server.session)
-    assert_equal handle, Tensaku::Store.read { it.get_first_value("SELECT handle FROM agents WHERE session = ?", [ @server.session ]) }
-    assert_equal [ handle ], Tensaku::Notes.agents.map { it["handle"] }
+    assert_equal handle, Tensaku::Agents.handle(@server.session.id)
+    assert_equal handle, Tensaku::Store.read { it.get_first_value("SELECT handle FROM agents WHERE session = ?", [ @server.session.id ]) }
+    assert_equal [ handle ], Tensaku::Agents.list.map { it["handle"] }
   end
 
   test "the dev server has no MCP endpoint" do

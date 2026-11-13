@@ -25,7 +25,7 @@ class Tensaku::WriteSafetyTest < Tensaku::TestCase
         reader.close
         done_writer.close
         session = SecureRandom.hex(16)
-        Tensaku::Notes.agent_seen!(session, name: "Agent #{i}", listening: true)
+        Tensaku::Agents.seen!(session, name: "Agent #{i}", listening: true)
         claimed = Tensaku::Notes.claim_sent(since, Time.now.utc, session:, agent: "Agent #{i}")
         writer.puts(JSON.generate(claimed.map { it["id"] }))
         writer.flush
@@ -70,11 +70,11 @@ class Tensaku::WriteSafetyTest < Tensaku::TestCase
   end
 
   test "each tab keeps its own selection, and the newest is the one an agent gets" do
-    Tensaku::Notes.select!({ "url" => "/about" }, tab: "one")
-    Tensaku::Notes.select!({ "url" => "/blog" }, tab: "two")
-    Tensaku::Notes.select!({ "url" => "/contact" }, tab: "one")
+    Tensaku::Project.select!({ "url" => "/about" }, tab: "one")
+    Tensaku::Project.select!({ "url" => "/blog" }, tab: "two")
+    Tensaku::Project.select!({ "url" => "/contact" }, tab: "one")
 
-    assert_equal "/contact", Tensaku::Notes.selection["url"]
+    assert_equal "/contact", Tensaku::Project.selection["url"]
     assert_equal 2, Tensaku::Store.read { it.get_first_value("SELECT COUNT(*) FROM selections") }
   end
 end

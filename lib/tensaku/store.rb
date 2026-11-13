@@ -8,8 +8,7 @@ module Tensaku
   # while one process writes, writes take the database's write lock (BEGIN IMMEDIATE), and a process
   # waits up to five seconds for another's write to finish.
   #
-  # Each write also adds a row to `changes`, so a reader asks "anything after the last change I saw?"
-  # instead of reading every note, and Doorbell wakes the readers that wait.
+  # Project keys every row by app, and logs each write in `changes` for the readers that wait.
   module Store
     FILE = "tensaku.sqlite3"
     BUSY_TIMEOUT = 5000
@@ -168,6 +167,17 @@ module Tensaku
         connection.execute_batch(SCHEMA) if current < 2
         MIGRATIONS.drop([ current - 2, 0 ].max).each { connection.execute_batch(it) }
         connection.execute("PRAGMA user_version = #{VERSION}")
+      end
+    end
+
+    # Rows of agents that stopped without cleaning up, and the change log, are deleted after this long.
+    STALE_AFTER = 86_400
+
+    # Deletes those rows, for every app.
+    def prune!(now: Time.now)
+      write do |db|
+        db.execute("DELETE FROM changes WHERE at < ?", [ now.to_f - STALE_AFTER ])
+        db.execute("DELETE FROM agents WHERE seen_at < ?", [ now.to_f - STALE_AFTER ])
       end
     end
 

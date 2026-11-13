@@ -362,7 +362,7 @@ class NotesTest < ApplicationSystemTestCase
     assert overlay.has_css?(".pin.open")
     assert overlay.has_css?(".tool.agents:not(.connected)")
 
-    Tensaku::Notes.agent_seen!(SecureRandom.hex(16), name: "Claude Code")
+    Tensaku::Agents.seen!(SecureRandom.hex(16), name: "Claude Code")
     Tensaku::Notes.update(note["id"], status: "working", agent: "Claude Code")
     assert overlay.has_css?(".pin.working", wait: 8)
     assert overlay.has_css?(".tool.agents.connected:not(.listening) .icon-plane")
@@ -454,9 +454,9 @@ class NotesTest < ApplicationSystemTestCase
 
   test "done and reopen can be undone, reopening doesn't send the note, and Assign says when nothing would change" do
     session = SecureRandom.hex(16)
-    Tensaku::Notes.agent_seen!(session, name: "Claude Code")
-    label = "Claude Code · #{Tensaku::Notes.handle(session)}"
-    note = Tensaku::Notes.create(url: "/about", comment: "Shorter", to: Tensaku::Notes.handle(session), targets: [ { kind: "element", stamp: "app/views/pages/about.html.erb:2:1" } ])
+    Tensaku::Agents.seen!(session, name: "Claude Code")
+    label = "Claude Code · #{Tensaku::Agents.handle(session)}"
+    note = Tensaku::Notes.create(url: "/about", comment: "Shorter", to: Tensaku::Agents.handle(session), targets: [ { kind: "element", stamp: "app/views/pages/about.html.erb:2:1" } ])
     visit "/about"
     wait_for_overlay
     overlay.find(".pin").click
@@ -529,13 +529,13 @@ class NotesTest < ApplicationSystemTestCase
     assert_eventually { copied == "Watch my Tensaku notes" }
 
     codex, claude = SecureRandom.hex(16), SecureRandom.hex(16)
-    Tensaku::Notes.agent_seen!(codex, name: "Codex", last: { "tool" => "resolve_note", "note" => "ab12", "at" => Time.now.utc.iso8601 })
-    codex_label = "Codex · #{Tensaku::Notes.handle(codex)}"
+    Tensaku::Agents.seen!(codex, name: "Codex", last: { "tool" => "resolve_note", "note" => "ab12", "at" => Time.now.utc.iso8601 })
+    codex_label = "Codex · #{Tensaku::Agents.handle(codex)}"
     assert overlay.has_css?(".popover .agent", text: /#{codex_label}.*Last resolved ab12 just now/m, wait: 8)
     assert overlay.has_css?(".popover .connect code", text: "Do my Tensaku notes")
 
-    Tensaku::Notes.agent_seen!(claude, name: "Claude Code", listening: true)
-    claude_label = "Claude Code · #{Tensaku::Notes.handle(claude)}"
+    Tensaku::Agents.seen!(claude, name: "Claude Code", listening: true)
+    claude_label = "Claude Code · #{Tensaku::Agents.handle(claude)}"
     assert overlay.has_css?(".popover .agent.listening", text: /#{claude_label}.*Waiting for your notes/m, wait: 8)
     assert overlay.has_no_css?(".popover .connect")
     # Listeners first; the rest fold into one line that expands.
@@ -550,7 +550,7 @@ class NotesTest < ApplicationSystemTestCase
 
   test "an unassigned note is taken by the agent that checks, shows who picked it up, and a long thread starts at the agent's latest message" do
     session = SecureRandom.hex(16)
-    Tensaku::Notes.agent_seen!(session, name: "Codex", listening: true, cwd: Dir.pwd, started_at: Time.now.utc.iso8601)
+    Tensaku::Agents.seen!(session, name: "Codex", listening: true, cwd: Dir.pwd, started_at: Time.now.utc.iso8601)
 
     visit "/about"
     wait_for_overlay
@@ -560,7 +560,7 @@ class NotesTest < ApplicationSystemTestCase
     overlay.find(".menu button", text: "Add note").click
     overlay.find(".note-form textarea").set("Rename this")
     assert overlay.has_css?(".note-form .hint", text: "saves")
-    label = "Codex · #{Tensaku::Notes.handle(session)}"
+    label = "Codex · #{Tensaku::Agents.handle(session)}"
     assert_equal "", overlay.find(".note-form select").value
     assert overlay.has_css?(".note-form select option[value='']", text: "Anyone")
     overlay.find(".note-form button", text: "Save note").click
@@ -588,10 +588,10 @@ class NotesTest < ApplicationSystemTestCase
   test "a note is assigned to the session picked in the form, with a screenshot of the element, and can be reassigned from its card" do
     codex = SecureRandom.hex(16)
     claude = SecureRandom.hex(16)
-    Tensaku::Notes.agent_seen!(codex, name: "Codex")
-    Tensaku::Notes.agent_seen!(claude, name: "Claude Code", listening: true)
-    codex_label = "Codex · #{Tensaku::Notes.handle(codex)}"
-    claude_label = "Claude Code · #{Tensaku::Notes.handle(claude)}"
+    Tensaku::Agents.seen!(codex, name: "Codex")
+    Tensaku::Agents.seen!(claude, name: "Claude Code", listening: true)
+    codex_label = "Codex · #{Tensaku::Agents.handle(codex)}"
+    claude_label = "Claude Code · #{Tensaku::Agents.handle(claude)}"
 
     visit "/about"
     wait_for_overlay
@@ -623,8 +623,8 @@ class NotesTest < ApplicationSystemTestCase
 
   test "a note in progress can be taken back from its session, and one whose session ended says anyone can take it" do
     claude = SecureRandom.hex(16)
-    Tensaku::Notes.agent_seen!(claude, name: "Claude Code")
-    claude_label = "Claude Code · #{Tensaku::Notes.handle(claude)}"
+    Tensaku::Agents.seen!(claude, name: "Claude Code")
+    claude_label = "Claude Code · #{Tensaku::Agents.handle(claude)}"
     note = Tensaku::Notes.create(url: "/about", comment: "Shorter", targets: [ { kind: "element", stamp: "app/views/pages/about.html.erb:1:1" } ])
     Tensaku::Notes.start(note["id"], agent: claude_label, session: claude)
 
@@ -677,12 +677,12 @@ class NotesTest < ApplicationSystemTestCase
     assert overlay.has_css?(".popover .connect code", text: "claude --dangerously-load-development-channels server:tensaku")
 
     session = SecureRandom.hex(16)
-    Tensaku::Notes.agent_seen!(session, name: "Claude Code", listening: true, channel: true)
+    Tensaku::Agents.seen!(session, name: "Claude Code", listening: true, channel: true)
     assert overlay.has_css?(".popover .agent.live", text: "Live: notes reach its chat as you save them", wait: 8)
   end
 
   test "an agent started before Tensaku's code changed is marked in the Agents popover" do
-    Tensaku::Notes.agent_seen!(SecureRandom.hex(16), name: "Codex", version: "000000000000")
+    Tensaku::Agents.seen!(SecureRandom.hex(16), name: "Codex", version: "000000000000")
     visit "/about"
     wait_for_overlay
     open_toolbar

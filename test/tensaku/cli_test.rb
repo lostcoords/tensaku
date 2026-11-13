@@ -49,7 +49,7 @@ class Tensaku::CliTest < Tensaku::TestCase
       assert_equal "tensaku", JSON.parse(stdout.gets).dig("result", "serverInfo", "name")
       stdin.puts JSON.generate(jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "list_notes", arguments: {} })
       assert_includes JSON.parse(stdout.gets).dig("result", "content", 0, "text"), "Bigger button"
-      assert_equal [ "Codex" ], Tensaku.with_root(shop) { Tensaku::Notes.agents.map { it["name"] } }
+      assert_equal [ "Codex" ], Tensaku.with_root(shop) { Tensaku::Agents.list.map { it["name"] } }
       stdin.puts JSON.generate(jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "get_note", arguments: { id: "rails" } })
       assert JSON.parse(stdout.gets).dig("result", "isError")
 

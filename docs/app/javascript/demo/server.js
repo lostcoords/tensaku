@@ -175,7 +175,7 @@ export class DemoServer {
     return [200, { deleted: true }]
   }
 
-  // Tensaku::Notes.to_markdown, which the MCP tools and the clipboard return.
+  // Tensaku::Notes::Markdown.list, which the MCP tools and the clipboard return.
   shortMarkdown(notes) {
     if (!notes.length) return "No notes."
     return notes.map((note) => {

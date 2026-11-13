@@ -123,11 +123,11 @@ end
     travel_to(Time.now + 2) { Tensaku::Notes.update(note["id"], status: "question", message: "Which?") }
     assert_equal note["sent_at"], Tensaku::Notes.find(note["id"])["sent_at"]
 
-    Tensaku::Notes.agent_seen!(SecureRandom.hex(16), name: "Codex", listening: true)
-    Tensaku::Notes.agent_seen!(SecureRandom.hex(16), name: "Claude Code")
+    Tensaku::Agents.seen!(SecureRandom.hex(16), name: "Codex", listening: true)
+    Tensaku::Agents.seen!(SecureRandom.hex(16), name: "Claude Code")
     agents = json(request("GET", "/notes", env: { "HTTP_HOST" => "shop.localhost:3001" }))["agents"]
     assert_equal [ [ "Claude Code", false ], [ "Codex", true ] ], agents.map { it.values_at("name", "listening") }
-    assert_equal "http://shop.localhost:3001", Tensaku::Notes.base_url
+    assert_equal "http://shop.localhost:3001", Tensaku::Project.base_url
     assert_equal 404, request("POST", "/notes/send").status
   end
 
@@ -144,7 +144,7 @@ end
     assert_equal "data: changed\n\n", next_event.call
 
     session = SecureRandom.hex(16)
-    Tensaku::Notes.agent_seen!(session, name: "Codex")
+    Tensaku::Agents.seen!(session, name: "Codex")
     assert_equal "data: changed\n\n", next_event.call
   ensure
     reader&.close
@@ -152,18 +152,18 @@ end
 
   test "the notes version changes with a note or an agent, but not with a heartbeat that has nothing new" do
     session = SecureRandom.hex(16)
-    Tensaku::Notes.agent_seen!(session, name: "Codex")
-    before = Tensaku::Notes.version
+    Tensaku::Agents.seen!(session, name: "Codex")
+    before = Tensaku::Project.version
     sleep 0.01
-    Tensaku::Notes.agent_seen!(session, name: "Codex")
-    assert_equal before, Tensaku::Notes.version
+    Tensaku::Agents.seen!(session, name: "Codex")
+    assert_equal before, Tensaku::Project.version
 
-    Tensaku::Notes.agent_seen!(session, name: "Codex", listening: true)
-    listening = Tensaku::Notes.version
+    Tensaku::Agents.seen!(session, name: "Codex", listening: true)
+    listening = Tensaku::Project.version
     assert_not_equal before, listening
     Tensaku::Notes.create(url: "/", comment: "New")
-    assert_not_equal listening, Tensaku::Notes.version
-    assert_not_equal Tensaku::Notes.version, Tensaku::Notes.version(now: Time.now + 60), "an agent that stopped heartbeating changes it too"
+    assert_not_equal listening, Tensaku::Project.version
+    assert_not_equal Tensaku::Project.version, Tensaku::Project.version(now: Time.now + 60), "an agent that stopped heartbeating changes it too"
   end
 
   test "editor links come from RAILS_EDITOR, for files inside the app only" do

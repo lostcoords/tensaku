@@ -72,13 +72,12 @@ module Tensaku
       name, arguments = note_call(words, options)
       return output.puts(USAGE) unless name
 
-      server = Mcp.new(apps, output: nil)
-      server.name = options["as"] || "tensaku CLI"
-      result = server.call(name, arguments)
+      session = Session.new(apps, name: options["as"] || "tensaku CLI")
+      result = session.call(name, arguments)
       output.puts(result[:content].map { it[:text] }.join("\n\n"))
       exit(1) if result[:isError]
     ensure
-      server&.close
+      session&.close
     end
 
     # Writes a note's screenshot to file, for an agent that reads images from disk, and prints where.

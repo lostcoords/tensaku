@@ -247,11 +247,16 @@ lib/tensaku/source/locale.rb    find a YAML scalar by key, splice its value
 lib/tensaku/source/markdown.rb  splice inside a producer's block range
 lib/tensaku/i18n.rb             I18n backend that adds key markers in development
 lib/tensaku/caches.rb           clears template caches and reloads I18n after a write
-lib/tensaku/notes.rb            notes, agents, selections: list, claim, resolve, archive
+lib/tensaku/project.rb          an app as a database row: change log, version, selection, base URL
+lib/tensaku/notes.rb            notes: create, list, claim, resolve, archive
+lib/tensaku/notes/markdown.rb   notes as Markdown for agents
+lib/tensaku/agents.rb           connected agent sessions, handles, note ownership
+lib/tensaku/presence.rb         file locks that tell whether a session's process still runs
 lib/tensaku/store.rb            the SQLite database in the user data folder, schema
 lib/tensaku/doorbell.rb         Unix sockets that wake waiting readers after a write
 lib/tensaku/repo.rb             the commit and origin of an app, read from .git
-lib/tensaku/mcp.rb              MCP server over stdio (`tensaku mcp`), no Rails
+lib/tensaku/session.rb          one agent session: the tools, watching, claiming, the channel push
+lib/tensaku/mcp.rb              JSON-RPC over stdio in front of a session (`tensaku mcp`), no Rails
 lib/tensaku/cli.rb              the `tensaku` command
 skills/tensaku/SKILL.md         Claude Code skill
 app/javascript/tensaku/         overlay source (TypeScript)
@@ -487,7 +492,7 @@ adds a second one.
     session that never listened still gets only the ids, so an unrelated `get_note` claims nothing.
 - **Change events (added 2026-11-13, replaces the page's poll):** `GET /__tensaku/events` streams
   server-sent events, one `changed` whenever the notes or the agents change, and the page loads the
-  notes then. The change signal is `Notes.version`: the last row of the `changes` table plus the set of
+  notes then. The change signal is `Project.version`: the last row of the `changes` table plus the set of
   connected agents (see "Notes in SQLite"; it was the notes folder's mtime until then). A check-in with
   nothing new isn't a change. The endpoint takes
   the connection over with Rack hijack and serves it from its own thread, so a tab doesn't hold a Puma

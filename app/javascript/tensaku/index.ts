@@ -3,9 +3,17 @@
 
 import { api, isApple, meta, query } from "./api"
 import { contextOf, documentRect, editKind, hasOwnText, isUi, MARKDOWN, nearestStamp, sourceElement, STAMP, stampOf, tagLabel, templateText, translationOf, visibleText, copiesOf } from "./dom"
-import { canRedo, canUndo, closeEditor, edit, editHistory, isEditing, redo, undo, undoFor } from "./editor"
+import { canRedo, canUndo, closeEditor, edit, isEditing, redo, undo, undoFor } from "./editor"
 import { watch as watchMarkers } from "./markers"
-import { type Agent, agentLabel, currentAgents, currentNotes, deleteNotes, drawPins, elementsInArea, load as loadNotes, noteForm, onAgents, onCount, setAgentsHandler, poll as pollNotes, setPinsHidden, sidebarOpen, targetsFor, toggleSidebar } from "./notes"
+import "./announce"
+import { renderAgents } from "./agents-popover"
+import { renderHistory } from "./history-popover"
+import { noteForm, setAgentsHandler } from "./note-card"
+import { elementsInArea, targetsFor } from "./note-targets"
+import { type Agent, agentLabel, currentNotes, deleteNotes, load as loadNotes, onAgents, onCount, poll as pollNotes } from "./notes"
+import { sidebarOpen, toggleSidebar } from "./notes-panel"
+import { drawPins, setPinsHidden } from "./pins"
+import { closeOutside, closePopover, popoverOpen, redrawPopover, togglePopover } from "./popover"
 import { onSettings } from "./settings"
 import { setSettingsHooks, settingsOpen, toggleSettings } from "./settings-panel"
 import { hasCommandModifier, keysLabel, shortcutFor, type ShortcutTool, toolForEvent } from "./shortcuts"
@@ -239,118 +247,14 @@ onAgents((agents) => {
   agentsBadge.hidden = agents.length < 2
   agentsBadge.textContent = String(agents.length)
   setTip(agentsTool, listening.length ? `${names(listening)} listening` : agents.length ? `${names(agents)} connected` : "No agent connected")
-  if (popover && popoverTool === agentsTool) popover.replaceChildren(...renderAgents())
+  redrawPopover(agentsTool)
 })
 
-// Popovers above the toolbar: one at a time, closed by a second click, Escape or a click elsewhere.
-let popover: HTMLElement | null = null
-let popoverTool: HTMLElement | null = null
-function closePopover() {
-  popover?.remove()
-  popover = null
-  popoverTool?.setAttribute("aria-pressed", "false")
-  popoverTool = null
-}
-function openPopover(tool: HTMLElement, render: () => Node[]) {
-  const same = popoverTool === tool
-  closePopover()
-  if (same) return
-  popover = div("popover", ...render())
-  popover.addEventListener("keydown", (event) => event.stopPropagation())
-  // In the top layer after the notes panel, so the panel never covers it, placed above the dock.
-  const rect = dock.getBoundingClientRect()
-  popover.style.right = `${Math.max(12, innerWidth - rect.right)}px`
-  popover.style.bottom = `${innerHeight - rect.top + 12}px`
-  fixed.append(popover)
-  popoverTool = tool
-  tool.setAttribute("aria-pressed", "true")
-}
-onDocument("pointerdown", (event) => {
-  if (popover && !event.composedPath().some((node) => node === popover || node === popoverTool)) closePopover()
-}, true)
+historyTool.addEventListener("click", () => togglePopover(historyTool, dock, renderHistory))
+onDocument("pointerdown", closeOutside, true)
 
-const ago = (date: Date) => {
-  const seconds = Math.round((Date.now() - date.getTime()) / 1000)
-  return seconds < 60 ? "just now" : seconds < 3600 ? `${Math.round(seconds / 60)} min ago` : `${Math.round(seconds / 3600)} h ago`
-}
-// The saves in this tab, newest first, with Undo on each, and the undone ones below, the latest with
-// Redo. Undo and redo also work from the keyboard (UNDO_KEYS).
-function renderHistory(): Node[] {
-  const { done, undone } = editHistory()
-  const row = (entry: (typeof done)[number], action: Node) => div(`entry${undone.includes(entry) ? " undone" : ""}`,
-    div("what", h("span", {}, entry.label), h("span", { className: "where" }, `${entry.file ?? ""} · ${ago(new Date(entry.at))}`)), action)
-  const button = (text: string, run: () => Promise<unknown>) => h("button", { type: "button", onclick: async () => { await run(); closePopover() } }, text)
-  return [
-    h("h3", {}, "Edit history", h("span", { className: "where" }, `Saves in this tab. ${UNDO_KEYS} undo and redo.`)),
-    ...(done.length || undone.length ? [
-      ...done.map((entry) => row(entry, button("Undo", () => undo(entry)))),
-      ...undone.map((entry, i) => row(entry, i === 0 ? button("Redo", () => redo(entry)) : h("span", { className: "where" }, "undone"))),
-    ] : [div("empty", "No edits yet.")]),
-  ]
-}
-historyTool.addEventListener("click", () => openPopover(historyTool, renderHistory))
-
-// What an agent can be asked, in its own chat. Tensaku can't start an agent's turn, so listening is
-// something the person asks for.
-const PROMPTS = {
-  watch: "Watch my Tensaku notes", once: "Do my Tensaku notes", install: "bin/rails generate tensaku:install",
-  channel: "claude --dangerously-load-development-channels server:tensaku",
-}
-function copyRow(text: string, done: string) {
-  return div("command", h("code", {}, text),
-    h("button", { type: "button", className: "icon-button", title: "Copy", "aria-label": `Copy ${text}`, onclick: async () => { await copy(text); toast(done) } }, icon("copy")))
-}
-// What the agent last did, from its last tool call: "resolved xz5b 1 min ago".
-const DID: Record<string, string> = { start_note: "started", resolve_note: "resolved", decline_note: "declined", ask_question: "asked on", reply_to_note: "replied on", get_note: "read", list_notes: "listed the notes", watch_notes: "checked for notes", current_selection: "read the selection" }
-function lastAction(agent: Agent) {
-  if (agent.working.length) return agent.working.map((note) => h("a", { className: "doing", href: note.url, title: `“${note.comment}”` }, `Working on ${note.id}: “${note.comment}”`))
-  const last = agent.last
-  const did = last ? `${DID[last.tool] ?? last.tool}${last.note ? ` ${last.note}` : ""} ${ago(new Date(last.at))}` : null
-  const waiting = agent.channel ? "Live: notes reach its chat as you save them" : "Waiting for your notes"
-  const text = agent.listening ? `${waiting}${did ? ` · ${did}` : ""}` : did ? `Last ${did}` : "No calls yet"
-  return [h("span", { className: "doing" }, text)]
-}
-// One agent: its name and handle, the folder it runs in, and what it did last.
-function agentRow(agent: Agent) {
-  return div(`agent${agent.listening ? " listening" : ""}${agent.channel ? " live" : ""}${agent.working.length ? " working" : ""}`,
-    div("who", h("strong", {}, agentLabel(agent)), h("span", { className: "where" }, agent.folder ?? "")),
-    agent.outdated ? div("outdated", "Runs older Tensaku code. Reconnect it (/mcp in Claude Code) or restart it.") : null,
-    ...lastAction(agent))
-}
-let idleOpen = false
-function renderAgents(): Node[] {
-  const agents = currentAgents()
-  const listening = agents.filter((agent) => agent.listening)
-  const idle = agents.filter((agent) => !agent.listening)
-  // An agent only reads notes when it calls Tensaku, so it has to be asked, in its own chat.
-  const ask = (lead: string) => [
-    h("p", {}, lead),
-    copyRow(PROMPTS.watch, "Copied. Paste it into your agent's chat."),
-    h("p", { className: "where" }, "It waits for notes and takes each one as you save it."),
-    copyRow(PROMPTS.once, "Copied. Paste it into your agent's chat."),
-    h("p", { className: "where" }, "It works through the open notes, then stops."),
-    h("p", {}, h("strong", {}, "Claude Code, without asking: "), "start it with Tensaku as a channel, and each note you save starts it working. Experimental, and it asks you to confirm at start:"),
-    copyRow(PROMPTS.channel, "Copied. Run it in the app's folder."),
-  ]
-  // Listeners first. The rest, connected but not listening, are one line that expands, unless they are all there is.
-  const rest = listening.length && idle.length
-    ? [h("button", { type: "button", className: "idle-toggle", "aria-expanded": String(idleOpen), onclick: () => { idleOpen = !idleOpen; popover?.replaceChildren(...renderAgents()) } },
-        `${idle.length} more connected, not listening`), ...(idleOpen ? idle.map(agentRow) : [])]
-    : idle.map(agentRow)
-  return [
-    h("h3", {}, "Agents", h("span", { className: "where" }, "Coding agents connected to this app. Each note goes to one of them.")),
-    ...(agents.length
-      ? [...listening.map(agentRow), ...rest, ...(listening.length ? [] : [div("connect", ...ask("None is listening. Agents read notes when you ask them to, so say this in your agent's chat:"))])]
-      : [div("empty", "No agent connected."),
-          div("connect",
-            h("p", {}, h("strong", {}, "Set up once per project. "), "Run this in the app, then restart your agent. It adds Tensaku to Claude Code, Codex, Cursor, Gemini CLI and OpenCode:"),
-            copyRow(PROMPTS.install, "Copied. Run it in the app, then restart your agent."),
-            h("p", { className: "where" }, "Already set up? Start your agent in this project and it shows here. In Claude Code, /mcp reconnects it."),
-            ...ask("Then say this in your agent's chat:"))]),
-  ]
-}
-agentsTool.addEventListener("click", () => openPopover(agentsTool, renderAgents))
-setAgentsHandler(() => { setToolbar(true); if (popoverTool !== agentsTool) openPopover(agentsTool, renderAgents) })
+agentsTool.addEventListener("click", () => togglePopover(agentsTool, dock, renderAgents))
+setAgentsHandler(() => { setToolbar(true); if (!popoverOpen(agentsTool)) togglePopover(agentsTool, dock, renderAgents) })
 
 // The settings panel takes the notes panel's place.
 setSettingsHooks({
@@ -733,9 +637,9 @@ onDocument("click", (event) => {
 onDocument("keyup", (event) => { if (event.key === "Alt") setAltHeld(false) }, true)
 onWindow("blur", () => setAltHeld(false))
 
-// Cmd/Ctrl+Z undoes the latest save, Cmd/Ctrl+Shift+Z or Ctrl+Y redoes, unless something is being
-// typed in (the page's own fields and Tensaku's editor keep their own undo) or there is nothing to undo.
-const UNDO_KEYS = isApple ? "⌘Z and ⇧⌘Z" : "Ctrl+Z and Ctrl+Y"
+// Cmd/Ctrl+Z undoes the latest save, Cmd/Ctrl+Shift+Z or Ctrl+Y redoes (UNDO_KEYS), unless something
+// is being typed in (the page's own fields and Tensaku's editor keep their own undo) or there is
+// nothing to undo.
 function undoKeys(event: KeyboardEvent): boolean {
   if (!(isApple ? event.metaKey : event.ctrlKey) || event.altKey || isEditing() || typingInPage() || activeInShadow()?.matches("textarea, input, [contenteditable]")) return false
   const key = event.key.toLowerCase()
@@ -763,7 +667,7 @@ onDocument("keydown", (event) => {
     if (event.key === "Escape") { clearPicked(); return }
   }
   if (event.key === "Escape") {
-    if (popover) { closePopover(); return }
+    if (popoverOpen()) { closePopover(); return }
     if (settingsOpen()) { toggleSettings(false); return }
     if (menu) { closeMenu(); return }
     if (isEditing()) return

@@ -76,20 +76,19 @@ module Tensaku
       in [ "POST", "/markdown" ]
         written(:markdown) { Source::Markdown.new(params["range"]).edit(original: params["original"], text: params["text"], tag: params["tag"]) }
       in [ "GET", "/notes" ]
-        Notes.prune!
-        Notes.base_url = request.base_url
+        visited(request)
         # restart: Tensaku's code changed since this server started, so it answers with the old code
         # while the page runs the new overlay script.
         # archived=1 lists the archive instead, for the notes panel's Archive tab.
         listed = Notes.list(url: params["url"].presence, status: ("archived" if params["archived"] == "1"))
         # changed_at: the last time an agent said something on a note in this app, so the page fetches
         # itself again to show its change, whatever page the note was on.
-        json(notes: listed, open: Notes.list(status: Notes::ACTIVE).size, agents: Notes.agents, restart: Build.stale?, changed_at: Notes.last_agent_message_at)
+        json(notes: listed, open: Notes.list(status: Notes::ACTIVE).size, agents: Agents.list, restart: Build.stale?, changed_at: Notes.last_agent_message_at)
       in [ "GET", "/events" ]
         events(request)
       in [ "GET", "/notes.md" ]
         notes = Notes.list(url: params["url"].presence, status: Notes::ACTIVE)
-        markdown = params["format"] == "short" ? Notes.to_short_markdown(notes) : Notes.to_markdown(notes)
+        markdown = params["format"] == "short" ? Notes::Markdown.short(notes) : Notes::Markdown.list(notes)
         [ 200, { "content-type" => "text/markdown; charset=utf-8" }, [ markdown ] ]
       in [ "POST", "/notes" ]
         json(Notes.create(params), 201)
@@ -113,14 +112,14 @@ module Tensaku
       in [ "GET", "/editor" ]
         json(url: editor_url(params["file"], params["line"]))
       in [ "POST", "/selection" ]
-        Notes.select!(params.to_h.slice("url", "targets", "text"), tab: params["tab"])
+        Project.select!(params.to_h.slice("url", "targets", "text"), tab: params["tab"])
         json({ ok: true })
       else
         json({ error: "Not found" }, 404)
       end
     end
 
-    # Server-sent events: one "changed" event whenever the notes or the agents change (Notes.version),
+    # Server-sent events: one "changed" event whenever the notes or the agents change (Project.version),
     # and one right away, so the page loads the notes when told instead of asking every few seconds.
     # The stream sleeps on the doorbell until a write rings it.
     # The connection is taken over from the web server (Rack hijack) and served from a thread of its
@@ -130,8 +129,7 @@ module Tensaku
       hijack = request.env["rack.hijack"]
       return json({ error: "This web server can't stream events" }, 501) unless hijack
 
-      Notes.prune!
-      Notes.base_url = request.base_url
+      visited(request)
       io = hijack.call
       root = Tensaku.root
       Thread.new { Tensaku.with_root(root) { stream(io) } }
@@ -143,7 +141,7 @@ module Tensaku
         io.write("HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncache-control: no-store\r\nconnection: close\r\n\r\n")
         last = nil
         loop do
-          version = Notes.version
+          version = Project.version
           io.write(version == last ? ": ping\n\n" : "data: changed\n\n")
           io.flush
           last = version
@@ -154,6 +152,12 @@ module Tensaku
       nil # the tab closed
     ensure
       io.close unless io.closed?
+    end
+
+    # The page asks for its notes: archive the old ones, and keep the URL agents' links start with.
+    def visited(request)
+      Notes.prune!
+      Project.base_url = request.base_url
     end
 
     # A link that opens the file in the editor named by RAILS_EDITOR or EDITOR, through Rails' own
