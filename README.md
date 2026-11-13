@@ -49,7 +49,7 @@ Tensaku edits static template text, attributes such as `alt` and `placeholder`, 
 
 ## Leave notes for your agent
 
-In select mode, click an element, select some text, or drag over an area, and choose **Add note**. Notes are kept in a SQLite database in your user data folder, outside your project. Your agent gets them through `tensaku mcp` and the skill, through the `tensaku notes` command, or from Markdown you copy from the page.
+Alt+Shift-click (Option+Shift-click) an element, or in select mode click an element, select some text, or drag over an area, and choose **Add note**. Notes are kept in a SQLite database in your user data folder, outside your project. Your agent gets them through `tensaku mcp` and the skill, through the `tensaku notes` command, or from Markdown you copy from the page.
 
 Ask your agent to do your Tensaku notes, and it works through the open ones. Ask it to watch your Tensaku notes, and it waits for them: each note you save reaches it as you write it.
 

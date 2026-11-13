@@ -28,7 +28,7 @@ Then restart your server. Editing and notes now work.
 
 ## Check that it works
 
-Open a page. A round button with a red flower sits in the bottom right corner. Press Alt+Shift+T for select mode and hover an element. The label shows the file and line it came from.
+Open a page. A round button with a red flower sits in the bottom right corner. Press <kbd>alt+shift+t</kbd> for select mode and hover an element. The label shows the file and line it came from.
 
 ### If the button doesn't appear
 
@@ -54,7 +54,7 @@ It prints every file it changes, and does this:
 - Checks that Tensaku is in the development group, and warns if it isn't.
 - Installs the skill in `.agents/skills/tensaku/`, and for Claude Code in `.claude/skills/tensaku/`.
 - Adds `bundle exec tensaku mcp`, the MCP server, to `.mcp.json`, and to the project config of each agent below that it sets up.
-- Adds `/tmp/tensaku/` to `.gitignore` unless `tmp/` is already ignored, so notes stay local.
+- Adds `/tmp/tensaku/` to `.gitignore` unless `tmp/` is already ignored. That folder holds the page token, the write lock, the MCP log and saved screenshots. Notes aren't kept in the project; see [where notes live](/notes/#where-notes-live).
 
 Each agent reads its own files:
 
@@ -89,7 +89,7 @@ The `.mcp.json` entry looks like this:
 }
 ```
 
-Your agent starts the server itself, in the directory it runs in, and stops it when it quits. Restart the agent after running the generator. For another agent, add the same command to its MCP settings, or have it run `bundle exec tensaku notes`. See [the MCP server](/notes/#the-mcp-server).
+Every file the generator writes is in the project, so the MCP server and the skill load only for agents started in that project. Your agent starts the server itself, in the directory it runs in, and stops it when it quits. Claude Code asks you to approve a project's `.mcp.json` servers the first time. Restart the agent after running the generator. For another agent, add the same command to its MCP settings, or have it run `bundle exec tensaku notes`. See [the MCP server](/notes/#the-mcp-server).
 
 ## Remove Tensaku
 
@@ -99,5 +99,5 @@ Run `bundle remove tensaku`, then delete what the generator and your notes left 
 - Your notes: the `tensaku` folder in your user data folder (see [where notes live](/notes/#where-notes-live))
 - `.claude/skills/tensaku/` and `.agents/skills/tensaku/`
 - The `tensaku` entry in `.mcp.json`, `.codex/config.toml`, `.cursor/mcp.json`, `.gemini/settings.json` and `opencode.json`
-- The `# Tensaku notes` lines in `.gitignore`, if the generator added them
+- The `/tmp/tensaku/` lines in `.gitignore`, if the generator added them
 - `config/initializers/tensaku.rb`, if you made one

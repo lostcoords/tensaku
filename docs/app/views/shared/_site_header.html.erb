@@ -5,6 +5,9 @@
   <span class="text-sm">tensaku</span>
 <% end %>
 <%= render layout: "shared/header", locals: { brand:, home_label: "Tensaku home", links: [ [ "Docs", introduction_page_path, current == "docs" ], [ "Installation", installation_page_path, current == "installation" ] ] } do %>
+  <% if (release = Docs.release) %>
+    <%= lc_button_link_to "v#{release}", changelog_page_path, variant: :ghost, size: :sm, class: "text-muted-foreground", aria: { label: "Version #{release}, changelog" } %>
+  <% end %>
   <%= render "shared/search" %>
   <%= lc_button_link_to "https://github.com/lostcoords/tensaku", variant: :ghost, size: :sm, aria: { label: "Source on GitHub" } do %><%= render "shared/github_icon" %><% end %>
 <% end %>

@@ -13,7 +13,7 @@ After reading this page, you will know:
 
 There are two ways:
 
-- **Alt-click** (Option-click on a Mac) any text, in any mode, then press E or Enter, or choose **Edit text**. While you hold the key, the cursor changes and the element under it is highlighted.
+- <kbd>alt+click</kbd> any text, in any mode, then press <kbd>e</kbd> or <kbd>enter</kbd>, or choose **Edit text**. While you hold the key, the cursor changes and the element under it is highlighted.
 - **Edit mode.** Click the corner button and choose **Edit**. Every editable text on the page is outlined, and a normal click edits it.
 
 The editor sits over the text in the page's own colours and type, with its file, Cancel and Save in a bar below.
@@ -22,9 +22,9 @@ The editor sits over the text in the page's own colours and type, with its file,
 
 | Key | Does |
 |---|---|
-| Enter | Saves |
-| Shift+Enter | Adds a line break, in Markdown |
-| Escape | Cancels |
+| <kbd>enter</kbd> | Saves |
+| <kbd>shift+enter</kbd> | Adds a line break, in Markdown |
+| <kbd>escape</kbd> | Cancels |
 | Clicking outside the editor | Saves |
 
 After a save, a toast offers **Undo**, and the message at the bottom of the page shows the file and line, with the old and new text of the lines that changed. It shows up to three changed lines, then a count of the rest.
@@ -33,10 +33,10 @@ Every save in the tab can be undone and redone:
 
 | To | Do this |
 |---|---|
-| Undo the latest save | Cmd+Z (Ctrl+Z), or **Undo** on its toast |
-| Redo the latest undone save | Cmd+Shift+Z (Ctrl+Shift+Z or Ctrl+Y), or **Redo** on the undo's toast |
+| Undo the latest save | <kbd>mod+z</kbd>, or **Undo** on its toast |
+| Redo the latest undone save | <kbd>mod+shift+z</kbd> (also <kbd>ctrl+y</kbd> outside Apple platforms), or **Redo** on the undo's toast |
 | Undo an older save | **Undo** next to it in the toolbar's **Edit history** |
-| Undo an element's latest save | **Undo** in the element's menu (U) |
+| Undo an element's latest save | **Undo** in the element's menu (<kbd>u</kbd>) |
 
 The keys work while nothing is being typed in, so a field on your page and Tensaku's own editor keep their usual undo. A new save clears what can be redone. The history belongs to the browser tab and survives a reload. Each undo and redo checks that the file still has the text it expects, and is refused if the file changed since, like any save. A translation saved in several locales from one editor is one entry, and one undo reverts every locale.
 
@@ -61,7 +61,7 @@ The editor shows the source, not the rendered text.
 - **Child elements** show as they look on the page. A line break breaks, an element's text is dimmed and opens its own editor when you click it, and an element without text, like an icon, is a small mark.
 - **Translations** show `%{name}` interpolations as chips. **Other locales** updates the same key in every locale at once.
 - **Markdown** has its heading hashes and list markers locked, and the rest is edited as Markdown. Tables and code blocks only get notes.
-- **Whole lists** open with **Edit the whole list**, in a list item's menu. It edits the list's source with its markers. Enter starts a new line and Cmd+Enter (Ctrl+Enter) saves.
+- **Whole lists** open with **Edit the whole list**, in a list item's menu. It edits the list's source with its markers. <kbd>enter</kbd> starts a new line and <kbd>mod+enter</kbd> saves.
 - **Loops** share one source position, so the editor says "this edits all 3 copies".
 
 ## How a save works

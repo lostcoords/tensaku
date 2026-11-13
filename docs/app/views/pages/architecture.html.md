@@ -15,7 +15,7 @@ After reading this page, you will know:
 ┌──────────────────────────┐        ┌──────────────────────────────────────┐       ┌───────────────────────────┐
 │ Your page                │        │ ReActionView + Herb                   │       │ app/views, app/components │
 │  stamped elements        │◀───────│  render templates, stamp elements     │◀──────│ config/locales            │
-│  (data-herb-debug-*)     │  HTML  │  with their file and position         │ read  │ Markdown (producers)      │
+│  (data-herb-source)      │  HTML  │  with their file and position         │ read  │ Markdown (producers)      │
 │                          │        │                                       │       └─────────────▲─────────────┘
 │ Tensaku overlay          │        │ Tensaku::Middleware                   │                     │ byte splices,
 │ (shadow DOM)             │        │  adds the overlay script and the      │                     │ under write.lock
@@ -110,6 +110,7 @@ No part of this wakes an agent. MCP lets an agent call Tensaku, not the other wa
 | `tmp/tensaku/write.lock` | The app | Dev server, with `flock` | The lock for source edits |
 | `tmp/tensaku/token` | The app | Dev server | The token the page sends with each request, shared by Puma workers |
 | `tmp/tensaku/mcp.log` | The app | `tensaku mcp` | One line per tool call: tool, duration, size, notes handed over |
+| `tmp/tensaku/screenshots/` | The app | `tensaku notes screenshot` | A note's screenshot as a PNG, for an agent that reads images from disk |
 | `sessions/*.lock` | Next to the database | Each `tensaku mcp` | A lock held while the session runs |
 
 | Table | One row per |

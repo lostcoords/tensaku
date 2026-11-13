@@ -30,7 +30,7 @@ Use `Rails.env.development?` rather than `defined?(Tensaku)`. With a path gem, B
 |---|---|---|
 | `writable_paths` | `app/views`, `app/components`, `config/locales` | Directories and single files Tensaku may write to, relative to the app root |
 | `archive_after` | 3 days | Seconds before resolved and declined notes move to the archive |
-| `mount_path` | `/__tensaku` | Where the overlay and the endpoints are served. If you change it, update the URL in `.mcp.json`. |
+| `mount_path` | `/__tensaku` | Where the overlay and the endpoints are served. `tensaku mcp` doesn't use it. |
 
 A file in `writable_paths` allows only that file, so a Markdown file outside the app, such as `../CONTRIBUTING.md`, can be edited without opening its whole directory.
 

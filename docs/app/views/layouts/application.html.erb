@@ -13,7 +13,7 @@
   <body class="antialiased">
     <%= lc_skip_link %>
     <%= render "shared/site_header", current: @page&.slug == "installation" ? "installation" : "docs" %>
-    <% page = yield %>
+    <% page = platform_keys(yield) %>
     <% outline = Docs.outline(page) %>
     <%= render layout: "shared/docs_shell", locals: { navigation: render("shared/navigation"), contents: (render("shared/outline", outline:) if outline.size > 1), menu_label: "Pages", width: "max-w-3xl" } do %>
       <article class="<%= lc_prose_class %>">

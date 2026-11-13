@@ -15,10 +15,10 @@ After reading this page, you will know:
 
 | To note | Do this |
 |---|---|
-| An element | Alt+Shift+click (Option+Shift+click on a Mac), in any mode. The note form opens right away. |
-| Some text | Select the text, then Alt+Shift+click it. The phrase stays marked on the page. |
-| An area | Alt-drag (Option-drag), in any mode, or drag in select mode. The note collects every stamped element at least half inside the area. |
-| Several elements | Shift-click them in select mode, then press **N** or **Add note**. **Esc** clears them. |
+| An element | <kbd>alt+shift+click</kbd>, in any mode. The note form opens right away. |
+| Some text | Select the text, then <kbd>alt+shift+click</kbd> it. The phrase stays marked on the page. |
+| An area | <kbd>alt+drag</kbd>, in any mode, or drag in select mode. The note collects every stamped element at least half inside the area. |
+| Several elements | <kbd>shift+click</kbd> them in select mode, then press <kbd>n</kbd> or **Add note**. <kbd>escape</kbd> clears them. |
 
 The note form takes a screenshot of what the note points at, with a margin around it, as the page looked when the form opened. Untick **Screenshot** to save the note without it; the form remembers the choice. The overlay draws the screenshot from the page itself, so no browser permission is needed. It leaves out Tensaku's own overlay, and images from another origin that doesn't send CORS headers: those areas are blank. Drawing takes about half a second on a typical page, while you type. On a page with thousands of elements, the screenshot shows the element the note points at without the area around it, so it stays fast. The card shows the screenshot; click it to open it at full size. Agents get it with `get_screenshot` or `tensaku notes screenshot`.
 
@@ -69,25 +69,25 @@ A note belongs to one agent session: the one you assigned it to, the one `watch_
 
 ## Select mode
 
-Click the corner button and choose **Select**, or press Alt+Shift+T. Hover to see where each element comes from, and click an element for its menu. Alt-click (Option-click) opens the same menu in any mode.
+Click the corner button and choose **Select**, or press <kbd>alt+shift+t</kbd>. Hover to see where each element comes from, and click an element for its menu. <kbd>alt+click</kbd> opens the same menu in any mode.
 
 | Key | Does |
 |---|---|
-| Arrow keys | Move the highlight to the parent, the first child or a sibling |
-| Enter | Opens the menu |
-| Cmd+C (Ctrl+C) | Copies the highlighted element's reference, when no text is selected |
-| Esc | Closes the innermost open thing: the menu, the note from a pin, the side panel, then select mode, then the toolbar |
+| <kbd>arrowup</kbd> <kbd>arrowdown</kbd> <kbd>arrowleft</kbd> <kbd>arrowright</kbd> | Move the highlight to the parent, the first child or a sibling |
+| <kbd>enter</kbd> | Opens the menu |
+| <kbd>mod+c</kbd> | Copies the highlighted element's reference, when no text is selected |
+| <kbd>escape</kbd> | Closes the innermost open thing: the menu, the note from a pin, the side panel, then select mode, then the toolbar |
 
 The menu has these items, with the key that picks each one:
 
 | Item | Key | Does |
 |---|---|---|
-| **Edit text** or **Edit attributes** | E | Opens the [editor](/editing/) |
-| **Edit the whole list** | L | Edits a Markdown list's source |
-| **Add note** | N | Asks what should change. Select some text first to note just that text. |
-| **Copy reference** | C | Copies the route, the file and line, the text, the partial chain, the Stimulus controller, the Turbo Frame and the translation key |
-| **Undo** | U | Undoes this element's latest save |
-| **Open in editor** | O | Opens the file at that line in the editor named by `RAILS_EDITOR` or `EDITOR`, through Rails' list of editors (VS Code, Cursor, Zed, RubyMine and others) |
+| **Edit text** or **Edit attributes** | <kbd>E</kbd> | Opens the [editor](/editing/) |
+| **Edit the whole list** | <kbd>L</kbd> | Edits a Markdown list's source |
+| **Add note** | <kbd>N</kbd> | Asks what should change. Select some text first to note just that text. |
+| **Copy reference** | <kbd>C</kbd> | Copies the route, the file and line, the text, the partial chain, the Stimulus controller, the Turbo Frame and the translation key |
+| **Undo** | <kbd>U</kbd> | Undoes this element's latest save |
+| **Open in editor** | <kbd>O</kbd> | Opens the file at that line in the editor named by `RAILS_EDITOR` or `EDITOR`, through Rails' list of editors (VS Code, Cursor, Zed, RubyMine and others) |
 
 ## Follow up
 
@@ -111,7 +111,7 @@ The dev server tells the page when the notes or the agents change, over one conn
 
 ### Manage notes
 
-The **Notes** panel lists the notes on the current page. From there you can send them or copy them as Markdown. Each card has **Mark as done** (or **Reopen** once it's done), **Edit** and **Delete**. **All pages** lists the notes on every page, with a link to each.
+The **Notes** panel lists the notes on the current page. **Copy page** and **Copy all** copy the open notes as Markdown. Each card has **Mark as done** (or **Reopen** once it's done), **Edit** and **Delete**. **All pages** lists the notes on every page, with a link to each.
 
 The panel lists resolved and declined notes in a **Done** section, and **Archive done** moves them to the archive. Otherwise they move there after three days. Archived notes are kept: agents list them with `list_notes` and `status: archived`, and a note you reopen comes back.
 
@@ -123,7 +123,7 @@ The sliders button in the toolbar opens the settings panel. The settings are kep
 
 - **Copy notes as**: detailed (targets and thread) or one line per note.
 - **Notify me**: a browser notification when an agent answers while the tab is in the background.
-- **Keyboard shortcuts**: one per toolbar button. Select is Alt+Shift+T, Edit is Alt+Shift+E and Notes is Alt+Shift+N (⌥⇧T, ⌥⇧E and ⌥⇧N on a Mac). The others have none. Click a shortcut and press the new keys, with Alt, Ctrl or Cmd. Keys that another button had move to the new one. The panel also lists the keys that can't be changed, such as Alt+click.
+- **Keyboard shortcuts**: one per toolbar button. Select is <kbd>alt+shift+t</kbd>, Edit is <kbd>alt+shift+e</kbd> and Notes is <kbd>alt+shift+n</kbd>. The others have none. Click a shortcut and press the new keys, with Alt, Ctrl or Cmd. Keys that another button had move to the new one. The panel also lists the keys that can't be changed, such as <kbd>alt+click</kbd>.
 - **Move the toolbar back to the corner**: after you dragged it somewhere else.
 
 ## Where notes live
@@ -175,14 +175,14 @@ There are four ways to get them:
 
 - **Command line**: `bundle exec tensaku notes` does what the MCP tools do, for an agent without MCP. `tensaku notes` lists the open notes, and `tensaku notes start ID`, `resolve ID REPLY`, `decline ID REASON`, `ask ID QUESTION`, `reply ID MESSAGE` and `watch` change them, and `screenshot ID` saves a note's screenshot as a PNG file. `tensaku help` lists them all.
 - **MCP**: `bundle exec tensaku mcp`, a server the agent starts over stdin and stdout. The optional [generator](/installation/#connect-a-coding-agent) adds it to `.mcp.json` and other agents' config.
-- **Clipboard**: copy a page's open notes or all open notes as Markdown from the page, for any chat.
+- **Clipboard**: **Copy page** or **Copy all** in the notes panel copies the open notes as Markdown, for any chat.
 - **Skill**: `SKILL.md` in `.claude/skills/tensaku/` and `.agents/skills/tensaku/` explains how to find, act on and resolve notes.
 
 ### Note fields
 
 | Field | Holds |
 |---|---|
-| `id` | The note's id, also its file name |
+| `id` | The note's id |
 | `url` | The path of the page it was written on |
 | `comment` | What should change |
 | `targets` | What it points at, see below |
@@ -213,7 +213,7 @@ Targets also carry the `tag`, the `text`, the element's own CSS `classes` and, i
 
 | Tool | Does |
 |---|---|
-| `list_notes` | Lists notes, optionally for one `url`. `status` is `open`, `working`, `question`, `resolved`, `active` (the default: open, working or question) or `all`. |
+| `list_notes` | Lists notes, optionally for one `url`. `status` is `open`, `working`, `question`, `resolved`, `declined`, `active` (the default: open, working or question), `archived` or `all` (every note outside the archive). |
 | `get_note` | Returns one note |
 | `get_screenshot` | Returns the note's screenshot as a PNG image |
 | `start_note` | Marks a note as being worked on; the pin shows it, and the note becomes this session's. Fails when the note belongs to another running session. |
@@ -223,7 +223,7 @@ Targets also carry the `tag`, the `text`, the element's own CSS `classes` and, i
 | `reply_to_note` | Adds a message to the note's thread without changing its status |
 | `watch_notes` | Waits for notes you save: 60 seconds by default, up to 300 with `timeout_seconds` |
 | `channel_ready` | Claude Code only: confirms that the Tensaku channel reaches the session, with the code from its hello |
-| `current_selection` | Returns the element last clicked in select mode |
+| `current_selection` | Returns what was last selected in select mode, in the browser tab that selected most recently |
 
 `watch_notes` waits for open notes sent after `since`, woken as soon as one is saved, and the page shows the agent as listening meanwhile. Its answer ends with a `checked_at` line to pass as `since` on the next call, so no note is missed or passed on twice. `list_notes` lists notes whether they were sent or not. Both cut a long thread down to the agent's latest message and what came after it.
 
