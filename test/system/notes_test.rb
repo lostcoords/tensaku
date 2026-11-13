@@ -10,7 +10,7 @@ class NotesTest < ApplicationSystemTestCase
   end
 
   def select_mode
-    overlay.find(".corner").click
+    open_toolbar
     overlay.find(".toolbar button[aria-label='Select']").click
   end
 
@@ -18,10 +18,41 @@ class NotesTest < ApplicationSystemTestCase
     visit "/"
     wait_for_overlay
 
-    assert overlay.has_css?(".corner", text: "添")
+    assert overlay.has_css?(".corner svg.logo")
     assert overlay.has_no_css?(".toolbar", visible: true)
     find("body").send_keys([ :alt, :shift, "T" ])
     assert overlay.has_css?(".toolbar button[aria-pressed=true][aria-label=Select]")
+  end
+
+  test "the settings panel changes a tool's shortcut, moves keys another tool had, and resets them all" do
+    visit "/"
+    wait_for_overlay
+    open_toolbar
+    overlay.find(".toolbar button[aria-label='Settings']").click
+    assert overlay.has_css?(".sidebar.settings header", text: "Settings")
+    assert overlay.has_css?(".toolbar button[aria-label='Settings'][aria-pressed=true]")
+
+    overlay.find(".settings button[aria-label='Change the shortcut for Pause animations']").click
+    assert overlay.has_css?(".settings .keys.recording", text: "Press keys…")
+    find("body").send_keys([ :alt, :shift, "e" ])
+    assert overlay.has_css?(".settings .shortcut.changed", text: "Pause animations")
+    assert overlay.has_css?(".settings button[aria-label='Change the shortcut for Edit']", text: "None")
+
+    find("body").send_keys(:escape)
+    assert overlay.has_no_css?(".sidebar.settings")
+    find("body").send_keys([ :alt, :shift, "e" ])
+    assert overlay.has_css?(".toolbar button[aria-label='Resume animations']")
+    assert overlay.has_no_css?(".toolbar button[aria-pressed=true][aria-label=Edit]")
+
+    find("body").send_keys([ :alt, :shift, "n" ])
+    assert overlay.has_css?(".sidebar header", text: "Notes on /")
+    overlay.find(".toolbar button[aria-label='Settings']").click
+    assert overlay.has_no_css?(".sidebar header", text: "Notes on /")
+    overlay.find(".settings h4 button", text: "Reset all").click
+    assert overlay.has_no_css?(".settings .shortcut.changed")
+    find("body").send_keys(:escape)
+    find("body").send_keys([ :alt, :shift, "e" ])
+    assert overlay.has_css?(".toolbar button[aria-pressed=true][aria-label=Edit]")
   end
 
   test "copy reference gives the file, line, partial chain, Stimulus controller" do
@@ -59,6 +90,77 @@ class NotesTest < ApplicationSystemTestCase
     assert_includes copied, "Stimulus: hello"
   end
 
+  test "Alt+Shift-click opens the note form without entering select mode" do
+    visit "/about"
+    wait_for_overlay
+
+    find("p.bio").click(:alt, :shift)
+    overlay.find(".note-form textarea").set("Make this punchier")
+    overlay.find(".note-form button", text: "Save note").click
+
+    assert overlay.has_css?(".pin.open", text: "1")
+    assert overlay.has_no_css?(".toolbar", visible: true)
+    assert_equal "app/views/pages/about.html.erb", Tensaku::Notes.all.sole["targets"].first["file"]
+    assert_equal [ "bio" ], Tensaku::Notes.all.sole["targets"].first["classes"]
+    assert Tensaku::Notes.all.sole["sent_at"], "notes are sent when saved"
+  end
+
+  test "a note on a helper's output points at the nearest stamped ancestor" do
+    visit "/about"
+    wait_for_overlay
+
+    find("a", text: "Back home").click(:alt, :shift)
+    overlay.find(".note-form textarea").set("Reword this link")
+    overlay.find(".note-form button", text: "Save note").click
+
+    assert overlay.has_css?(".pin.open", text: "1")
+    assert_equal "/about", page.current_path
+    target = Tensaku::Notes.all.sole["targets"].first
+    assert_includes target["text"], "Back home"
+    assert_predicate target["file"], :present?
+    assert_no_match %r{pages/about}, target["file"]
+  end
+
+  # p.bio is on line 2 when the note is written.
+  def note_on_bio
+    Tensaku::Notes.create(url: "/about", comment: "Make this punchier", targets: [ { kind: "element", stamp: "app/views/pages/about.html.erb:2:1", tag: "p.bio", text: "I build small tools for big apps." } ])
+  end
+
+  def pin_offset_from(selector)
+    page.evaluate_script(<<~JS)
+      document.querySelector("tensaku-overlay").shadowRoot.querySelector(".pin").getBoundingClientRect().top - document.querySelector(#{selector.to_json}).getBoundingClientRect().top
+    JS
+  end
+
+  test "a pin follows its element when the file's lines move" do
+    note_on_bio
+    File.write(Rails.root.join("app/views/pages/about.html.erb"), <<~ERB)
+      <div>New first line</div>
+      <h1>About me</h1>
+      <div style="height: 800px"></div>
+      <p class="bio">I build small tools for big apps.</p>
+    ERB
+
+    visit "/about"
+    wait_for_overlay
+
+    assert overlay.has_css?(".pin", visible: :all)
+    assert_operator pin_offset_from("p.bio").abs, :<, 60
+  end
+
+  test "a pin stays on its element when only the text changed, and leaves when the element is gone" do
+    note_on_bio
+    File.write(Rails.root.join("app/views/pages/about.html.erb"), %(<h1>About me</h1>\n<p class="bio">A new bio.</p>\n))
+    visit "/about"
+    wait_for_overlay
+    assert overlay.has_css?(".pin", visible: :all)
+
+    File.write(Rails.root.join("app/views/pages/about.html.erb"), %(<h1>About me</h1>\n<h2>Something else</h2>\n))
+    visit "/about"
+    wait_for_overlay
+    assert overlay.has_no_css?(".pin", visible: :all)
+  end
+
   test "a note on an element is saved with its file range, pinned, and turns green when resolved" do
     visit "/about"
     wait_for_overlay
@@ -75,12 +177,12 @@ class NotesTest < ApplicationSystemTestCase
     assert_equal "/about", note["url"]
     assert_equal [ "element", "app/views/pages/about.html.erb", "2:1-2:53", "p.bio" ], note["targets"].first.values_at("kind", "file", "range", "tag")
 
-    Tensaku::Notes.update(note["id"], status: "resolved", reply: "Rewrote the bio in about.html.erb:2")
+    Tensaku::Notes.update(note["id"], status: "resolved", message: "Rewrote the bio in about.html.erb:2")
     visit "/about"
     assert overlay.has_css?(".pin.resolved")
     overlay.find(".pin").click
     assert overlay.has_text?("Rewrote the bio in about.html.erb:2")
-    overlay.find(".panel button", text: "Dismiss").click
+    overlay.find(".panel button[aria-label='Delete']").click
     assert overlay.has_no_css?(".pin")
     assert_empty Tensaku::Notes.all
   end
@@ -103,25 +205,88 @@ class NotesTest < ApplicationSystemTestCase
     assert overlay.has_css?(".pin")
 
     note = Tensaku::Notes.all.sole
-    assert_equal %w[h1 p.bio a], note["targets"].map { it["tag"] }
+    # The link is inside the area too, but helper output has no stamp of its own.
+    assert_equal %w[h1 p.bio], note["targets"].map { it["tag"] }
     assert note["rect"]["width"] > 400
     assert_match(/\A\d+x\d+\z/, note["viewport"])
+  end
+
+  test "the corner button opens and closes the dock without moving, and the tools stay on its center line" do
+    visit "/about"
+    wait_for_overlay
+    rect = ->(selector) { page.evaluate_script(%(JSON.stringify(document.querySelector("tensaku-overlay").shadowRoot.querySelector(#{selector.to_json}).getBoundingClientRect()))).then { JSON.parse(it) } }
+    closed = rect.call(".corner")
+
+    open_toolbar
+    assert_equal closed, rect.call(".corner")
+    assert overlay.has_no_css?("button[aria-label='Close Tensaku']")
+    overlay.find(".toolbar button[aria-label=Select]").click
+    assert_in_delta closed["top"], rect.call(".tool[aria-pressed=true]")["top"], 0.5
+
+    overlay.find(".toolbar button[aria-label^=Notes]").click
+    assert overlay.has_css?(".sidebar", text: "No notes on this page")
+    assert overlay.has_no_css?(".sidebar .copy-bar")
+    assert_not_includes overlay.find(".sidebar").text, "null"
+    overlay.find(".corner").click
+    assert overlay.has_no_css?(".toolbar", visible: true)
+    assert overlay.has_no_css?(".sidebar")
+    assert_equal closed, rect.call(".corner")
+  end
+
+  test "the tools stay in place while the toolbar reveals them from the corner button" do
+    visit "/about"
+    wait_for_overlay
+    positions = page.evaluate_async_script(<<~JS)
+      const done = arguments[0], root = document.querySelector("tensaku-overlay").shadowRoot, seen = [], start = performance.now()
+      const widths = []
+      root.querySelector(".corner").click()
+      const frame = () => {
+        seen.push(Math.round(root.querySelector(".tool[aria-label=Settings]").getBoundingClientRect().x))
+        widths.push(root.querySelector(".toolbar").getBoundingClientRect().width)
+        performance.now() - start < 350 ? requestAnimationFrame(frame) : done({ seen, grew: new Set(widths).size > 3 })
+      }
+      requestAnimationFrame(frame)
+    JS
+
+    assert_equal 1, positions["seen"].uniq.size, positions["seen"].inspect
+    assert positions["grew"]
+  end
+
+  test "Alt-drag draws an area without entering select mode" do
+    visit "/about"
+    wait_for_overlay
+
+    heading = find("h1").native.node.find_position
+    link = find("a", text: "Back home").native.node.find_position
+    mouse = page.driver.browser.mouse
+    mouse.move(x: 2, y: heading[1] - 30)
+    mouse.down(modifiers: 1)
+    mouse.move(x: 500, y: link[1] + 20, steps: 5)
+    mouse.up(modifiers: 1)
+
+    overlay.find(".note-form textarea").set("Too much spacing")
+    overlay.find(".note-form button", text: "Save note").click
+    assert overlay.has_css?(".pin")
+    assert_equal %w[h1 p.bio], Tensaku::Notes.all.sole["targets"].map { it["tag"] }
+    assert_equal "", page.evaluate_script("document.documentElement.style.cursor")
+    assert overlay.has_no_css?(".menu")
   end
 
   test "the notes panel lists this page's notes and copies them as Markdown" do
     Tensaku::Notes.create(url: "/about", comment: "Rename this section", targets: [ { kind: "element", stamp: "app/views/pages/about.html.erb:1:1" } ])
     note = Tensaku::Notes.create(url: "/about", comment: "Which photo?", targets: [ { kind: "element", stamp: "app/views/pages/about.html.erb:2:1" } ])
-    Tensaku::Notes.update(note["id"], status: "question", reply: "Which photo do you mean?")
+    Tensaku::Notes.update(note["id"], status: "question", message: "Which photo do you mean?")
 
     visit "/about"
     wait_for_overlay
     stub_clipboard
-    overlay.find(".corner").click
+    open_toolbar
     overlay.find(".toolbar button[aria-label='Notes (2)']").click
 
     assert overlay.has_css?(".sidebar .note-card", count: 2)
     assert overlay.has_css?(".pin.question")
-    overlay.find(".sidebar button", text: "Copy page notes").click
+    assert overlay.has_css?(".sidebar > .note-card + .note-card + .copy-bar")
+    overlay.find(".sidebar button", text: "Copy page").click
     assert_eventually { copied.to_s.include?("Rename this section") }
     assert_includes copied, "at `app/views/pages/about.html.erb:1:1-1:18`"
 
@@ -134,18 +299,21 @@ class NotesTest < ApplicationSystemTestCase
 
   test "a note is edited from its card and goes back to the agent as open" do
     note = Tensaku::Notes.create(url: "/about", comment: "Rename this section", targets: [ { kind: "element", stamp: "app/views/pages/about.html.erb:1:1" } ])
-    Tensaku::Notes.update(note["id"], status: "resolved", reply: "Renamed it")
+    Tensaku::Notes.update(note["id"], status: "resolved", message: "Renamed it")
 
     visit "/about"
     wait_for_overlay
-    overlay.find(".corner").click
+    open_toolbar
     overlay.find(".toolbar button[aria-label='Notes']").click
-    overlay.find(".sidebar .note-card button", text: "Edit").click
-    overlay.find(".sidebar .note-card textarea").set("Rename it to About me")
+    overlay.find(".sidebar .note-card button[aria-label='Edit']").click
+    overlay.find(".sidebar .note-card textarea[aria-label='Edit note']").set("Rename it to About me")
     overlay.find(".sidebar .note-card button", text: "Save").click
 
     assert overlay.has_css?(".sidebar .note-card.open", text: "Rename it to About me")
-    assert_equal [ "Rename it to About me", "open", nil ], Tensaku::Notes.find(note["id"]).values_at("comment", "status", "reply")
+    saved = Tensaku::Notes.find(note["id"])
+    assert_equal [ "Rename it to About me", "open" ], saved.values_at("comment", "status")
+    assert_equal "Renamed it", saved["thread"].sole["text"]
+    assert overlay.has_css?(".sidebar .note-card .message", text: "Renamed it")
   end
 
   test "shift-click picks several elements for one note" do
@@ -172,7 +340,7 @@ class NotesTest < ApplicationSystemTestCase
 
     visit "/about"
     wait_for_overlay
-    overlay.find(".corner").click
+    open_toolbar
     assert overlay.has_css?(".pin")
     overlay.find(".toolbar button[aria-label='Hide pins']").click
     assert overlay.has_no_css?(".pin")
@@ -186,20 +354,20 @@ class NotesTest < ApplicationSystemTestCase
     assert_equal [ "Elsewhere" ], Tensaku::Notes.all.map { it["comment"] }
   end
 
-  test "the page follows an agent: connected light, working pin, then resolved" do
+  test "the page follows an agent: connected dot on the Agents button, working pin, then resolved" do
     note = Tensaku::Notes.create(url: "/about", comment: "Rename this section", targets: [ { kind: "element", stamp: "app/views/pages/about.html.erb:1:1" } ])
 
     visit "/about"
     wait_for_overlay
     overlay.find(".corner").click
     assert overlay.has_css?(".pin.open")
-    assert overlay.has_no_css?(".agent-light")
+    assert overlay.has_css?(".tool.agents:not(.connected)")
 
-    Tensaku::Notes.agent_seen!
+    Tensaku::Notes.agent_seen!(SecureRandom.hex(16), name: "Claude Code")
     Tensaku::Notes.update(note["id"], status: "working", agent: "Claude Code")
     assert overlay.has_css?(".pin.working", wait: 8)
-    assert overlay.has_css?(".agent-light")
-    assert overlay.has_css?(".toast", text: "Claude Code started on \"Rename this section\"")
+    assert overlay.has_css?(".tool.agents.connected:not(.listening) .icon-plane")
+    assert overlay.has_no_css?(".toast")
 
     Tensaku::Notes.update(note["id"], status: "resolved", message: "Renamed it", agent: "Claude Code")
     assert overlay.has_css?(".pin.resolved", wait: 8)
@@ -246,21 +414,232 @@ class NotesTest < ApplicationSystemTestCase
     assert_equal [ "text", "build small" ], Tensaku::Notes.all.sole["targets"].first.values_at("kind", "text")
   end
 
-  test "the agent's messages show as a thread, and a note moves to another element" do
+  test "the agent's messages show as a thread, and a missing element is said" do
     note = Tensaku::Notes.create(url: "/about", comment: "Rename this", targets: [ { kind: "element", stamp: "app/views/pages/about.html.erb:9:1" } ])
     Tensaku::Notes.update(note["id"], message: "Which one?", agent: "Claude Code")
 
     visit "/about"
     wait_for_overlay
-    overlay.find(".corner").click
+    open_toolbar
     overlay.find(".toolbar button[aria-label='Notes (1)']").click
     assert overlay.has_css?(".sidebar .message.agent", text: "Which one?")
-    assert overlay.has_css?(".sidebar .missing")
+    assert overlay.has_css?(".sidebar .missing", text: "Not found on this page any more.")
+    assert overlay.has_no_css?(".sidebar button[aria-label='Move to another element']")
+  end
 
-    overlay.find(".sidebar button", text: "Move").click
-    find("h1").click
-    assert overlay.has_css?(".pin.open")
-    assert_equal "app/views/pages/about.html.erb:1:1", Tensaku::Notes.find(note["id"])["targets"].sole["stamp"]
+  test "a card's buttons are Mark as done, Edit and Delete, and a declined note shows as done" do
+    note = Tensaku::Notes.create(url: "/about", comment: "Make it blink", targets: [ { kind: "element", stamp: "app/views/pages/about.html.erb:1:1" } ])
+
+    visit "/about"
+    wait_for_overlay
+    overlay.find(".pin").click
+    assert_equal [ "Mark as done", "Edit", "Delete" ], overlay.all(".note-pop .tools button").map { it["aria-label"] }
+    assert overlay.has_css?(".note-pop .status", text: "Open")
+
+    Tensaku::Notes.update(note["id"], status: "declined", message: "Blinking fails WCAG", agent: "Codex")
+    assert overlay.has_css?(".toast", text: "Codex declined \"Make it blink\"", wait: 8)
+    assert overlay.has_css?(".pin.declined")
+    open_toolbar
+    overlay.find(".toolbar button[aria-label^='Notes']").click
+    assert overlay.has_css?(".sidebar .section", text: "Done (1)")
+    assert overlay.has_css?(".sidebar .note-card.declined .status", text: "Declined")
+    assert_equal [ "Reopen", "Edit", "Delete" ], overlay.all(".sidebar .note-card.declined .tools button").map { it["aria-label"] }
+  end
+
+  test "the panel names the agent listening, and Connect one opens the Agents popover with what to ask" do
+    Tensaku::Notes.create(url: "/about", comment: "Rename this", targets: [ { kind: "element", stamp: "app/views/pages/about.html.erb:1:1" } ])
+
+    visit "/about"
+    wait_for_overlay
+    stub_clipboard
+    open_toolbar
+    overlay.find(".toolbar button[aria-label='Notes (1)']").click
+    assert overlay.has_css?(".sidebar .listener", text: "No agent listening")
+    assert overlay.has_no_css?(".sidebar button.send")
+    overlay.find(".sidebar .listener button", text: "Connect one").click
+    assert overlay.has_css?(".popover h3", text: "Agents")
+    assert overlay.has_css?(".popover .empty", text: "No agent connected.")
+    assert overlay.has_css?(".popover .connect code", text: "bin/rails generate tensaku:install")
+    overlay.find(".popover .connect button[aria-label='Copy Watch my Tensaku notes']").click
+    assert_eventually { copied == "Watch my Tensaku notes" }
+
+    codex, claude = SecureRandom.hex(16), SecureRandom.hex(16)
+    Tensaku::Notes.agent_seen!(codex, name: "Codex", last: { "tool" => "resolve_note", "note" => "ab12", "at" => Time.now.utc.iso8601 })
+    codex_label = "Codex · #{Tensaku::Notes.handle(codex)}"
+    assert overlay.has_css?(".popover .agent", text: /#{codex_label}.*Last resolved ab12 just now/m, wait: 8)
+    assert overlay.has_css?(".popover .connect code", text: "Do my Tensaku notes")
+
+    Tensaku::Notes.agent_seen!(claude, name: "Claude Code", listening: true)
+    claude_label = "Claude Code · #{Tensaku::Notes.handle(claude)}"
+    assert overlay.has_css?(".popover .agent.listening", text: /#{claude_label}.*Waiting for your notes/m, wait: 8)
+    assert overlay.has_no_css?(".popover .connect")
+    # Listeners first; the rest fold into one line that expands.
+    assert overlay.has_no_css?(".popover .agent", text: codex_label)
+    overlay.find(".popover .idle-toggle", text: "1 more connected, not listening").click
+    assert overlay.has_css?(".popover .agent:not(.listening)", text: codex_label)
+    assert overlay.has_css?(".sidebar .listener.on", text: "Notes go to #{claude_label}")
+    assert overlay.has_css?(".tool.agents.listening .icon-plane-flying")
+    assert overlay.has_css?(".tool.agents.listening .tip", text: "#{claude_label} listening", visible: :all)
+    assert overlay.has_css?(".tool.agents .badge", text: "2")
+  end
+
+  test "with an agent listening, a note is sent to it, shows when it arrived, and a long thread starts at the agent's latest message" do
+    session = SecureRandom.hex(16)
+    Tensaku::Notes.agent_seen!(session, name: "Codex", listening: true, cwd: Dir.pwd, started_at: Time.now.utc.iso8601)
+
+    visit "/about"
+    wait_for_overlay
+    select_mode
+    assert overlay.has_css?(".tool.agents.listening", wait: 8)
+    find("p.bio").click
+    overlay.find(".menu button", text: "Add note").click
+    overlay.find(".note-form textarea").set("Rename this")
+    assert overlay.has_css?(".note-form .hint", text: "sends")
+    label = "Codex · #{Tensaku::Notes.handle(session)}"
+    assert_equal "First listening agent", overlay.find(".note-form select").value.then { overlay.find(".note-form select option[value='']").text }
+    overlay.find(".note-form button", text: "Send").click
+    assert overlay.has_css?(".toast", text: "Note sent to #{label}")
+
+    note = Tensaku::Notes.all.sole
+    Tensaku::Notes.claim_sent(Time.now.utc - 60, Time.now.utc, session:, agent: label)
+    # A shown note doesn't change under you, so open it again once the poll has the delivery.
+    assert_eventually { overlay.find(".pin").click; overlay.has_css?(".note-pop .status", text: "Delivered to #{label}", wait: 0.5) }
+
+    %w[agent you agent you].each_with_index { |from, i| Tensaku::Notes.update(note["id"], from:, message: "#{from} #{i}", agent: ("Codex" if from == "agent")) }
+    Tensaku::Notes.start(note["id"], agent: "Codex", session:)
+    overlay.find(".toolbar .tool.agents").click
+    assert overlay.has_css?(".popover .agent a.doing", text: "Working on #{note["id"]}: “Rename this”", wait: 8)
+
+    assert_eventually { overlay.find(".pin").click; overlay.has_css?(".note-pop .thread .message", count: 2, wait: 0.5) }
+    assert_equal [ "agent 2", "you 3" ], overlay.all(".note-pop .thread .message span:last-child").map(&:text)
+    overlay.find(".note-pop .thread button.earlier", text: "Show 2 earlier messages").click
+    assert overlay.has_css?(".note-pop .thread .message", count: 4)
+  end
+
+  test "a note goes to the agent picked in the form, with a screenshot of the element, and can be moved to another agent from its card" do
+    codex = SecureRandom.hex(16)
+    claude = SecureRandom.hex(16)
+    Tensaku::Notes.agent_seen!(codex, name: "Codex")
+    Tensaku::Notes.agent_seen!(claude, name: "Claude Code", listening: true)
+    codex_label = "Codex · #{Tensaku::Notes.handle(codex)}"
+    claude_label = "Claude Code · #{Tensaku::Notes.handle(claude)}"
+
+    visit "/about"
+    wait_for_overlay
+    select_mode
+    assert overlay.has_css?(".tool.agents.listening", wait: 8)
+    find("p.bio").click
+    overlay.find(".menu button", text: "Add note").click
+    overlay.find(".note-form textarea").set("Shorter")
+    assert overlay.has_css?(".note-form .options input[type=checkbox]:checked")
+    overlay.find(".note-form select").select("#{codex_label} (not listening)")
+    overlay.find(".note-form button", text: "Send").click
+    assert overlay.has_css?(".toast", text: "Note sent to #{codex_label}")
+
+    assert_eventually { Tensaku::Notes.all.sole["screenshot"] }
+    note = Tensaku::Notes.all.sole
+    assert_equal [ codex, codex_label ], note.values_at("session", "agent")
+    shot = Tensaku::Notes.screenshot(note["id"])
+    assert shot["png"].start_with?("\x89PNG".b)
+    assert_operator shot["width"], :>, 40
+    assert_empty Tensaku::Notes.claim_sent(Time.now.utc - 60, Time.now.utc, session: claude, agent: claude_label)
+
+    assert_eventually { overlay.find(".pin").click; overlay.has_css?(".note-pop .screenshot img[src^='blob:']", wait: 0.5) }
+    overlay.find(".note-pop select").select(claude_label)
+    overlay.find(".note-pop .send button", text: "Send").click
+    assert overlay.has_css?(".toast", text: "Note sent to #{claude_label}")
+    assert_equal claude, Tensaku::Notes.find(note["id"])["session"]
+  end
+
+  test "with the box unticked, a note is saved without a screenshot" do
+    visit "/about"
+    wait_for_overlay
+    select_mode
+    find("p.bio").click
+    overlay.find(".menu button", text: "Add note").click
+    overlay.find(".note-form textarea").set("No picture")
+    assert overlay.has_css?(".note-form .options .to button", text: "no agent connected, connect one")
+    overlay.find(".note-form .options input[type=checkbox]").uncheck
+    overlay.find(".note-form button", text: "Save note").click
+    assert overlay.has_css?(".toast", text: "Note saved")
+    assert_nil Tensaku::Notes.all.sole["screenshot"]
+    overlay.find(".pin").click
+    overlay.find(".note-pop .send button", text: "connect one").click
+    assert overlay.has_css?(".popover", text: "Connect")
+    assert_equal false, page.evaluate_script("JSON.parse(localStorage.getItem('tensaku:screenshots'))")
+  end
+
+  test "pausing stops the page's animations until resumed" do
+    visit "/about"
+    wait_for_overlay
+    page.execute_script(<<~JS)
+      document.querySelector("h1").animate([{ opacity: 1 }, { opacity: 0.2 }], { duration: 100000 })
+    JS
+    open_toolbar
+    overlay.find(".toolbar button[aria-label='Pause animations']").click
+    assert_equal [ "paused" ], page.evaluate_script("document.getAnimations().map(a => a.playState)")
+    assert page.has_css?("style[data-tensaku-pause]", visible: :all)
+
+    overlay.find(".toolbar button[aria-label='Resume animations']").click
+    assert_equal [ "running" ], page.evaluate_script("document.getAnimations().map(a => a.playState)")
+    assert page.has_no_css?("style[data-tensaku-pause]", visible: :all)
+  end
+
+  test "a note card has no copy button, and takes a message only after the agent spoke" do
+    note = Tensaku::Notes.create(url: "/about", comment: "Rename this", targets: [ { kind: "element", stamp: "app/views/pages/about.html.erb:1:1" } ])
+
+    visit "/about"
+    wait_for_overlay
+    overlay.find(".pin").click
+    assert overlay.has_css?(".note-pop .status", text: "Open")
+    assert overlay.has_css?(".note-pop .source", text: "about.html.erb:1")
+    assert overlay.has_no_css?(".note-pop textarea")
+    assert overlay.has_no_css?(".note-pop button", text: "Copy")
+
+    Tensaku::Notes.update(note["id"], status: "question", message: "To what?", agent: "Claude Code")
+    assert overlay.has_css?(".pin.question", wait: 8)
+    overlay.find(".pin").click
+    assert overlay.has_css?(".note-pop .message.agent", text: "To what?")
+    assert overlay.has_css?(".note-pop textarea")
+  end
+
+  test "a resolved note takes a request for changes and goes back to the agent as open" do
+    note = Tensaku::Notes.create(url: "/about", comment: "Rename this", targets: [ { kind: "element", stamp: "app/views/pages/about.html.erb:1:1" } ])
+    Tensaku::Notes.update(note["id"], status: "resolved", message: "Renamed it", agent: "Claude Code")
+
+    visit "/about"
+    wait_for_overlay
+    open_toolbar
+    overlay.find(".toolbar button[aria-label^='Notes']").click
+    overlay.find(".sidebar .note-card.resolved textarea").set("Shorter, please")
+    overlay.find(".sidebar button", text: "Ask for changes").click
+
+    assert_eventually { Tensaku::Notes.find(note["id"])["status"] == "open" }
+    assert_equal [ "you", "Shorter, please" ], Tensaku::Notes.find(note["id"])["thread"].last.values_at("from", "text")
+    assert overlay.has_css?(".sidebar .message.you", text: "Shorter, please")
+    assert overlay.has_no_css?(".sidebar textarea")
+  end
+
+  test "many agent changes at once become one toast, and resolved notes are archived from the panel" do
+    notes = 6.times.map { |index| Tensaku::Notes.create(url: "/about", comment: "Note #{index}", targets: [ { kind: "element", stamp: "app/views/pages/about.html.erb:1:1" } ]) }
+    kept = Tensaku::Notes.create(url: "/about", comment: "Still open", targets: [ { kind: "element", stamp: "app/views/pages/about.html.erb:2:1" } ])
+
+    visit "/about"
+    wait_for_overlay
+    assert overlay.has_css?(".pin", count: 7)
+    notes.each { Tensaku::Notes.update(it["id"], status: "resolved", message: "Done", agent: "Claude Code") }
+
+    assert overlay.has_css?(".toast", text: "Claude Code resolved 6 notes", wait: 8)
+    assert overlay.has_css?(".toast", count: 1)
+
+    overlay.find(".toast button", text: "Show").click
+    assert overlay.has_css?(".sidebar .section", text: "Done (6)")
+    overlay.find(".sidebar .section button", text: "Archive done").click
+
+    assert overlay.has_css?(".toast", text: "Archived 6 done notes")
+    assert overlay.has_no_css?(".sidebar .section")
+    assert_equal [ kept["id"] ], Tensaku::Notes.all.map { it["id"] }
+    assert_equal 6, Tensaku::Notes.list(status: "archived").size
   end
 
   test "the notes panel shows every page's notes, and copies them in short form" do
@@ -270,27 +649,32 @@ class NotesTest < ApplicationSystemTestCase
     visit "/about"
     wait_for_overlay
     stub_clipboard
-    overlay.find(".corner").click
+    open_toolbar
     overlay.find(".toolbar button[aria-label='Settings']").click
-    overlay.find(".popover button", text: "One line each").click
+    overlay.find(".settings button", text: "One line each").click
     overlay.find(".toolbar button[aria-label^='Notes']").click
     overlay.find(".sidebar .tabs button", text: "All pages").click
     assert overlay.has_css?(".sidebar a.page", text: "/")
     assert overlay.has_css?(".sidebar .note-card", text: "On the home page")
 
-    overlay.find(".sidebar button", text: "Copy all open").click
+    overlay.find(".sidebar button", text: "Copy all").click
     assert_eventually { copied.to_s.include?("- `#{other["id"]}` (open) On the home page") }
+
+    overlay.find(".sidebar .note-card", text: "On the home page").find("button[aria-label='Delete']").click
+    assert overlay.has_no_css?(".sidebar .note-card", text: "On the home page")
+    assert overlay.has_css?(".sidebar .note-card", text: "Here")
+    assert_raises(Tensaku::Notes::NotFound) { Tensaku::Notes.find(other["id"]) }
   end
 
-  test "the history lists this page's saves and undoes the latest one" do
+  test "the history lists this tab's saves and undoes the latest one" do
     visit "/about"
     wait_for_overlay
-    alt_click find("h1")
+    alt_edit find("h1")
     type_in_editor "About us"
     overlay.find(".editor button", text: "Save").click
     assert_selector "h1", text: "About us"
 
-    overlay.find(".corner").click
+    open_toolbar
     overlay.find(".toolbar button[aria-label='Edit history']").click
     assert overlay.has_css?(".popover .entry", text: "app/views/pages/about.html.erb")
     overlay.find(".popover .entry button", text: "Undo").click

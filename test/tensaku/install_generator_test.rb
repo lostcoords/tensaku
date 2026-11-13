@@ -7,19 +7,23 @@ class Tensaku::InstallGeneratorTest < Rails::Generators::TestCase
   destination File.expand_path("../../tmp/generator", __dir__)
   setup :prepare_destination
 
-  test "sets up the initializer, skill, MCP entry and gitignore, keeping other MCP servers" do
+  test "sets up the skill, MCP entry and gitignore, keeping other MCP servers" do
     File.write(File.join(destination_root, "Gemfile"), %(source "https://rubygems.org"\ngroup :development do\n  gem "tensaku"\nend\n))
     File.write(File.join(destination_root, ".mcp.json"), JSON.generate(mcpServers: { other: { command: "x" } }))
 
-    output = run_generator([ "--port", "4000" ])
+    output = run_generator
 
     assert_match "tensaku is in the development group", output
-    assert_file "config/initializers/reactionview.rb", /ReActionView.configure/
+    assert_no_file "config/initializers/reactionview.rb"
     assert_file ".claude/skills/tensaku/SKILL.md", /name: tensaku/
+    assert_file ".agents/skills/tensaku/SKILL.md", /name: tensaku/
+    assert_no_file "bin/tensaku"
+    assert_no_file ".codex/config.toml"
+    assert_no_file ".cursor/mcp.json"
     assert_file ".mcp.json" do |content|
       servers = JSON.parse(content)["mcpServers"]
       assert_equal({ "command" => "x" }, servers["other"])
-      assert_equal({ "type" => "http", "url" => "http://localhost:4000/__tensaku/mcp" }, servers["tensaku"])
+      assert_equal({ "command" => "bundle", "args" => %w[exec tensaku mcp] }, servers["tensaku"])
     end
     assert_file ".gitignore", %r{/tmp/tensaku/}
   end
@@ -40,6 +44,26 @@ class Tensaku::InstallGeneratorTest < Rails::Generators::TestCase
     assert_match "tensaku is in the development group", run_generator
   end
 
+  test "sets up the agents named, and by default the ones already configured" do
+    FileUtils.mkdir_p(File.join(destination_root, ".codex"))
+    File.write(File.join(destination_root, ".codex/config.toml"), "# mine\nmodel = \"o3\"\n")
+    FileUtils.mkdir_p(File.join(destination_root, ".gemini"))
+
+    run_generator
+    assert_file ".codex/config.toml", "# mine\nmodel = \"o3\"\n\n[mcp_servers.tensaku]\ncommand = \"bundle\"\nargs = [\"exec\",\"tensaku\",\"mcp\"]\n"
+    assert_file(".gemini/settings.json") { assert_equal({ "command" => "bundle", "args" => %w[exec tensaku mcp] }, JSON.parse(it).dig("mcpServers", "tensaku")) }
+    assert_no_file "opencode.json"
+
+    run_generator [ "--agents", "opencode,cursor,codex" ]
+    assert_file(".cursor/mcp.json") { assert_equal({ "command" => "bundle", "args" => %w[exec tensaku mcp] }, JSON.parse(it).dig("mcpServers", "tensaku")) }
+    assert_file("opencode.json") do |content|
+      config = JSON.parse(content)
+      assert_equal "https://opencode.ai/config.json", config["$schema"]
+      assert_equal({ "type" => "local", "command" => %w[bundle exec tensaku mcp] }, config.dig("mcp", "tensaku"))
+    end
+    assert_equal 1, File.read(File.join(destination_root, ".codex/config.toml")).scan("[mcp_servers.tensaku]").size
+  end
+
   test "an invalid .mcp.json is reported and left alone" do
     File.write(File.join(destination_root, ".mcp.json"), "{ nope")
 
@@ -54,6 +78,6 @@ class Tensaku::InstallGeneratorTest < Rails::Generators::TestCase
     assert_file ".mcp.json", ""
 
     run_generator
-    assert_file ".mcp.json", /__tensaku\/mcp/
+    assert_file ".mcp.json", /"tensaku",\s*"mcp"/
   end
 end

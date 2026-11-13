@@ -10,12 +10,10 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
   setup do
     Capybara.server = :puma, { Silent: true }
     @snapshot = WATCHED.flat_map { Dir[Rails.root.join(it, "**/*").to_s] }.select { File.file?(it) }.to_h { [ it, File.binread(it) ] }
-    FileUtils.rm_rf(Tensaku::Notes.dir)
   end
 
   teardown do
     @snapshot.each { |path, content| File.binwrite(path, content) unless File.exist?(path) && File.binread(path) == content }
-    FileUtils.rm_rf(Tensaku::Notes.dir)
     ActionView::LookupContext::DetailsKey.clear
     I18n.reload!
   end
@@ -32,8 +30,17 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
     Rails.root.join(path).read
   end
 
-  def alt_click(element)
+  # Waits for the tools to finish unrolling, since a tool is clipped until they do.
+  def open_toolbar
+    overlay.find(".corner").click
+    overlay.find(".dock.settled")
+  end
+
+  # Alt-click opens the menu; E picks its edit action.
+  def alt_edit(element)
     element.click(:alt)
+    overlay.find(".menu")
+    page.driver.browser.keyboard.type("e")
   end
 
   # Replaces the text of the focused editable field in the editor.

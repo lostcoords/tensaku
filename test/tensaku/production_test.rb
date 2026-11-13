@@ -11,20 +11,22 @@ class Tensaku::ProductionTest < Tensaku::TestCase
     puts defined?(ReActionView) ? "reactionview" : "no-reactionview"
     puts Rails.application.middleware.map(&:name).grep(/Tensaku|Herb/).join(",").then { it.empty? ? "no-middleware" : it }
     puts defined?(Herb) ? "herb" : "no-herb"
+    puts defined?(SQLite3) ? "sqlite" : "no-sqlite"
     puts I18n.backend.singleton_class.ancestors.map(&:to_s).grep(/Tensaku/).empty? ? "plain-i18n" : "tensaku-i18n"
     puts response.body.scan(/data-(?:herb|tensaku)-[\\w-]+|tensaku\\.js/).uniq.join(",").then { it.empty? ? "no-markup" : it }
   RUBY
 
   %w[production test].each do |env|
-    test "#{env} renders with Erubi and loads nothing from Tensaku or ReActionView" do
+    test "#{env} renders with Erubi and loads nothing from Tensaku, ReActionView or SQLite" do
       out, err, status = Open3.capture3({ "RAILS_ENV" => env }, "ruby", "-e", SCRIPT, chdir: File.expand_path("../..", __dir__))
       assert status.success?, err
 
-      handler, reactionview, middleware, herb, i18n, markup = out.lines(chomp: true).last(6)
+      handler, reactionview, middleware, herb, sqlite, i18n, markup = out.lines(chomp: true).last(7)
       assert_equal "ActionView::Template::Handlers::ERB", handler
       assert_equal "no-reactionview", reactionview
       assert_equal "no-middleware", middleware
       assert_equal "no-herb", herb
+      assert_equal "no-sqlite", sqlite
       assert_equal "plain-i18n", i18n
       assert_equal "no-markup", markup
     end

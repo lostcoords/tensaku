@@ -11,6 +11,9 @@ module Tensaku
   autoload :Middleware, "tensaku/middleware"
   autoload :Endpoints, "tensaku/endpoints"
   autoload :Notes, "tensaku/notes"
+  autoload :Store, "tensaku/store"
+  autoload :Repo, "tensaku/repo"
+  autoload :Doorbell, "tensaku/doorbell"
   autoload :Mcp, "tensaku/mcp"
   autoload :Caches, "tensaku/caches"
   autoload :I18nMarkers, "tensaku/i18n"
@@ -35,23 +38,15 @@ module Tensaku
     # Directories and files, relative to Rails.root, that Tensaku may write to.
     attr_reader :writable_paths
 
-    # Where note files live, relative to Rails.root.
-    attr_accessor :notes_path
-
-    # Resolved notes older than this are deleted.
-    attr_accessor :prune_after
-
-    # Keyboard shortcut that toggles the overlay, as modifier keys and a KeyboardEvent#code.
-    attr_accessor :shortcut
+    # Resolved and declined notes older than this move to the archive.
+    attr_accessor :archive_after
 
     # Where the middleware serves the overlay and the endpoints.
     attr_accessor :mount_path
 
     def initialize
       @writable_paths = %w[app/views app/components config/locales]
-      @notes_path = "tmp/tensaku/notes"
-      @prune_after = 3 * 24 * 60 * 60
-      @shortcut = "alt+shift+KeyT"
+      @archive_after = 3 * 24 * 60 * 60
       @mount_path = "/__tensaku"
     end
   end
@@ -89,10 +84,34 @@ module Tensaku
     end
 
     # The app root that relative source paths resolve against. Tests point it at a scratch copy.
+    # `tensaku mcp` runs without Rails and sets it per app with with_root.
     attr_writer :root
 
     def root
-      Pathname(@root || Rails.root)
+      Pathname(Thread.current[:tensaku_root] || @root || Rails.root)
+    end
+
+    # The folder for Tensaku's database, shared by every app and checkout on this machine: TENSAKU_HOME,
+    # else the platform's per-user data folder.
+    def home
+      return Pathname(ENV["TENSAKU_HOME"]) unless ENV["TENSAKU_HOME"].to_s.empty?
+
+      if Gem.win_platform?
+        Pathname(ENV["LOCALAPPDATA"].to_s.empty? ? File.join(Dir.home, "AppData", "Local") : ENV["LOCALAPPDATA"]).join("tensaku")
+      elsif RUBY_PLATFORM.include?("darwin")
+        Pathname(Dir.home).join("Library", "Application Support", "tensaku")
+      else
+        Pathname(ENV["XDG_DATA_HOME"].to_s.empty? ? File.join(Dir.home, ".local", "share") : ENV["XDG_DATA_HOME"]).join("tensaku")
+      end
+    end
+
+    # Runs the block with root set to path, in this thread only.
+    def with_root(path)
+      previous = Thread.current[:tensaku_root]
+      Thread.current[:tensaku_root] = Pathname(path)
+      yield
+    ensure
+      Thread.current[:tensaku_root] = previous
     end
 
     private

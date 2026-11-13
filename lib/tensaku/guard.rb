@@ -32,8 +32,7 @@ module Tensaku
       raise Forbidden, "Missing or wrong Tensaku token. Reload the page." unless secure_compare(token, Tensaku.token)
     end
 
-    # The MCP endpoint can't use the page token (its clients never see the page), so it relies on this
-    # check alone. Every other endpoint adds the token on top.
+    # Every endpoint but the script adds the token on top of this.
     def check_local_client!(request)
       raise Forbidden, "Tensaku only answers requests from this machine" unless loopback?(request)
 

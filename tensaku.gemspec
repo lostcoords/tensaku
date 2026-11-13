@@ -21,8 +21,10 @@ Gem::Specification.new do |spec|
   spec.metadata["allowed_push_host"] = "https://rubygems.org"
 
   spec.files = Dir.chdir(File.expand_path(__dir__)) do
-    Dir["lib/**/*", "app/assets/tensaku.js", "skills/**/*", "LICENSE", "README.md", "CHANGELOG.md"]
+    Dir["lib/**/*", "exe/*", "app/assets/tensaku.js", "skills/**/*", "LICENSE", "README.md", "CHANGELOG.md"]
   end
+  spec.bindir = "exe"
+  spec.executables = [ "tensaku" ]
 
   # Herb and ReActionView are before 1.0 and Tensaku loads one of Herb's internal files, so each new
   # minor version needs a check before it's allowed. Rails 8.2 needs a look too (see PLAN.md).
@@ -30,4 +32,5 @@ Gem::Specification.new do |spec|
   spec.add_dependency "actionpack", ">= 8.1", "< 8.2"
   spec.add_dependency "herb", "~> 0.11.2"
   spec.add_dependency "reactionview", "~> 0.6.1"
+  spec.add_dependency "sqlite3", ">= 2.0"
 end

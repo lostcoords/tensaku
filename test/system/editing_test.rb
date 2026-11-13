@@ -5,11 +5,46 @@ class EditingTest < ApplicationSystemTestCase
     overlay.find(".editor .editable", match: :first).send_keys(:enter)
   end
 
-  test "Alt-click edits template text and the page updates" do
+  test "Alt-click opens the menu in any mode, with editing first and a click outside only closing it" do
+    visit "/about"
+    wait_for_overlay
+
+    find("p.bio").click(:alt)
+    assert_equal "Edit text", overlay.first(".menu button").text.lines.first.strip
+    assert overlay.has_no_css?(".editor")
+    find("a", text: "Home").click
+    assert overlay.has_no_css?(".menu")
+    assert_equal "/about", page.current_path
+
+    find("h1").click(:alt)
+    page.driver.browser.keyboard.type(:Enter)
+    assert overlay.has_css?(".editor")
+  end
+
+  test "holding Alt previews the element under the pointer until it is released, except while typing" do
+    visit "/"
+    wait_for_overlay
+    alt = ->(type) { page.execute_script(%(document.dispatchEvent(new KeyboardEvent("#{type}", { key: "Alt", altKey: #{type == "keydown"} })))) }
+
+    find("h1").hover
+    alt.call("keydown")
+    assert overlay.has_css?(".box")
+    assert_includes page.evaluate_script("document.documentElement.style.cursor"), "url("
+    alt.call("keyup")
+    assert overlay.has_no_css?(".box")
+    assert_equal "", page.evaluate_script("document.documentElement.style.cursor")
+
+    page.execute_script(%q{document.querySelector("input[type=search]").focus()})
+    alt.call("keydown")
+    assert_equal "", page.evaluate_script("document.documentElement.style.cursor")
+    assert overlay.has_no_css?(".box")
+  end
+
+  test "Alt-click then E edits template text and the page updates" do
     visit "/"
     wait_for_overlay
 
-    alt_click find("p.intro")
+    alt_edit find("p.intro")
     assert overlay.has_css?(".editor")
     type_in_editor "Tensaku & pals edit this text."
     save_editor
@@ -22,7 +57,7 @@ class EditingTest < ApplicationSystemTestCase
     visit "/"
     wait_for_overlay
 
-    alt_click find("p.greeting")
+    alt_edit find("p.greeting")
     assert overlay.has_css?(".editor .chip", text: "@user.name")
     type_in_editor "Welcome back, ", field: 0
     save_editor
@@ -35,7 +70,7 @@ class EditingTest < ApplicationSystemTestCase
     visit "/"
     wait_for_overlay
 
-    alt_click find("p.mixed")
+    alt_edit find("p.mixed")
     assert overlay.has_css?(".editor .surface br")
     nested = overlay.find(".editor .nested")
     assert_equal "inner words", nested.text
@@ -56,7 +91,7 @@ class EditingTest < ApplicationSystemTestCase
     visit "/"
     wait_for_overlay
 
-    alt_click find("p.mixed")
+    alt_edit find("p.mixed")
     overlay.find(".editor .nested.link").click
     assert overlay.has_no_css?(".editor .nested")
     assert_equal [ "inner words" ], overlay.all(".editor .editable").map(&:text)
@@ -72,7 +107,7 @@ class EditingTest < ApplicationSystemTestCase
     wait_for_overlay
     page.execute_script(%(document.querySelector("p.greeting").style.fontSize = "64px"))
 
-    alt_click find("p.greeting")
+    alt_edit find("p.greeting")
     assert overlay.has_css?(".editor .chip")
     assert_equal "12px", page.evaluate_script(%(getComputedStyle(document.querySelector("tensaku-overlay").shadowRoot.querySelector(".editor .chip")).fontSize))
   end
@@ -91,7 +126,7 @@ class EditingTest < ApplicationSystemTestCase
     visit "/about"
     wait_for_overlay
 
-    overlay.find(".corner").click
+    open_toolbar
     overlay.find(".toolbar button[aria-label='Edit']").click
     assert overlay.has_css?(".box.edit", minimum: 2)
     find("p.bio").click
@@ -106,7 +141,7 @@ test "edit mode doesn't outline text that comes from Ruby" do
   visit "/about"
   wait_for_overlay
 
-  overlay.find(".corner").click
+  open_toolbar
   overlay.find(".toolbar button[aria-label='Edit']").click
   assert overlay.has_css?(".box.edit", minimum: 2)
 
@@ -127,7 +162,7 @@ end
     visit "/"
     wait_for_overlay
 
-    alt_click first("li.item")
+    alt_edit first("li.item")
     assert overlay.has_text?("this edits all 3 copies")
     type_in_editor " is ", field: 0
     save_editor
@@ -141,7 +176,7 @@ end
     visit "/"
     wait_for_overlay
 
-    alt_click find(".greeting-card h2")
+    alt_edit find(".greeting-card h2")
     type_in_editor "From a sidecar"
     save_editor
 
@@ -153,7 +188,7 @@ end
     visit "/"
     wait_for_overlay
 
-    alt_click find("h1")
+    alt_edit find("h1")
     assert overlay.has_text?("en.pages.home.title")
     type_in_editor "Welcome, friend"
     save_editor
@@ -166,7 +201,7 @@ end
     visit "/"
     wait_for_overlay
 
-    alt_click find("p.welcome")
+    alt_edit find("p.welcome")
     assert overlay.has_css?(".editor .chip", text: "%{name}")
     overlay.find("button", text: "Other locales (1)").click
     type_in_editor "Hey ", field: 0
@@ -182,14 +217,14 @@ end
     visit "/"
     wait_for_overlay
 
-    alt_click find("img[alt]")
+    alt_edit find("img[alt]")
     assert overlay.has_css?(".attr .name", text: "alt")
     type_in_editor "A tiny icon", field: 0
     overlay.find(".editor button", text: "Save").click
     assert_selector "img[alt='A tiny icon']"
     assert_includes view("app/views/pages/home.html.erb"), %(alt="A tiny icon")
 
-    alt_click find("input[type=search]")
+    alt_edit find("input[type=search]")
     assert overlay.has_css?(".attr .name", text: "placeholder (t)")
     type_in_editor "Find anything", field: 0
     overlay.find(".editor button", text: "Save").click
@@ -201,7 +236,7 @@ end
     visit "/about"
     wait_for_overlay
 
-    alt_click find("h1")
+    alt_edit find("h1")
     type_in_editor "About us"
     save_editor
     assert_selector "h1", text: "About us"
@@ -217,7 +252,7 @@ end
     path = Rails.root.join("app/views/pages/about.html.erb")
     path.write(path.read.sub("I build small tools for big apps.", "Changed elsewhere."))
 
-    alt_click find("p.bio")
+    alt_edit find("p.bio")
 
     assert overlay.has_css?(".toast.error", text: "changed since the page was rendered")
     assert overlay.has_no_css?(".editor")
@@ -228,7 +263,7 @@ end
     visit "/rails/mailers/greeting_mailer/welcome?part=text%2Fhtml"
     wait_for_overlay
 
-    alt_click find("p.mail-body")
+    alt_edit find("p.mail-body")
     type_in_editor "Thanks for joining."
     save_editor
 

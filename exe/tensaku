@@ -1,0 +1,5 @@
+#!/usr/bin/env ruby
+# `tensaku mcp`: the MCP server coding agents start over stdio. See `tensaku help`.
+require_relative "../lib/tensaku/cli"
+
+Tensaku::CLI.start(ARGV)

@@ -83,39 +83,87 @@ end
     assert_equal "open", created["status"]
     target = created["targets"].first
     assert_equal [ "app/views/pages/hero.html.erb", "2:3-2:34", "h1.title" ], target.values_at("file", "range", "tag")
-    assert tmp_root.join("tmp/tensaku/notes/#{created["id"]}.json").file?
+    assert_equal "Tighten this", Tensaku::Notes.find(created["id"])["comment"]
 
     listed = json(request("GET", "/notes?url=/about"))
     assert_equal [ created["id"] ], listed["notes"].map { it["id"] }
-    assert_equal false, listed.dig("agent", "connected")
+    assert_equal [], listed["agents"]
     assert_equal 1, listed["open"]
 
     markdown = request("GET", "/notes.md?url=/about").body
     assert_includes markdown, "element `h1.title` at `app/views/pages/hero.html.erb:2:3-2:34` \"About me\""
 
-    resolved = json(request("PATCH", "/notes/#{created["id"]}", body: { status: "resolved", reply: "Done" }))
-    assert_equal [ "resolved", "Done" ], resolved.values_at("status", "reply")
+    resolved = json(request("PATCH", "/notes/#{created["id"]}", body: { status: "resolved", message: "Done" }))
+    assert_equal "resolved", resolved["status"]
+    assert_equal "Done", resolved["thread"].sole["text"]
 
     assert_equal 200, request("DELETE", "/notes/#{created["id"]}").status
     assert_empty Tensaku::Notes.all
   end
 
-  test "notes: your answers go in the thread, a note moves to other elements, and copies in short form" do
-    note = Tensaku::Notes.create(url: "/about", comment: "Tighten this", rect: { x: 1, y: 2, width: 3, height: 4 })
+  test "notes: your answers go in the thread and send the note again, and copy in short form" do
+    note = Tensaku::Notes.create(url: "/about", comment: "Tighten this", targets: [ { kind: "element", stamp: "app/views/pages/hero.html.erb:2:3", classes: [ "title", "has space" ] } ])
     Tensaku::Notes.update(note["id"], status: "question", message: "Tighten what?", agent: "Claude Code")
 
     answered = json(request("PATCH", "/notes/#{note["id"]}", body: { message: "The heading", status: "open" }))
     assert_equal [ [ "agent", "Tighten what?", "Claude Code" ], [ "you", "The heading", nil ] ], answered["thread"].map { it.values_at("from", "text", "agent") }
-    assert_equal "Tighten what?", answered["reply"]
     assert_equal "Tighten this", answered["comment"]
-
-    moved = json(request("PATCH", "/notes/#{note["id"]}", body: { targets: [ { kind: "element", stamp: "app/views/pages/hero.html.erb:2:3" } ] }))
-    assert_equal [ "app/views/pages/hero.html.erb", "2:3-2:34" ], moved["targets"].sole.values_at("file", "range")
-    assert_nil moved["rect"]
+    assert_equal answered["updated_at"], answered["sent_at"]
+    assert_equal [ "title" ], answered["targets"].sole["classes"]
 
     markdown = request("GET", "/notes.md?url=/about").body
     assert_includes markdown, "> **Claude Code:** Tighten what?\n> **You:** The heading"
+    assert_includes markdown, "classes `title`"
     assert_equal "- `#{note["id"]}` (open) Tighten this at `app/views/pages/hero.html.erb:2:3`", request("GET", "/notes.md?url=/about&format=short").body
+  end
+
+  test "notes: a saved note is sent, an agent's change doesn't send it again, and GET says who listens and records the page's address" do
+    note = json(request("POST", "/notes", body: { url: "/about", comment: "Right away" }))
+    assert note["sent_at"]
+    travel_to(Time.now + 2) { Tensaku::Notes.update(note["id"], status: "question", message: "Which?") }
+    assert_equal note["sent_at"], Tensaku::Notes.find(note["id"])["sent_at"]
+
+    Tensaku::Notes.agent_seen!(SecureRandom.hex(16), name: "Codex", listening: true)
+    Tensaku::Notes.agent_seen!(SecureRandom.hex(16), name: "Claude Code")
+    agents = json(request("GET", "/notes", env: { "HTTP_HOST" => "shop.localhost:3001" }))["agents"]
+    assert_equal [ [ "Claude Code", false ], [ "Codex", true ] ], agents.map { it.values_at("name", "listening") }
+    assert_equal "http://shop.localhost:3001", Tensaku::Notes.base_url
+    assert_equal 404, request("POST", "/notes/send").status
+  end
+
+  test "events stream a change whenever the notes or the agents change, and a server without hijack answers 501" do
+    assert_equal 501, request("GET", "/events").status
+
+    reader, writer = IO.pipe
+    assert_equal(-1, request("GET", "/events", env: { "rack.hijack" => -> { writer } }).status)
+    next_event = -> { Timeout.timeout(5) { reader.gets("\n\n") } }
+    assert_includes Timeout.timeout(5) { reader.gets("\r\n\r\n") }, "content-type: text/event-stream"
+    assert_equal "data: changed\n\n", next_event.call
+
+    Tensaku::Notes.create(url: "/about", comment: "Tighten this")
+    assert_equal "data: changed\n\n", next_event.call
+
+    session = SecureRandom.hex(16)
+    Tensaku::Notes.agent_seen!(session, name: "Codex")
+    assert_equal "data: changed\n\n", next_event.call
+  ensure
+    reader&.close
+  end
+
+  test "the notes version changes with a note or an agent, but not with a heartbeat that has nothing new" do
+    session = SecureRandom.hex(16)
+    Tensaku::Notes.agent_seen!(session, name: "Codex")
+    before = Tensaku::Notes.version
+    sleep 0.01
+    Tensaku::Notes.agent_seen!(session, name: "Codex")
+    assert_equal before, Tensaku::Notes.version
+
+    Tensaku::Notes.agent_seen!(session, name: "Codex", listening: true)
+    listening = Tensaku::Notes.version
+    assert_not_equal before, listening
+    Tensaku::Notes.create(url: "/", comment: "New")
+    assert_not_equal listening, Tensaku::Notes.version
+    assert_not_equal Tensaku::Notes.version, Tensaku::Notes.version(now: Time.now + 60), "an agent that stopped heartbeating changes it too"
   end
 
   test "editor links come from RAILS_EDITOR, for files inside the app only" do
@@ -146,7 +194,7 @@ end
 
   test "resolved notes are pruned after a few days" do
     note = Tensaku::Notes.create(url: "/", comment: "old")
-    Tensaku::Notes.update(note["id"], status: "resolved", reply: "ok")
+    Tensaku::Notes.update(note["id"], status: "resolved", message: "ok")
     kept = Tensaku::Notes.create(url: "/", comment: "still open")
 
     Tensaku::Notes.prune!(now: Time.now + 4 * 24 * 3600)

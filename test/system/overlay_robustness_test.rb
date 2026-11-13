@@ -7,11 +7,45 @@ class OverlayRobustnessTest < ApplicationSystemTestCase
   end
 
   def edit(selector, text)
-    alt_click find(selector)
+    alt_edit find(selector)
     assert overlay.has_css?(".editor")
     type_in_editor text
     save_editor
     assert overlay.has_no_css?(".editor")
+  end
+
+  test "the corner button has a click cursor until a drag starts" do
+    visit "/about"
+    wait_for_overlay
+    cursor = -> { page.evaluate_script(%(getComputedStyle(document.querySelector("tensaku-overlay").shadowRoot.querySelector(".corner")).cursor)) }
+    x, y = page.evaluate_script(%((() => { const r = document.querySelector("tensaku-overlay").shadowRoot.querySelector(".corner").getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2] })()))
+    mouse = page.driver.browser.mouse
+
+    assert_equal "pointer", cursor.call
+
+    mouse.move(x:, y:)
+    mouse.down
+    mouse.move(x: x + 2, y:)
+    assert_equal "pointer", cursor.call, "a press that hasn't moved far enough isn't a drag"
+
+    mouse.move(x: x - 40, y: y - 40)
+    assert_equal "grabbing", cursor.call
+    mouse.up
+    assert_equal "pointer", cursor.call
+    assert overlay.has_no_css?(".dock.open")
+  end
+
+  test "agent status lives on the Agents button: its tooltip stays hidden until hovered, and the corner button has no dot" do
+    Tensaku::Notes.agent_seen!(SecureRandom.hex(16), name: "Codex")
+    visit "/about"
+    wait_for_overlay
+    style = ->(selector, property, pseudo = "null") { page.evaluate_script(%(getComputedStyle(document.querySelector("tensaku-overlay").shadowRoot.querySelector("#{selector}"), #{pseudo}).#{property})) }
+
+    open_toolbar
+    assert overlay.has_css?(".tool.agents.connected .icon-plane", visible: true, wait: 10)
+    assert overlay.has_no_css?(".tool.agents .badge", visible: true)
+    assert_equal "0", style.(".tool.agents .tip", "opacity")
+    assert_equal "none", style.(".corner", "content", '"::before"')
   end
 
   test "the message after a save shows the changed line with the words marked" do
@@ -44,7 +78,7 @@ class OverlayRobustnessTest < ApplicationSystemTestCase
     assert_includes view("app/views/pages/about.html.erb"), %(<p class="bio">Small tools.</p>)
   end
 
-  test "a save made by Undo offers no Undo of its own" do
+  test "an undo's toast offers Redo, which saves the edit again" do
     visit "/about"
     wait_for_overlay
 
@@ -52,16 +86,64 @@ class OverlayRobustnessTest < ApplicationSystemTestCase
     overlay.find(".toast button", text: "Undo").click
     assert_selector "h1", text: "About me"
 
-    # Clicking Undo removed the first toast; the one left is the undo's own save.
-    assert overlay.has_css?(".toast", text: "Saved")
+    # Clicking Undo removed the first toast; the one left is the undo's own.
+    assert overlay.has_css?(".toast", text: "Undid edit in app/views/pages/about.html.erb")
     assert overlay.has_no_css?(".toast button", text: "Undo")
+    overlay.find(".toast button", text: "Redo").click
+    assert_selector "h1", text: "About us"
+    assert_includes view("app/views/pages/about.html.erb"), "<h1>About us</h1>"
+  end
+
+  test "Cmd/Ctrl+Z undoes saves newest first, Shift redoes them, and a new save clears what can be redone" do
+    visit "/about"
+    wait_for_overlay
+    modifier = page.evaluate_script("/mac|iphone|ipad|ipod/i.test(navigator.platform || navigator.userAgent)") ? :meta : :control
+
+    edit "h1", "About us"
+    edit "p.bio", "Small tools."
+    find("body").send_keys([ modifier, "z" ])
+    assert_selector "p.bio", text: "I build"
+    assert_selector "h1", text: "About us"
+    find("body").send_keys([ modifier, "z" ])
+    assert_selector "h1", text: "About me"
+
+    find("body").send_keys([ modifier, :shift, "z" ])
+    assert_selector "h1", text: "About us"
+    assert_includes view("app/views/pages/about.html.erb"), "<h1>About us</h1>"
+
+    edit "h1", "About them"
+    find("body").send_keys([ modifier, :shift, "z" ])
+    assert_selector "p.bio", text: "I build", wait: 1
+    open_toolbar
+    overlay.find(".toolbar button[aria-label='Edit history']").click
+    assert overlay.has_no_css?(".popover .entry button", text: "Redo")
+  end
+
+  test "the edit history survives a reload, and a redo is refused when the file changed since" do
+    visit "/about"
+    wait_for_overlay
+    edit "h1", "About us"
+    overlay.find(".toast button", text: "Undo").click
+    assert_selector "h1", text: "About me"
+
+    visit "/about"
+    wait_for_overlay
+    open_toolbar
+    overlay.find(".toolbar button[aria-label='Edit history']").click
+    assert overlay.has_css?(".popover .entry.undone", text: "edit in app/views/pages/about.html.erb")
+
+    file = Rails.root.join("app/views/pages/about.html.erb")
+    file.write(file.read.sub("<h1>About me</h1>", "<h1>Changed elsewhere</h1>"))
+    overlay.find(".popover .entry button", text: "Redo").click
+    assert overlay.has_css?(".toast", text: "The text changed since the edit, so it can't be redone here.")
+    assert_includes file.read, "<h1>Changed elsewhere</h1>"
   end
 
   test "Enter that confirms an IME composition doesn't save" do
     visit "/about"
     wait_for_overlay
 
-    alt_click find("h1")
+    alt_edit find("h1")
     assert overlay.has_css?(".editor")
     type_in_editor "日本"
     page.execute_script(<<~JS)
@@ -97,7 +179,7 @@ class OverlayRobustnessTest < ApplicationSystemTestCase
     page.go_back
     assert_selector "h1", text: "Welcome home"
 
-    alt_click find("h1", text: "Welcome home")
+    alt_edit find("h1", text: "Welcome home")
 
     assert overlay.has_css?(".editor", text: "pages.home.title")
   end
@@ -113,7 +195,7 @@ class OverlayRobustnessTest < ApplicationSystemTestCase
     JS
     Timeout.timeout(5) { sleep 0.05 until page.evaluate_script("window.__secondLoaded === true") }
 
-    alt_click find("h1")
+    alt_edit find("h1")
 
     assert_equal 1, overlay.all(".editor").size
     assert_equal 1, page.evaluate_script("document.querySelectorAll('tensaku-overlay').length")

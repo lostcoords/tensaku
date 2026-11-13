@@ -6,11 +6,21 @@ module Tensaku
       require "reactionview"
       require "herb/engine/visitors/source_attribution_visitor"
 
+      # Stamps without Herb's recommended `action_view_helpers`, which drops the attributes of
+      # `tag.div(**attrs)` in Herb 0.11.2. Without it, helpers render as they do in production and
+      # their output has no stamp of its own. An app can still set the option in
+      # config/initializers/reactionview.rb to get those stamps.
+      class SourceStamps < Herb::Engine::SourceAttributionVisitor
+        def recommended_parser_options = super.except(:action_view_helpers)
+      end
+
       # Before the app's initializers, so config/initializers/reactionview.rb can still adjust things.
       initializer "tensaku.reactionview", before: :load_config_initializers do
         ReActionView.configure do |config|
           config.intercept_erb = true
-          config.engine.visitors.use(Herb::Engine::SourceAttributionVisitor.new)
+          # Herb's dev tools aren't needed here, and their script warns when Herb's dev server isn't running.
+          config.debug_mode = false
+          config.engine.visitors.use(SourceStamps.new)
         end
       end
 

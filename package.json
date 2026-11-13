@@ -9,6 +9,7 @@
   },
   "devDependencies": {
     "idiomorph": "0.7.4",
+    "modern-screenshot": "4.7.0",
     "typescript": "5.9.3"
   }
 }

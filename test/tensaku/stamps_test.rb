@@ -7,7 +7,27 @@ class Tensaku::StampsTest < Tensaku::TestCase
     assert_includes body, %(<h1 data-herb-source="app/views/pages/home.html.erb:2:3">)
     assert_includes body, %(data-herb-source="app/views/shared/_item.html.erb:1:18")
     assert_includes body, %(<nav data-herb-source="app/views/layouts/application.html.erb:10:5">)
-    assert_includes get("/about").body, %(<a href="/" data-herb-source="app/views/pages/about.html.erb:3:1">Back home</a>)
+  end
+
+  test "helpers render as they do in production, attributes included" do
+    body = get("/about").body
+
+    assert_includes body, %(<a href="/">Back home</a>)
+    assert_includes body, %(<div class="splatted" data-source="tag">Splatted</div>)
+  end
+
+  test "an app can turn on helper stamps, and Herb doesn't warn either way" do
+    source = %(<%= link_to "Home", "/" %>)
+    compile = ->(**options) { Herb::Engine.new(source, filename: "a.html.erb", project_path: "/", visitors: [ Tensaku::Railtie::SourceStamps.new ], **options).src }
+    helpers = nil
+
+    _out, warnings = capture_io do
+      assert_not_includes compile.call, "data-herb-source"
+      helpers = compile.call(parser_options: { action_view_helpers: true })
+    end
+
+    assert_includes helpers, %(<a href="/" data-herb-source="a.html.erb:1:1">Home</a>)
+    assert_empty warnings
   end
 
   test "ViewComponent sidecar templates are stamped" do

@@ -61,42 +61,60 @@ kbd { font: 10.5px/1 var(--mono); padding: 2px 4px; border-radius: 4px; backgrou
 
 /* Post-it paper: the note form, note cards and the notes panel's cards. The folded corner sits at the
    bottom right; text and fields stay aligned to the square edges. */
-.postit { position: relative; background: var(--postit); border: 1px solid var(--postit-edge); border-radius: 3px 3px 16px 3px; color: var(--ink); }
-.postit::after { content: ""; position: absolute; right: -1px; bottom: -1px; width: 18px; height: 18px; border-radius: 0 0 16px 0; background: linear-gradient(135deg, rgba(0, 0, 0, .12) 0 50%, transparent 50%); pointer-events: none; }
-.postit.question { background: var(--postit-question); border-color: var(--postit-question-edge); }
-.postit.resolved { background: var(--postit-resolved); border-color: var(--postit-resolved-edge); }
+.postit { --paper: var(--postit); --edge: var(--postit-edge); position: relative; border: 1px solid transparent; border-radius: 3px 3px 0 3px; background: linear-gradient(315deg, transparent 12.7px, var(--paper) 12.7px) border-box; filter: drop-shadow(0 0 .6px var(--edge)); color: var(--ink); }
+.postit::after { content: ""; position: absolute; right: -1px; bottom: -1px; width: 18px; height: 18px; background: linear-gradient(135deg, color-mix(in srgb, var(--paper), #000 18%) 50%, transparent 50%); pointer-events: none; }
+.postit.question { --paper: var(--postit-question); --edge: var(--postit-question-edge); }
+.postit.resolved { --paper: var(--postit-resolved); --edge: var(--postit-resolved-edge); }
 .postit textarea { background: rgba(255, 255, 255, .6); border-color: var(--postit-edge); }
 .postit button:not(.primary):not(.icon-button) { border-color: rgba(0, 0, 0, .16); background: rgba(255, 255, 255, .45); }
 .postit button:not(.primary):not(.icon-button):hover { background: rgba(255, 255, 255, .8); border-color: rgba(0, 0, 0, .35); }
 
-.note-form { width: 320px; max-width: calc(100vw - 16px); padding: 10px 12px 12px; box-shadow: 0 18px 40px -14px rgba(0, 0, 0, .45), 0 2px 6px rgba(0, 0, 0, .12); animation: settle .22s var(--spring); }
+.note-form { width: 320px; max-width: calc(100vw - 16px); padding: 10px 12px 12px; filter: drop-shadow(0 0 .6px var(--edge)) drop-shadow(0 12px 16px rgba(0, 0, 0, .3)); animation: settle .22s var(--spring); }
+/* The form is a fresh sheet: square corners, no fold. */
+.note-form { border-radius: 3px; background: var(--paper) border-box; }
+.note-form::after { content: none; }
 .note-form .head { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
 .note-form .head .what { flex: 1; min-width: 0; }
 .note-form .head .title { font-weight: 600; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .note-form .head .where { font: 11px/1.3 var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .note-form .head .tools { display: flex; gap: 1px; }
 .note-form .foot { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
+.note-form .options { display: flex; gap: 10px; align-items: center; margin-top: 6px; font-size: 11px; color: var(--muted); }
+.note-form .options label, .note-form .options .to { display: flex; gap: 4px; align-items: center; min-width: 0; }
+.note-form .options .to { flex: 1; justify-content: flex-end; }
+.note-form .options .to select { flex: 1; }
+.note-form select, .note-card select { min-width: 0; max-width: 100%; font: 11px var(--sans); color: var(--ink); background: var(--paper); border: 1px solid var(--edge); border-radius: 3px; padding: 1px 2px; }
+.note-card .send { display: flex; gap: 6px; align-items: center; margin-top: 6px; font-size: 11px; color: var(--muted); }
+.note-card .send .to { display: flex; gap: 4px; align-items: center; flex: 1; min-width: 0; }
+.note-card .send select { flex: 1; }
+.note-card .send button:not(.link) { padding: 2px 10px; font-size: 11px; }
+.note-form .options .to .link, .note-card .send .link { font-size: 11px; }
+.note-card .screenshot { display: block; margin: 6px 0 2px; padding: 0; border: 1px solid var(--edge); border-radius: 3px; background: none; cursor: zoom-in; max-width: 100%; }
+.note-card .screenshot img { display: block; max-width: 100%; max-height: 140px; width: auto; height: auto; object-fit: contain; }
 .note-form .foot .hint { flex: 1; font-size: 11px; color: var(--muted); }
 
 .note-pop { padding: 0; background: none; border: none; box-shadow: none; min-width: 280px; }
-.note-pop .note-card { box-shadow: 0 18px 40px -14px rgba(0, 0, 0, .45); animation: settle .2s var(--spring); }
+.note-pop .note-card { filter: drop-shadow(0 0 .6px var(--edge)) drop-shadow(0 12px 16px rgba(0, 0, 0, .3)); animation: settle .2s var(--spring); }
 .note-card { padding: 12px 14px 14px; }
-.note-card .comment { white-space: pre-wrap; margin-top: 6px; }
-.note-card .reply { margin-top: 8px; padding: 6px 9px; border-left: 3px solid var(--resolved); background: rgba(255, 255, 255, .55); border-radius: 0 6px 6px 0; white-space: pre-wrap; }
-.note-card .reply.question { border-color: var(--question); }
+.note-card .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -5px -7px 0 0; min-height: 28px; }
+.note-card .tools { display: flex; gap: 1px; flex: none; }
+.note-card .icon-button.resolve:hover { color: var(--resolved); }
+.note-card .icon-button.delete:hover { color: var(--akaji); }
+.note-card .comment { white-space: pre-wrap; margin-top: 4px; overflow-wrap: anywhere; }
 .note-card .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
-.note-card .row:first-child { margin-top: 0; }
-.note-card .meta { font: 11px/1.4 var(--mono); color: var(--muted); word-break: break-all; }
+.note-card .row.end { justify-content: flex-end; margin-top: 6px; }
+.note-card .source { margin-top: 10px; padding-right: 12px; font: 11px/1.4 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
 .note-card textarea { margin-top: 8px; }
-.status { display: inline-flex; align-items: center; gap: 4px; font: 700 10px/1 var(--sans); text-transform: uppercase; letter-spacing: .05em; padding: 3px 6px; border-radius: 999px; background: rgba(0, 0, 0, .08); color: var(--ink); }
+.status { display: inline-flex; align-items: center; gap: 4px; min-width: 0; font: 600 12px/1.2 var(--sans); color: var(--muted); }
 .status.question { color: var(--question); }
-.status.resolved { color: var(--resolved); }
-.status .icon { width: 13px; height: 13px; stroke-width: 2.4; }
+.status.resolved { color: #1f7f54; }
+.status.declined { color: var(--muted); }
+.status .icon { width: 15px; height: 15px; stroke-width: 2.4; }
 
 .panel.menu { background: var(--tray); color: var(--tray-ink); border-color: var(--tray-line); padding: 6px; min-width: 240px; animation: settle .16s var(--spring); }
 .menu { display: flex; flex-direction: column; gap: 1px; }
 .menu h3 { display: flex; flex-direction: column; gap: 2px; margin: 2px 6px 6px; color: var(--tray-ink); font-size: 12px; }
-.menu h3 .where { font: 400 11px/1.3 var(--mono); color: var(--tray-muted); word-break: break-all; }
+.menu h3 .where { font: 400 11px/1.3 var(--mono); color: var(--tray-muted); overflow-wrap: anywhere; }
 .menu button { display: flex; gap: 10px; align-items: center; width: 100%; text-align: left; border: none; border-radius: 7px; padding: 7px 8px; color: var(--tray-ink); }
 .menu button span { flex: 1; }
 .menu button .icon { width: 17px; height: 17px; color: var(--tray-muted); }
@@ -134,36 +152,68 @@ kbd { font: 10.5px/1 var(--mono); padding: 2px 4px; border-radius: 4px; backgrou
 .pin.fresh { animation: pin-drop .32s var(--spring); }
 .pin.question { background: var(--question); }
 .pin.resolved { background: var(--resolved); }
+.pin.declined { background: var(--muted); }
 .pin .icon { width: 16px; height: 16px; stroke-width: 2.6; }
 .pin.fresh .stroke { stroke-dasharray: 24; stroke-dashoffset: 24; animation: draw .42s .12s ease-out forwards; }
 
 /* The tray. The corner button opens it; the selected tool rises and shows its ink. */
-.dock { position: fixed; display: flex; align-items: center; gap: 8px; user-select: none; }
-.corner { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--tray-line); background: var(--tray); color: var(--akaji); font: 600 19px/38px "Hiragino Mincho ProN", "Yu Mincho", serif; text-align: center; cursor: grab; box-shadow: 0 8px 22px rgba(0, 0, 0, .3); position: relative; padding: 0; }
-.corner:hover { border-color: var(--tray-muted); transform: rotate(-8deg); }
-.corner.active { background: var(--akaji); color: #fff; border-color: var(--akaji); }
+.dock { position: fixed; display: flex; align-items: center; padding: 4px; border-radius: 999px; background: var(--tray); border: 1px solid var(--tray-line); box-shadow: 0 12px 30px -8px rgba(0, 0, 0, .45); user-select: none; }
+.corner { width: 40px; height: 40px; border-radius: 50%; border: none; background: none; color: var(--akaji); display: grid; place-items: center; cursor: pointer; position: relative; padding: 0; flex: none; }
+.corner .logo { width: 25px; height: 25px; fill: none; stroke: currentColor; stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; transition: transform .5s cubic-bezier(.22, 1, .36, 1), rotate .16s var(--spring); }
+.corner:hover { background: var(--tray-raised); }
+.corner:hover .logo { rotate: -8deg; }
+.corner:focus-visible { outline: 2px solid var(--marker); outline-offset: 1px; }
+.dock.open .corner .logo { transform: rotate(360deg); }
+.corner.active, .corner.active:hover { background: var(--akaji); color: #fff; }
 .corner .count { position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; border-radius: 9px; background: var(--marker); color: var(--ink); font: 700 10px/18px var(--sans); padding: 0 5px; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); }
-.toolbar { display: flex; align-items: center; gap: 2px; background: var(--tray); border: 1px solid var(--tray-line); border-radius: 999px; padding: 5px; box-shadow: 0 12px 30px -8px rgba(0, 0, 0, .45); animation: settle .2s var(--spring); }
+/* The tools stay pinned next to the corner button while the toolbar's width reveals them, right to left. */
+.toolbar { display: flex; justify-content: flex-end; width: 0; overflow: hidden; opacity: 0; visibility: hidden; transition: width .28s cubic-bezier(.22, 1, .36, 1), opacity .18s, visibility 0s .28s; }
+.dock.open .toolbar { width: var(--tools-width); opacity: 1; visibility: visible; transition: width .28s cubic-bezier(.22, 1, .36, 1), opacity .18s, visibility 0s; }
+.dock.settled .toolbar { overflow: visible; }
+.tools { display: flex; align-items: center; gap: 2px; flex: none; }
+.tools > * { flex: none; }
+.tools > :last-child { margin-right: 2px; }
 .toolbar .sep { width: 1px; height: 20px; background: var(--tray-line); margin: 0 4px; }
-.tool { position: relative; display: grid; place-items: center; width: 38px; height: 38px; padding: 0; border: none; border-radius: 50%; color: var(--tray-ink); }
-.tool:hover { background: var(--tray-raised); transform: translateY(-2px) rotate(-6deg); }
-.tool[aria-pressed="true"] { background: var(--tray-raised); transform: translateY(-4px); }
-.tool[aria-pressed="true"]::after { content: ""; position: absolute; bottom: 3px; left: 50%; width: 14px; height: 3px; margin-left: -7px; border-radius: 2px; background: var(--ink-color, var(--tray-ink)); }
-.tool .icon { width: 22px; height: 22px; }
+.tool { position: relative; display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: none; border-radius: 50%; color: var(--tray-ink); }
+.tool:hover, .tool[aria-pressed="true"] { background: var(--tray-raised); }
+.tool[aria-pressed="true"]::after { content: ""; position: absolute; bottom: 5px; left: 50%; width: 14px; height: 3px; margin-left: -7px; border-radius: 2px; background: var(--ink-color, var(--tray-ink)); }
+/* The circle stays on the bar's center line; only the drawing moves. */
+.tool .icon { width: 22px; height: 22px; transition: transform .16s var(--spring); }
+.tool:hover .icon { transform: translateY(-1px) rotate(-6deg); }
+.tool[aria-pressed="true"] .icon { transform: translateY(-3px); }
 .tool .badge { position: absolute; top: 2px; right: 1px; min-width: 16px; height: 16px; border-radius: 8px; background: var(--akaji); color: #fff; font: 700 9.5px/16px var(--sans); padding: 0 4px; }
-.tool .tip { position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%) translateY(4px); display: flex; gap: 6px; align-items: center; background: var(--tray); color: var(--tray-ink); border: 1px solid var(--tray-line); font: 600 12px/1 var(--sans); padding: 6px 8px; border-radius: 7px; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .12s, transform .12s; }
+.tool .tip { position: absolute; bottom: calc(100% + 12px); left: 50%; transform: translateX(-50%) translateY(4px); display: flex; gap: 6px; align-items: center; background: var(--tray); color: var(--tray-ink); border: 1px solid var(--tray-line); font: 600 12px/1 var(--sans); padding: 6px 8px; border-radius: 7px; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .12s, transform .12s; }
 .tool:hover .tip, .tool:focus-visible .tip { opacity: 1; transform: translateX(-50%); }
 .tool:focus-visible { outline: 2px solid var(--marker); outline-offset: 1px; }
+/* On a phone the tools are smaller, and on a screen narrower than the open toolbar its tools scroll
+   sideways. The dock sits 16px from the right edge and the corner button takes 50px of it. */
+@media (max-width: 420px) {
+  .tool { width: 32px; height: 32px; }
+  .tool .icon { width: 20px; height: 20px; }
+  .tool[aria-pressed="true"]::after { bottom: 2px; }
+  .toolbar .sep { margin: 0 2px; }
+  .toolbar { justify-content: safe flex-end; }
+  .dock.open .toolbar { width: min(var(--tools-width), calc(100vw - 76px)); }
+  .dock.settled .toolbar { overflow-x: auto; scrollbar-width: none; }
+}
 
 /* The notes panel: the tray's material, holding the page's Post-its. */
-.sidebar { position: fixed; top: 12px; right: 12px; bottom: 70px; width: 360px; max-width: calc(100vw - 24px); overflow: auto; background: var(--tray); color: var(--tray-ink); border: 1px solid var(--tray-line); border-radius: 16px; box-shadow: 0 24px 50px -16px rgba(0, 0, 0, .55); padding: 14px; animation: slide-in .22s var(--spring); }
+.sidebar { position: fixed; top: 12px; right: 12px; bottom: 70px; display: flex; flex-direction: column; width: 360px; max-width: calc(100vw - 24px); overflow: auto; background: var(--tray); color: var(--tray-ink); border: 1px solid var(--tray-line); border-radius: 16px; box-shadow: 0 24px 50px -16px rgba(0, 0, 0, .55); padding: 14px; animation: slide-in .22s var(--spring); }
 .sidebar header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .sidebar header strong { font-size: 14px; }
 .sidebar header .icon-button { color: var(--tray-muted); }
 .sidebar header .icon-button:hover { background: var(--tray-raised); color: var(--tray-ink); }
-.sidebar > .row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
-.sidebar > .row button { border-color: var(--tray-line); color: var(--tray-ink); font-size: 12px; }
-.sidebar > .row button:hover { border-color: var(--tray-muted); background: var(--tray-raised); }
+/* Pinned to the panel's bottom edge, however few notes there are and while they scroll. */
+.sidebar > * { flex: none; }
+.sidebar .copy-bar { position: sticky; bottom: -14px; display: flex; flex-direction: column; gap: 10px; margin: auto -14px -14px; padding: 10px 14px 12px; background: var(--tray); }
+.sidebar .copy-bar .actions { display: flex; justify-content: flex-end; gap: 6px; }
+.sidebar .copy-bar .actions button { border-color: var(--tray-line); color: var(--tray-ink); font-size: 12px; }
+.sidebar .copy-bar .actions button:hover { border-color: var(--tray-muted); background: var(--tray-raised); }
+.sidebar .listener { display: flex; align-items: center; gap: 7px; margin: 0 -14px; padding: 10px 14px 0; border-top: 1px solid var(--tray-line); font-size: 12px; color: var(--tray-muted); }
+.sidebar .listener .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--tray-line); box-shadow: inset 0 0 0 1px var(--tray-muted); }
+.sidebar .listener.on { color: var(--tray-ink); }
+.sidebar .listener.on .dot { background: var(--resolved); box-shadow: 0 0 0 3px rgba(47, 168, 114, .25); }
+.sidebar .listener button.link { margin-left: auto; color: var(--tray-ink); font-size: 12px; }
 .sidebar .note-card { margin-bottom: 10px; }
 .sidebar .empty { color: var(--tray-muted); padding: 12px 2px; line-height: 1.5; }
 
@@ -185,11 +235,23 @@ kbd { font: 10.5px/1 var(--mono); padding: 2px 4px; border-radius: 4px; backgrou
 .toast.error { background: var(--akaji); border-color: var(--akaji); color: #fff; border-radius: 12px; }
 .toast button { color: inherit; border-color: currentColor; padding: 1px 9px; font-size: 12px; border-radius: 999px; }
 
-/* An agent connected over MCP: a green light at the start of the tray and on the corner button. */
-.agent-light { position: relative; width: 10px; height: 10px; margin: 0 6px 0 8px; border-radius: 50%; background: var(--resolved); box-shadow: 0 0 0 3px rgba(47, 168, 114, .25); animation: breathe 2.4s ease-in-out infinite; }
-.agent-light .tip { bottom: calc(100% + 18px); }
-.agent-light:hover .tip { opacity: 1; transform: translateX(-50%); }
-.corner.agent::before { content: ""; position: absolute; left: -2px; bottom: -2px; width: 11px; height: 11px; border-radius: 50%; background: var(--resolved); border: 2px solid var(--tray); }
+/* The Agents button: a grey plane with no agent, in ink while one is connected, flying in green while one listens. */
+.tool.agents:not(.connected) .icon { opacity: .45; }
+.popover .agent { display: flex; flex-direction: column; gap: 3px; padding: 8px 6px; border-top: 1px solid var(--tray-line); }
+.popover .agent .who { display: flex; gap: 8px; align-items: baseline; justify-content: space-between; }
+.popover .agent .doing { font-size: 12px; color: var(--tray-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.popover .agent.listening .doing { color: var(--resolved); }
+.popover .idle-toggle { all: unset; cursor: pointer; display: block; padding: 8px 6px; border-top: 1px solid var(--tray-line); font-size: 12px; color: var(--tray-muted); }
+.popover .idle-toggle::before { content: "▸ "; }
+.popover .idle-toggle[aria-expanded="true"]::before { content: "▾ "; }
+.popover .idle-toggle:hover, .popover .idle-toggle:focus-visible { color: var(--tray-ink); }
+.popover .agent a.doing { color: var(--tray-ink); text-decoration: underline; text-decoration-color: var(--tray-line); }
+.popover .connect { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; padding: 10px; border: 1px solid var(--tray-line); border-radius: 10px; background: var(--tray-raised); font-size: 12px; line-height: 1.45; }
+.popover .connect p { margin: 0 0 2px; }
+.popover .connect .command { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.popover .connect code { font: 11px/1.3 var(--mono); overflow-wrap: anywhere; }
+.popover .connect .icon-button { border: none; color: var(--tray-muted); }
+.popover .connect .icon-button:hover { color: var(--tray-ink); background: var(--tray); }
 .tool.confirm { background: var(--akaji); color: #fff; }
 .tool.confirm .tip { background: var(--akaji); border-color: var(--akaji); color: #fff; }
 
@@ -197,30 +259,13 @@ kbd { font: 10.5px/1 var(--mono); padding: 2px 4px; border-radius: 4px; backgrou
 .note-card .editing textarea { margin-top: 8px; }
 .note-card .editing .row { justify-content: flex-end; }
 .pin.working { background: var(--tray); box-shadow: 0 0 0 3px rgba(255, 225, 77, .55), 0 3px 8px rgba(0, 0, 0, .3); animation: breathe 2.4s ease-in-out infinite; }
-.status.working { color: #8a6a00; background: rgba(255, 225, 77, .55); }
-@keyframes breathe { 50% { box-shadow: 0 0 0 6px rgba(47, 168, 114, 0); } }
-.pin.working { animation-name: breathe-ink; }
-@keyframes breathe-ink { 50% { box-shadow: 0 0 0 7px rgba(255, 225, 77, 0), 0 3px 8px rgba(0, 0, 0, .3); } }
-
-/* An agent connected over MCP: a green light at the start of the tray and on the corner button. */
-.agent-light { position: relative; width: 10px; height: 10px; margin: 0 6px 0 8px; border-radius: 50%; background: var(--resolved); box-shadow: 0 0 0 3px rgba(47, 168, 114, .25); animation: breathe 2.4s ease-in-out infinite; }
-.agent-light .tip { bottom: calc(100% + 18px); }
-.agent-light:hover .tip { opacity: 1; transform: translateX(-50%); }
-.corner.agent::before { content: ""; position: absolute; left: -2px; bottom: -2px; width: 11px; height: 11px; border-radius: 50%; background: var(--resolved); border: 2px solid var(--tray); }
-.tool.confirm { background: var(--akaji); color: #fff; }
-.tool.confirm .tip { background: var(--akaji); border-color: var(--akaji); color: #fff; }
-
-.panel.pick { min-width: 220px; }
-.note-card .editing textarea { margin-top: 8px; }
-.note-card .editing .row { justify-content: flex-end; }
-.pin.working { background: var(--tray); box-shadow: 0 0 0 3px rgba(255, 225, 77, .55), 0 3px 8px rgba(0, 0, 0, .3); animation: breathe 2.4s ease-in-out infinite; }
-.status.working { color: #8a6a00; background: rgba(255, 225, 77, .55); }
+.status.working { color: #7a5e00; }
 @keyframes breathe { 50% { box-shadow: 0 0 0 6px rgba(47, 168, 114, 0); } }
 .pin.working { animation-name: breathe-ink; }
 @keyframes breathe-ink { 50% { box-shadow: 0 0 0 7px rgba(255, 225, 77, 0), 0 3px 8px rgba(0, 0, 0, .3); } }
 
 /* Popovers above the toolbar: history and settings, in the tray's material. */
-.popover { position: absolute; right: 0; bottom: calc(100% + 12px); width: 340px; max-width: calc(100vw - 24px); max-height: 60vh; overflow: auto; background: var(--tray); color: var(--tray-ink); border: 1px solid var(--tray-line); border-radius: 14px; padding: 10px; box-shadow: 0 18px 40px -12px rgba(0, 0, 0, .5); animation: settle .18s var(--spring); }
+.popover { position: fixed; width: 340px; max-width: calc(100vw - 24px); max-height: 60vh; overflow: auto; background: var(--tray); color: var(--tray-ink); border: 1px solid var(--tray-line); border-radius: 14px; padding: 10px; box-shadow: 0 18px 40px -12px rgba(0, 0, 0, .5); animation: settle .18s var(--spring); }
 .popover h3 { display: flex; flex-direction: column; gap: 3px; margin: 2px 4px 10px; font-size: 13px; }
 .popover .where { font: 400 11px/1.35 var(--sans); color: var(--tray-muted); }
 .popover button { border-color: var(--tray-line); color: var(--tray-ink); font-size: 12px; }
@@ -230,20 +275,40 @@ kbd { font: 10.5px/1 var(--mono); padding: 2px 4px; border-radius: 4px; backgrou
 .popover .entry .what { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .popover .entry .what .where { font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .popover .entry.undone .what > span:first-child { text-decoration: line-through; color: var(--tray-muted); }
-.popover .setting { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 4px; border-top: 1px solid var(--tray-line); }
-.popover .setting > span:first-child { flex: 1; }
-.popover .setting .where { flex-basis: 100%; }
+/* The settings panel: sections apart by one rule, rows on an 8px rhythm without rules of their own. */
+.settings header { margin-bottom: 0; }
+.settings section { display: flex; flex-direction: column; gap: 4px; padding: 16px 0; }
+.settings section + section { border-top: 1px solid var(--tray-line); }
+.settings section:last-child { padding-bottom: 0; }
+.settings h4 { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 4px; color: var(--tray-muted); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.settings h4 button.link { color: var(--tray-muted); font-size: 12px; font-weight: 400; letter-spacing: normal; text-transform: none; }
+.settings h4 button.link:hover { color: var(--tray-ink); }
+.settings h5 { margin: 12px 0 0; color: var(--tray-muted); font-size: 12px; font-weight: 600; }
+.settings .where { margin: 0; font: 400 12px/1.4 var(--sans); color: var(--tray-muted); }
+.settings section > .where { margin-bottom: 4px; }
+.settings .setting { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-height: 32px; }
+.settings .setting > span:first-child { flex: 1; }
+.settings .setting > button { border-color: var(--tray-line); color: var(--tray-ink); font-size: 12px; }
+.settings .setting > button:hover { border-color: var(--tray-muted); background: var(--tray-raised); }
+.settings .check { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; cursor: pointer; }
+.settings .check input { width: auto; margin: 2px 0 0; accent-color: var(--akaji); }
+.settings .check > span { display: flex; flex-direction: column; gap: 2px; }
 .segmented { display: inline-flex; border: 1px solid var(--tray-line); border-radius: 999px; padding: 2px; }
-.segmented button { border: none; border-radius: 999px; padding: 3px 10px; }
+.segmented button { border: none; border-radius: 999px; padding: 3px 10px; font-size: 12px; }
 .segmented button[aria-pressed="true"] { background: var(--tray-ink); color: var(--tray); }
-.popover .check { display: flex; gap: 10px; align-items: flex-start; padding: 8px 4px; border-top: 1px solid var(--tray-line); cursor: pointer; }
-.popover .check input { width: auto; margin-top: 2px; accent-color: var(--akaji); }
-.popover .check > span { display: flex; flex-direction: column; gap: 2px; }
-
-/* The corner button, compact: a small tab that grows when pointed at. */
-.corner.compact:not(.active):not([aria-expanded="true"]) { width: 18px; height: 18px; font-size: 0; opacity: .7; }
-.corner.compact:not(.active):not([aria-expanded="true"]) .count { display: none; }
-.dock:hover .corner.compact { width: 40px; height: 40px; font-size: 19px; opacity: 1; }
+.settings .shortcut { display: flex; align-items: center; gap: 4px; min-height: 32px; font-size: 13px; }
+.settings .shortcut > span:first-child { flex: 1; min-width: 0; }
+.settings .shortcut.changed > span:first-child::after { content: " •"; color: var(--marker); }
+.settings .shortcut .keys { min-width: 88px; padding: 3px 8px; border: 1px dashed transparent; border-radius: 7px; text-align: right; font-size: 12px; }
+.settings .shortcut .keys:hover { border-color: var(--tray-line); background: var(--tray-raised); }
+.settings .shortcut .keys.recording { border-color: var(--marker); color: var(--marker); text-align: center; }
+.settings .shortcut .keys .none { color: var(--tray-muted); }
+.settings .shortcut .icon-button { width: 24px; height: 24px; color: var(--tray-muted); }
+.settings .shortcut .icon-button:hover { background: var(--tray-raised); color: var(--tray-ink); }
+.settings .shortcut .icon-button .icon { width: 14px; height: 14px; }
+.settings .shortcut:not(:has(.icon-button)) .keys { margin-right: 28px; }
+.settings .shortcut.always { min-height: 28px; color: var(--tray-muted); }
+.settings .shortcut.always kbd { margin-right: 37px; }
 
 /* Notes on selected text: the phrase stays marked with the highlighter. */
 .phrase { position: absolute; pointer-events: none; background: var(--marker-soft); box-shadow: inset 0 -2px 0 var(--marker-edge); border-radius: 2px; }
@@ -251,11 +316,15 @@ kbd { font: 10.5px/1 var(--mono); padding: 2px 4px; border-radius: 4px; backgrou
 .ink-muted { color: var(--muted); }
 .phrase.resolved { background: rgba(47, 168, 114, .16); box-shadow: inset 0 -2px 0 var(--resolved); }
 
-.note-card .thread { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
-.note-card .message { padding: 6px 9px; border-radius: 0 6px 6px 0; background: rgba(255, 255, 255, .55); border-left: 3px solid var(--resolved); white-space: pre-wrap; }
-.note-card .message.you { border-left-color: var(--ink); background: rgba(255, 255, 255, .3); }
-.note-card .message .who { display: block; font: 700 10px/1.4 var(--sans); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+/* The agent's replies read as more writing on the same paper, under a ruled line. */
+.note-card .thread { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding-top: 9px; border-top: 1px dashed rgba(0, 0, 0, .2); }
+.note-card .message { white-space: pre-wrap; overflow-wrap: anywhere; }
+.note-card .message .who { display: block; font: 600 12px/1.4 var(--sans); color: var(--muted); }
 .note-card .missing { margin-top: 8px; font-size: 12px; color: var(--akaji); }
+.note-card .missing button.link { color: inherit; font-weight: 600; }
+.sidebar .section { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 16px 2px 10px; color: var(--tray-muted); font-size: 12px; font-weight: 600; }
+.sidebar .section button { border-color: var(--tray-line); color: var(--tray-ink); font-size: 12px; font-weight: 400; }
+.sidebar .section button:hover { border-color: var(--tray-muted); background: var(--tray-raised); }
 .sidebar .tabs { display: flex; gap: 2px; margin-bottom: 10px; border: 1px solid var(--tray-line); border-radius: 999px; padding: 2px; width: fit-content; }
 .sidebar .tabs button { border: none; border-radius: 999px; padding: 3px 12px; color: var(--tray-muted); font-size: 12px; }
 .sidebar .tabs button[aria-selected="true"] { background: var(--tray-ink); color: var(--tray); }
@@ -272,7 +341,7 @@ kbd { font: 10.5px/1 var(--mono); padding: 2px 4px; border-radius: 4px; backgrou
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
   .pin.fresh .stroke { stroke-dashoffset: 0; }
-  .tool:hover, .tool[aria-pressed="true"], .corner:hover { transform: none; }
+  .tool:hover .icon, .tool[aria-pressed="true"] .icon, .corner:hover .logo { transform: none; rotate: none; }
 }
 `
 
@@ -332,7 +401,8 @@ export function toast(message: string, options: { error?: boolean; actions?: Rec
   }
   if (options.detail) element.append(options.detail)
   toasts.append(element)
-  setTimeout(() => element.remove(), options.timeout ?? (options.error ? 8000 : 5000))
+  // A timeout of 0 keeps the toast until the caller removes it.
+  if (options.timeout !== 0) setTimeout(() => element.remove(), options.timeout ?? (options.error ? 8000 : 5000))
   return element
 }
 

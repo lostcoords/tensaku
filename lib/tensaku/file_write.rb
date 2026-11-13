@@ -2,13 +2,13 @@ module Tensaku
   module FileWrite
     module_function
 
-    # Runs the block holding one lock shared by every thread and every server process, so two saves
-    # can't both read a file, check it and then overwrite each other's change. Writers re-read the file
+    # Runs the block holding one lock shared by every thread and every process (the dev server and
+    # `tensaku mcp`), so two saves can't both read a file, check it and then overwrite each other's change. Writers re-read the file
     # inside the block. Nested calls in the same thread don't wait on themselves.
     def locked
       return yield if Thread.current[:tensaku_write_lock]
 
-      path = Pathname(Rails.root).join("tmp/tensaku/write.lock")
+      path = Tensaku.root.join("tmp/tensaku/write.lock")
       path.dirname.mkpath
       File.open(path, File::RDWR | File::CREAT, 0o644) do |file|
         file.flock(File::LOCK_EX)

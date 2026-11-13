@@ -5,7 +5,6 @@ interface PageMeta {
   token: string
   root: string
   method: string
-  shortcut: string
 }
 
 export function meta(): PageMeta {
@@ -14,7 +13,6 @@ export function meta(): PageMeta {
     token: tag?.dataset.tensakuToken ?? "",
     root: tag?.dataset.tensakuRoot ?? "/__tensaku",
     method: tag?.dataset.tensakuRequest ?? "GET",
-    shortcut: tag?.dataset.tensakuShortcut ?? "alt+shift+KeyT",
   }
 }
 

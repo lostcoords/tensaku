@@ -85,7 +85,7 @@ module Tensaku
 
       root = "#{env["SCRIPT_NAME"]}#{Tensaku.config.mount_path}"
       nonce = env[NONCE].presence
-      meta = %(<meta name="tensaku" data-tensaku-request="#{ERB::Util.h(env["REQUEST_METHOD"])}" data-tensaku-token="#{Tensaku.token}" data-tensaku-root="#{ERB::Util.h(root)}" data-tensaku-shortcut="#{ERB::Util.h(Tensaku.config.shortcut)}">)
+      meta = %(<meta name="tensaku" data-tensaku-request="#{ERB::Util.h(env["REQUEST_METHOD"])}" data-tensaku-token="#{Tensaku.token}" data-tensaku-root="#{ERB::Util.h(root)}">)
       script = %(<script src="#{ERB::Util.h(root)}/tensaku.js?v=#{Endpoints.asset_digest}"#{%( nonce="#{ERB::Util.h(nonce)}") if nonce} data-turbo-eval="false" data-tensaku-ui defer></script>)
 
       html = insert_before(html, "</head>", meta) || "#{meta}#{html}"

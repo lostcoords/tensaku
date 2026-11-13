@@ -3,7 +3,7 @@ require "application_system_test_case"
 # The spike from PLAN decision 5: after a save, how the page catches up on different setups.
 class PageUpdateTest < ApplicationSystemTestCase
   def edit(selector, text)
-    alt_click find(selector)
+    alt_edit find(selector)
     type_in_editor text
     overlay.find(".editor .editable", match: :first).send_keys(:enter)
   end

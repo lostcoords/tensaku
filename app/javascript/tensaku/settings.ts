@@ -1,17 +1,18 @@
 // The overlay's settings, kept per browser in localStorage.
 
 import { storage, store } from "./ui"
+import type { ShortcutTool } from "./shortcuts"
 
 interface Settings {
   // Copied Markdown: every target and the thread, or one line per note.
   copyFormat: "detailed" | "short"
   // A browser notification when an agent answers while the tab is in the background.
   notify: boolean
-  // The corner button shrinks to a small tab until the pointer comes near.
-  compact: boolean
+  // Shortcuts changed from their defaults. Null removes a tool's shortcut.
+  shortcuts: Partial<Record<ShortcutTool, string | null>>
 }
 
-const DEFAULTS: Settings = { copyFormat: "detailed", notify: false, compact: false }
+const DEFAULTS: Settings = { copyFormat: "detailed", notify: false, shortcuts: {} }
 let current: Settings = { ...DEFAULTS, ...storage<Partial<Settings>>("settings", {}) }
 const listeners: ((settings: Settings) => void)[] = []
 

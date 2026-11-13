@@ -3,13 +3,26 @@
 
 import { api, isApple, meta, query } from "./api"
 import { contextOf, documentRect, editKind, hasOwnText, isUi, MARKDOWN, nearestStamp, sourceElement, STAMP, stampOf, tagLabel, templateText, translationOf, visibleText, copiesOf } from "./dom"
-import { closeEditor, edit, editHistory, isEditing, undo, undoFor } from "./editor"
+import { canRedo, canUndo, closeEditor, edit, editHistory, isEditing, redo, undo, undoFor } from "./editor"
 import { watch as watchMarkers } from "./markers"
-import { currentNotes, deleteAll, drawPins, elementsInArea, load as loadNotes, moveNote, noteForm, onAgent, onCount, poll as pollNotes, setMoveHandler, setPinsHidden, sidebarOpen, targetsFor, toggleSidebar, type Note } from "./notes"
-import { changeSettings, onSettings, settings } from "./settings"
+import { type Agent, agentLabel, currentAgents, currentNotes, deleteNotes, drawPins, elementsInArea, load as loadNotes, noteForm, onAgents, onCount, setAgentsHandler, poll as pollNotes, setPinsHidden, sidebarOpen, targetsFor, toggleSidebar } from "./notes"
+import { onSettings } from "./settings"
+import { setSettingsHooks, settingsOpen, toggleSettings } from "./settings-panel"
+import { hasCommandModifier, keysLabel, shortcutFor, type ShortcutTool, toolForEvent } from "./shortcuts"
 import { onRefresh } from "./refresh"
-import { cursor, icon, type IconName } from "./icons"
+import { logo, cursor, icon, type IconName } from "./icons"
 import { activeInShadow, box, copy, div, fixed, h, layer, mount, panel, storage, store, toast } from "./ui"
+
+// This tab's id, so each tab keeps its own selection for an agent's current_selection.
+const TAB = (() => {
+  try {
+    const id = sessionStorage.getItem("tensaku-tab") ?? Math.random().toString(36).slice(2, 10)
+    sessionStorage.setItem("tensaku-tab", id)
+    return id
+  } catch {
+    return Math.random().toString(36).slice(2, 10)
+  }
+})()
 
 declare global {
   interface Window { __tensaku?: boolean }
@@ -39,55 +52,78 @@ let suppressClick = false
 // Corner button and toolbar ---------------------------------------------------------------------
 
 const count = h("span", { className: "count", hidden: true })
-const corner = h("button", { className: "corner", type: "button", title: "Tensaku", "aria-label": "Tensaku", "aria-expanded": "false" }, "添", count)
+const corner = h("button", { className: "corner", type: "button", title: "Tensaku", "aria-label": "Tensaku", "aria-expanded": "false" }, logo(), count)
 // Each tool is a drawing from the pencil case, in the colour it marks the page with.
 const INK = { highlighter: "#ffe14d", pen: "#e0344f", pad: "#fff1a1" }
-function tool(name: IconName, ink: string, text: string, shortcut?: string) {
-  const tip = h("span", { className: "tip", "aria-hidden": "true" }, text, shortcut ? h("kbd", {}, shortcut) : null)
+function tool(name: IconName, ink: string, text: string) {
+  const tip = h("span", { className: "tip", "aria-hidden": "true" }, text)
   const button = h("button", { type: "button", className: "tool", "aria-pressed": "false", "aria-label": text }, icon(name, ink), tip)
   button.style.setProperty("--ink-color", ink)
   return button
 }
-const APPLE_KEYS: Record<string, string> = { alt: "⌥", shift: "⇧", ctrl: "⌃", meta: "⌘", cmd: "⌘" }
-const OTHER_KEYS: Record<string, string> = { alt: "Alt", shift: "Shift", ctrl: "Ctrl", meta: "Meta", cmd: "Meta" }
-// The configured shortcut in the platform's own notation: ⌥⇧T on Apple platforms, Alt+Shift+T elsewhere.
-function shortcutLabel() {
-  const parts = meta().shortcut.split("+")
-  const key = parts.pop()!.replace(/^Key/, "")
-  const names = isApple ? APPLE_KEYS : OTHER_KEYS
-  return [ ...parts.map((part) => names[part.toLowerCase()] ?? part), key ].join(isApple ? "" : "+")
-}
 const buttons = {
-  inspect: tool("highlighter", INK.highlighter, "Select", shortcutLabel()),
+  inspect: tool("highlighter", INK.highlighter, "Select"),
   edit: tool("pen", INK.pen, "Edit"),
   notes: tool("pad", INK.pad, "Notes"),
 }
 const notesBadge = h("span", { className: "badge", hidden: true })
 buttons.notes.append(notesBadge)
-function action(name: IconName, text: string, shortcut?: string) {
-  return h("button", { type: "button", className: "tool", "aria-label": text }, icon(name), h("span", { className: "tip", "aria-hidden": "true" }, text, shortcut ? h("kbd", {}, shortcut) : null))
+function action(name: IconName, text: string) {
+  return h("button", { type: "button", className: "tool", "aria-label": text }, icon(name), h("span", { className: "tip", "aria-hidden": "true" }, text))
 }
 const setTip = (button: HTMLElement, text: string) => {
   button.setAttribute("aria-label", text)
   button.querySelector(".tip")!.firstChild!.textContent = text
 }
 const pinsTool = action("eye", "Hide pins")
+const pauseTool = action("pause", "Pause animations")
 const clearTool = action("trash", "Delete this page's notes")
 const historyTool = action("history", "Edit history")
-const settingsTool = action("gear", "Settings")
-const closeTool = action("close", "Close", "Esc")
-closeTool.setAttribute("aria-label", "Close Tensaku")
-// Lit while an agent is connected over MCP (it called a tool in the last few seconds).
-const agentLight = h("span", { className: "agent-light", role: "status", hidden: true }, h("span", { className: "tip" }, "Agent connected"))
-const toolbar = div("toolbar", agentLight, buttons.inspect, buttons.edit, buttons.notes, div("sep"), pinsTool, clearTool, historyTool, settingsTool, div("sep"), closeTool)
-toolbar.hidden = true
+const settingsTool = action("sliders", "Settings")
+// The agents with `tensaku mcp` running: a dot while one is connected, pulsing while one listens.
+// The agents with `tensaku mcp` running: a grey plane with none, the plane in ink while one is
+// connected, flying in green while one listens. A count when there is more than one.
+const agentsTool = action("plane", "No agent connected")
+agentsTool.classList.add("agents")
+const agentsBadge = h("span", { className: "badge", hidden: true })
+agentsTool.append(agentsBadge)
+const tools = div("tools", buttons.inspect, buttons.edit, div("sep"), buttons.notes, agentsTool, pinsTool, clearTool, div("sep"), pauseTool, historyTool, settingsTool)
+const toolbar = div("toolbar", tools)
+// The button each shortcut presses. A tooltip shows the tool's shortcut, if it has one.
+const shortcutButtons: Record<ShortcutTool, HTMLElement> = {
+  select: buttons.inspect, edit: buttons.edit, notes: buttons.notes, agents: agentsTool, pins: pinsTool,
+  clear: clearTool, pause: pauseTool, history: historyTool, settings: settingsTool,
+}
+onSettings(() => {
+  for (const [name, button] of Object.entries(shortcutButtons) as [ShortcutTool, HTMLElement][]) {
+    const keys = shortcutFor(name)
+    const tip = button.querySelector(".tip")!
+    tip.querySelector("kbd")?.remove()
+    if (keys) tip.append(h("kbd", {}, keysLabel(keys)))
+  }
+})
+// CSS can't animate to a content width.
+new ResizeObserver(() => toolbar.style.setProperty("--tools-width", `${tools.offsetWidth}px`)).observe(tools)
 const dock = div("dock", toolbar, corner)
 fixed.append(dock)
 
+// The dock is one pill with the corner button at its end, and the tools unroll out of it. They are
+// clipped while they do, then "settled" lets tooltips and badges out of the pill.
+const toolbarOpen = () => dock.classList.contains("open")
+let settling = 0
+function setToolbar(open: boolean) {
+  if (open === toolbarOpen()) return
+  dock.classList.toggle("open", open)
+  corner.setAttribute("aria-expanded", String(open))
+  clearTimeout(settling)
+  dock.classList.remove("settled")
+  if (open) settling = window.setTimeout(() => dock.classList.add("settled"), 280)
+}
+
 function placeDock() {
   const position = storage<{ right: number; bottom: number }>("dock", { right: 16, bottom: 16 })
-  dock.style.right = `${Math.min(Math.max(position.right, 4), innerWidth - 44)}px`
-  dock.style.bottom = `${Math.min(Math.max(position.bottom, 4), innerHeight - 44)}px`
+  dock.style.right = `${Math.min(Math.max(position.right, 4), innerWidth - 52)}px`
+  dock.style.bottom = `${Math.min(Math.max(position.bottom, 4), innerHeight - 52)}px`
 }
 
 let dragged = false
@@ -115,13 +151,15 @@ corner.addEventListener("pointerdown", (event) => {
 })
 corner.addEventListener("click", () => {
   if (dragged) return
-  toolbar.hidden = !toolbar.hidden
-  corner.setAttribute("aria-expanded", String(!toolbar.hidden))
-  if (toolbar.hidden) setMode("off")
+  setToolbar(!toolbarOpen())
+  if (toolbarOpen()) return
+  toggleSidebar(false)
+  toggleSettings(false)
+  setMode("off")
 })
 buttons.inspect.addEventListener("click", () => setMode(mode === "inspect" ? "off" : "inspect"))
 buttons.edit.addEventListener("click", () => setMode(mode === "edit" ? "off" : "edit"))
-buttons.notes.addEventListener("click", () => { toggleSidebar(); syncButtons() })
+buttons.notes.addEventListener("click", () => { toggleSettings(false); toggleSidebar(); syncButtons() })
 let pinsHidden = storage("pinsHidden", false)
 function syncPins() {
   setPinsHidden(pinsHidden)
@@ -130,6 +168,35 @@ function syncPins() {
   setTip(pinsTool, pinsHidden ? "Show pins" : "Hide pins")
 }
 pinsTool.addEventListener("click", () => { pinsHidden = !pinsHidden; store("pinsHidden", pinsHidden); syncPins() })
+
+// Pausing stops the page's CSS animations and transitions, Web Animations and playing media, so an
+// element can be noted mid-animation. Timers and requestAnimationFrame loops keep running.
+let paused: { animations: Animation[]; media: HTMLMediaElement[]; style: HTMLStyleElement } | null = null
+function togglePause() {
+  if (paused) {
+    paused.style.remove()
+    paused.animations.forEach((animation) => { try { animation.play() } catch { /* finished or removed meanwhile */ } })
+    paused.media.forEach((media) => media.play().catch(() => {}))
+    paused = null
+  } else {
+    const animations = document.getAnimations().filter((animation) => {
+      const target = (animation.effect as KeyframeEffect | null)?.target
+      return animation.playState === "running" && !(target && isUi(target))
+    })
+    animations.forEach((animation) => animation.pause())
+    const media = Array.from(document.querySelectorAll<HTMLMediaElement>("video, audio")).filter((element) => !element.paused)
+    media.forEach((element) => element.pause())
+    const style = document.createElement("style")
+    style.setAttribute("data-tensaku-pause", "")
+    style.textContent = "*, *::before, *::after { animation-play-state: paused !important; transition: none !important; }"
+    document.head.append(style)
+    paused = { animations, media, style }
+  }
+  pauseTool.setAttribute("aria-pressed", String(Boolean(paused)))
+  pauseTool.replaceChild(icon(paused ? "play" : "pause"), pauseTool.querySelector("svg")!)
+  setTip(pauseTool, paused ? "Resume animations" : "Pause animations")
+}
+pauseTool.addEventListener("click", togglePause)
 
 // Deleting every note on the page takes a second click within three seconds.
 let confirmClear = 0
@@ -144,8 +211,8 @@ clearTool.addEventListener("click", async () => {
   }
   resetClear()
   try {
-    const deleted = await deleteAll()
-    toast(`Deleted ${deleted} ${deleted === 1 ? "note" : "notes"}`)
+    await deleteNotes(currentNotes())
+    toast(`Deleted ${total} ${total === 1 ? "note" : "notes"}`)
   } catch (error) {
     toast((error as Error).message, { error: true })
   }
@@ -157,11 +224,22 @@ function resetClear() {
   setTip(clearTool, "Delete this page's notes")
 }
 
-onAgent((agent) => {
-  agentLight.hidden = !agent.connected
-  corner.classList.toggle("agent", agent.connected)
-  const names = agent.names ?? []
-  agentLight.firstChild!.textContent = names.length ? `${names.join(", ")} connected` : "Agent connected"
+const names = (list: Agent[]) => list.map(agentLabel).join(", ")
+// Every poll reports the agents; the button and an open popover change only when they did, so a
+// redraw never swallows a click in the popover.
+let agentsSignature = "[]"
+onAgents((agents) => {
+  const signature = JSON.stringify(agents)
+  if (signature === agentsSignature) return
+  agentsSignature = signature
+  const listening = agents.filter((agent) => agent.listening)
+  agentsTool.classList.toggle("connected", agents.length > 0)
+  agentsTool.classList.toggle("listening", listening.length > 0)
+  agentsTool.replaceChild(listening.length ? icon("plane-flying", "#2fa872") : icon("plane"), agentsTool.querySelector("svg")!)
+  agentsBadge.hidden = agents.length < 2
+  agentsBadge.textContent = String(agents.length)
+  setTip(agentsTool, listening.length ? `${names(listening)} listening` : agents.length ? `${names(agents)} connected` : "No agent connected")
+  if (popover && popoverTool === agentsTool) popover.replaceChildren(...renderAgents())
 })
 
 // Popovers above the toolbar: one at a time, closed by a second click, Escape or a click elsewhere.
@@ -179,7 +257,11 @@ function openPopover(tool: HTMLElement, render: () => Node[]) {
   if (same) return
   popover = div("popover", ...render())
   popover.addEventListener("keydown", (event) => event.stopPropagation())
-  dock.append(popover)
+  // In the top layer after the notes panel, so the panel never covers it, placed above the dock.
+  const rect = dock.getBoundingClientRect()
+  popover.style.right = `${Math.max(12, innerWidth - rect.right)}px`
+  popover.style.bottom = `${innerHeight - rect.top + 12}px`
+  fixed.append(popover)
   popoverTool = tool
   tool.setAttribute("aria-pressed", "true")
 }
@@ -191,50 +273,81 @@ const ago = (date: Date) => {
   const seconds = Math.round((Date.now() - date.getTime()) / 1000)
   return seconds < 60 ? "just now" : seconds < 3600 ? `${Math.round(seconds / 60)} min ago` : `${Math.round(seconds / 3600)} h ago`
 }
+// The saves in this tab, newest first, with Undo on each, and the undone ones below, the latest with
+// Redo. Undo and redo also work from the keyboard (UNDO_KEYS).
 function renderHistory(): Node[] {
-  const entries = editHistory()
+  const { done, undone } = editHistory()
+  const row = (entry: (typeof done)[number], action: Node) => div(`entry${undone.includes(entry) ? " undone" : ""}`,
+    div("what", h("span", {}, entry.label), h("span", { className: "where" }, `${entry.file ?? ""} · ${ago(new Date(entry.at))}`)), action)
+  const button = (text: string, run: () => Promise<unknown>) => h("button", { type: "button", onclick: async () => { await run(); closePopover() } }, text)
   return [
-    h("h3", {}, "Edit history", h("span", { className: "where" }, "Saves since this page loaded. Each element can undo its latest edit.")),
-    ...(entries.length ? entries.map((entry) => div(`entry${entry.undone ? " undone" : ""}`,
-      div("what", h("span", {}, entry.label), h("span", { className: "where" }, `${entry.file ?? ""} · ${ago(entry.at)}`)),
-      entry.canUndo
-        ? h("button", { type: "button", onclick: async () => { await entry.run(); closePopover() } }, "Undo")
-        : h("span", { className: "where" }, entry.undone ? "undone" : "edited again"))) : [div("empty", "No edits yet.")]),
+    h("h3", {}, "Edit history", h("span", { className: "where" }, `Saves in this tab. ${UNDO_KEYS} undo and redo.`)),
+    ...(done.length || undone.length ? [
+      ...done.map((entry) => row(entry, button("Undo", () => undo(entry)))),
+      ...undone.map((entry, i) => row(entry, i === 0 ? button("Redo", () => redo(entry)) : h("span", { className: "where" }, "undone"))),
+    ] : [div("empty", "No edits yet.")]),
   ]
 }
 historyTool.addEventListener("click", () => openPopover(historyTool, renderHistory))
 
-function renderSettings(): Node[] {
-  const prefs = settings()
-  const choice = (value: "detailed" | "short", text: string) =>
-    h("button", { type: "button", "aria-pressed": String(prefs.copyFormat === value), onclick: () => { changeSettings({ copyFormat: value }); refreshPopover() } }, text)
-  const check = (checked: boolean, text: string, hint: string, change: (on: boolean) => void) => {
-    const input = h("input", { type: "checkbox", checked })
-    input.addEventListener("change", () => change(input.checked))
-    return h("label", { className: "check" }, input, h("span", {}, text, h("span", { className: "where" }, hint)))
-  }
+// What an agent can be asked, in its own chat. Tensaku can't start an agent's turn, so listening is
+// something the person asks for.
+const PROMPTS = { watch: "Watch my Tensaku notes", once: "Do my Tensaku notes", install: "bin/rails generate tensaku:install" }
+function copyRow(text: string, done: string) {
+  return div("command", h("code", {}, text),
+    h("button", { type: "button", className: "icon-button", title: "Copy", "aria-label": `Copy ${text}`, onclick: async () => { await copy(text); toast(done) } }, icon("copy")))
+}
+// What the agent last did, from its last tool call: "resolved xz5b 1 min ago".
+const DID: Record<string, string> = { start_note: "started", resolve_note: "resolved", decline_note: "declined", ask_question: "asked on", reply_to_note: "replied on", get_note: "read", list_notes: "listed the notes", watch_notes: "checked for notes", current_selection: "read the selection" }
+function lastAction(agent: Agent) {
+  if (agent.working.length) return agent.working.map((note) => h("a", { className: "doing", href: note.url, title: `“${note.comment}”` }, `Working on ${note.id}: “${note.comment}”`))
+  const last = agent.last
+  const did = last ? `${DID[last.tool] ?? last.tool}${last.note ? ` ${last.note}` : ""} ${ago(new Date(last.at))}` : null
+  const text = agent.listening ? `Waiting for your notes${did ? ` · ${did}` : ""}` : did ? `Last ${did}` : "No calls yet"
+  return [h("span", { className: "doing" }, text)]
+}
+// One agent: its name and handle, the folder it runs in, and what it did last.
+function agentRow(agent: Agent) {
+  return div(`agent${agent.listening ? " listening" : ""}${agent.working.length ? " working" : ""}`,
+    div("who", h("strong", {}, agentLabel(agent)), h("span", { className: "where" }, agent.folder ?? "")),
+    ...lastAction(agent))
+}
+let idleOpen = false
+function renderAgents(): Node[] {
+  const agents = currentAgents()
+  const listening = agents.filter((agent) => agent.listening)
+  const idle = agents.filter((agent) => !agent.listening)
+  const ask = [
+    h("p", {}, "Ask an agent to listen, and each note you save reaches it as you write it:"),
+    copyRow(PROMPTS.watch, "Copied. Paste it into your agent."),
+    h("p", {}, "Or have it work through the open notes once:"),
+    copyRow(PROMPTS.once, "Copied. Paste it into your agent."),
+  ]
+  // Listeners first. The rest, connected but not listening, are one line that expands, unless they are all there is.
+  const rest = listening.length && idle.length
+    ? [h("button", { type: "button", className: "idle-toggle", "aria-expanded": String(idleOpen), onclick: () => { idleOpen = !idleOpen; popover?.replaceChildren(...renderAgents()) } },
+        `${idle.length} more connected, not listening`), ...(idleOpen ? idle.map(agentRow) : [])]
+    : idle.map(agentRow)
   return [
-    h("h3", {}, "Settings", h("span", { className: "where" }, "Kept in this browser.")),
-    div("setting", h("span", {}, "Copy notes as"), div("segmented", choice("detailed", "Detailed"), choice("short", "One line each"))),
-    check(prefs.notify, "Notify me", "When an agent answers while this tab is in the background.", async (on) => {
-      if (on && "Notification" in window && Notification.permission === "default") await Notification.requestPermission()
-      const allowed = "Notification" in window && Notification.permission === "granted"
-      if (on && !allowed) toast("The browser blocked notifications for this site.", { error: true })
-      changeSettings({ notify: on && allowed })
-      refreshPopover()
-    }),
-    check(prefs.compact, "Compact button", "The corner button stays small until you point at it.", (on) => changeSettings({ compact: on })),
-    div("setting", h("span", {}, "Shortcut"), h("kbd", {}, shortcutLabel()), h("span", { className: "where" }, "config.shortcut in the initializer")),
-    div("setting", h("button", { type: "button", onclick: () => { store("dock", { right: 16, bottom: 16 }); placeDock() } }, "Move the toolbar back to the corner")),
+    h("h3", {}, "Agents", h("span", { className: "where" }, "Coding agents running tensaku mcp in this app. A note belongs to the agent that takes it.")),
+    ...(agents.length
+      ? [...listening.map(agentRow), ...rest]
+      : [div("empty", "No agent connected."),
+          div("connect", h("p", {}, "An agent gets Tensaku's tools from tensaku mcp in its project config. This adds it for Claude Code, Codex, Cursor, Gemini CLI and OpenCode:"),
+            copyRow(PROMPTS.install, "Copied. Run it in the app, then restart your agent."))]),
+    ...(listening.length ? [] : [div("connect", ...ask)]),
   ]
 }
-function refreshPopover() {
-  if (popover && popoverTool === settingsTool) popover.replaceChildren(...renderSettings())
-}
-settingsTool.addEventListener("click", () => openPopover(settingsTool, renderSettings))
-onSettings((prefs) => corner.classList.toggle("compact", prefs.compact))
+agentsTool.addEventListener("click", () => openPopover(agentsTool, renderAgents))
+setAgentsHandler(() => { setToolbar(true); if (popoverTool !== agentsTool) openPopover(agentsTool, renderAgents) })
 
-closeTool.addEventListener("click", () => { toggleSidebar(false); setMode("off"); toolbar.hidden = true; corner.setAttribute("aria-expanded", "false") })
+// The settings panel takes the notes panel's place.
+setSettingsHooks({
+  toggled: () => syncButtons(),
+  moveDockHome: () => { store("dock", { right: 16, bottom: 16 }); placeDock() },
+})
+settingsTool.addEventListener("click", () => { closePopover(); if (!settingsOpen()) toggleSidebar(false); toggleSettings() })
+
 
 onCount((n) => {
   count.hidden = n === 0
@@ -249,18 +362,40 @@ function syncButtons() {
   buttons.inspect.setAttribute("aria-pressed", String(mode === "inspect"))
   buttons.edit.setAttribute("aria-pressed", String(mode === "edit"))
   buttons.notes.setAttribute("aria-pressed", String(sidebarOpen()))
+  settingsTool.setAttribute("aria-pressed", String(settingsOpen()))
   corner.classList.toggle("active", mode !== "off")
 }
 
 function setMode(next: Mode) {
   mode = next
   if (next !== "inspect" && picked.length) clearPicked()
-  if (next !== "off") { toolbar.hidden = false; corner.setAttribute("aria-expanded", "true") }
+  if (next !== "off") setToolbar(true)
   clearHover()
   closeMenu()
   drawEditBoxes()
-  document.documentElement.style.cursor = next === "inspect" ? cursor("highlighter", INK.highlighter) : next === "edit" ? cursor("pen", INK.pen) : ""
+  syncCursor()
   syncButtons()
+}
+
+function syncCursor() {
+  document.documentElement.style.cursor = altHeld || mode === "inspect" ? cursor("highlighter", INK.highlighter) : mode === "edit" ? cursor("pen", INK.pen) : ""
+}
+
+// Holding Alt/Option previews what Alt-click would pick: the select cursor and highlight, in any mode,
+// until the key is released. Not while typing, where Option types characters and moves by word.
+let altHeld = false
+let pointer: { x: number; y: number } | null = null
+const altPreviews = (event: KeyboardEvent | MouseEvent) =>
+  event.altKey && !event.metaKey && !event.ctrlKey && !isEditing() && !typingInPage() && !activeInShadow()?.matches("textarea, input")
+
+function setAltHeld(held: boolean) {
+  if (held === altHeld) return
+  altHeld = held
+  syncCursor()
+  if (!held) { if (mode !== "inspect") clearHover(); return }
+  const under = pointer && !menu ? document.elementFromPoint(pointer.x, pointer.y) : null
+  const element = under && !isUi(under) ? sourceElement(under) : null
+  if (element) highlight(element)
 }
 
 // Highlights ------------------------------------------------------------------------------------
@@ -271,7 +406,7 @@ function clearHover() {
   hoverBoxes = []
 }
 
-function label(element: Element) {
+function label(element: Element): readonly [string, string] {
   const stamp = stampOf(element) ?? nearestStamp(element)
   const md = element.getAttribute(MARKDOWN)
   const key = translationOf(element)
@@ -283,7 +418,7 @@ let current: Element | null = null
 function highlight(element: Element) {
   clearHover()
   current = element
-  hoverBoxes = box(documentRect(element), mode === "edit" ? "hover-edit" : "", label(element))
+  hoverBoxes = box(documentRect(element), mode === "edit" && !altHeld ? "hover-edit" : "", label(element))
 }
 
 // Arrow keys walk the stamped elements from the highlighted one, like a DOM inspector: up to the
@@ -327,16 +462,6 @@ function keyboardSelect(event: KeyboardEvent): boolean {
   }
   return false
 }
-
-// Moving a note: the next click in select mode picks the element it's about.
-let moving: Note | null = null
-setMoveHandler((note) => {
-  moving = note
-  toggleSidebar(false)
-  setMode("inspect")
-  syncButtons()
-  toast("Click the element this note is about. Esc cancels.", { timeout: 8000 })
-})
 
 function editableElements(): Element[] {
   const elements = new Set<Element>()
@@ -427,6 +552,7 @@ function drawPicked() {
 function closeMenu() {
   menu?.remove()
   menu = null
+  if (mode === "off") clearHover()
 }
 
 function reference(element: Element): string {
@@ -457,12 +583,12 @@ function openMenu(element: Element, selectedText?: string) {
   const list = element.closest(`ul[${MARKDOWN}], ol[${MARKDOWN}]`)
   menu = panel(rect, "menu",
     h("h3", {}, label(element)[0], h("span", { className: "where" }, label(element)[1])),
-    item("copy", "Copy reference", async () => { await copy(reference(element)); toast("Copied reference") }, "C"),
-    item("pad", selectedText ? "Note on selected text" : "Add note", () => noteForm(rect, targetsFor(element, selectedText)), "N"),
     kind ? item(kind === "attributes" ? "tag" : "pen", kind === "attributes" ? "Edit attributes" : "Edit text", () => edit(element, kind), "E") : null,
     kind && kind !== "attributes" && editKind(element) !== "attributes" && hasAttributes(element) ? item("tag", "Edit attributes", () => edit(element, "attributes")) : null,
     list && list !== element ? item("pen", "Edit the whole list", () => edit(list, "markdown"), "L") : null,
-    undoable ? item("undo", undoable.label, () => undo(element), "U") : null,
+    item("pad", selectedText ? "Note on selected text" : "Add note", () => noteForm(rect, targetsFor(element, selectedText)), "N"),
+    item("copy", "Copy reference", async () => { await copy(reference(element)); toast("Copied reference") }, "C"),
+    undoable ? item("undo", `Undo ${undoable.label}`, () => undo(undoable), "U") : null,
     item("code", "Open in editor", () => openInEditor(element), "O"))
   menu.dataset.tensakuMenu = ""
   menu.addEventListener("keydown", (event) => event.stopPropagation())
@@ -474,7 +600,7 @@ function openMenu(element: Element, selectedText?: string) {
     const match = all.find((button) => button.querySelector("kbd")?.textContent === event.key.toUpperCase())
     if (match) { event.preventDefault(); match.click() }
   }
-  api("POST", "/selection", { url: location.pathname, targets: targetsFor(element, selectedText), text: visibleText(element, 300) }).catch(() => {})
+  api("POST", "/selection", { url: location.pathname, tab: TAB, targets: targetsFor(element, selectedText), text: visibleText(element, 300) }).catch(() => {})
 }
 let menuKeys: ((event: KeyboardEvent) => void) | null = null
 
@@ -507,16 +633,22 @@ function pageTarget(event: Event): Element | null {
 
 onDocument("mousemove", (event) => {
   if (drag) return updateDrag(event)
-  if (mode === "off" || menu || isEditing()) return
+  pointer = { x: event.clientX, y: event.clientY }
+  setAltHeld(altPreviews(event))
+  if ((mode === "off" && !altHeld) || menu || isEditing()) return
   const element = pageTarget(event)
   if (!element) return clearHover()
-  if (mode === "edit" && !editKind(element)) return clearHover()
+  if (mode === "edit" && !altHeld && !editKind(element)) return clearHover()
   highlight(element)
 }, true)
 
 onDocument("mousedown", (event) => {
-  if (mode !== "inspect" || event.button !== 0 || isUi(event.target as Element) || menu || isEditing()) return
-  // Shift would extend the text selection; in select mode it picks elements instead.
+  if (event.button !== 0 || isUi(event.target as Element)) return
+  // Alt keeps any selected text for the menu and note form, and Alt-drag draws an area, in any mode.
+  const altDrag = event.altKey
+  if (altDrag) event.preventDefault()
+  if ((mode !== "inspect" && !altDrag) || menu || isEditing()) return
+  // Shift would extend the text selection; it picks elements in select mode and writes a note with Alt.
   if (event.shiftKey) { event.preventDefault(); return }
   drag = { x: event.pageX, y: event.pageY, area: null }
 }, true)
@@ -546,25 +678,28 @@ onDocument("mouseup", (event) => {
     area.remove()
     highlights.forEach((b) => b.remove())
   })
-  api("POST", "/selection", { url: location.pathname, targets, text: "" }).catch(() => {})
+  api("POST", "/selection", { url: location.pathname, tab: TAB, targets, text: "" }).catch(() => {})
 }, true)
 
 onDocument("click", (event) => {
   if (suppressClick) { suppressClick = false; event.preventDefault(); event.stopPropagation(); return }
   if (isUi(event.target as Element)) return
   const element = pageTarget(event)
+  const selectedIn = (within: Element) => {
+    const selection = getSelection()?.toString().trim()
+    return selection && within.contains(getSelection()!.anchorNode) ? selection : undefined
+  }
 
-  // Alt/Option-click edits right away, in any mode.
+  // Alt/Option+Shift-click writes a note right away, and Alt/Option-click opens the menu, in any mode.
   if (event.altKey && element) {
-    const kind = editKind(element)
-    if (!kind) return
     event.preventDefault()
     event.stopImmediatePropagation()
     closeMenu()
-    edit(element, kind)
+    if (event.shiftKey) noteForm(documentRect(element), targetsFor(element, selectedIn(element)))
+    else openMenu(element, selectedIn(element))
     return
   }
-  if (mode === "off") { if (menu) closeMenu(); return }
+  if (mode === "off" && !menu) return
   event.preventDefault()
   event.stopImmediatePropagation()
   if (menu || isEditing()) { closeMenu(); return }
@@ -575,32 +710,38 @@ onDocument("click", (event) => {
     if (kind) edit(element, kind)
     return
   }
-  if (moving) {
-    const note = moving
-    moving = null
-    moveNote(note, element).catch((error) => toast((error as Error).message, { error: true }))
-    return
-  }
   if (event.shiftKey) { togglePicked(element); return }
   if (picked.length) clearPicked()
-  const selection = getSelection()?.toString().trim()
-  openMenu(element, selection && element.contains(getSelection()!.anchorNode) ? selection : undefined)
+  openMenu(element, selectedIn(element))
 }, true)
 
-function matchesShortcut(event: KeyboardEvent) {
-  const parts = meta().shortcut.split("+")
-  const code = parts.pop()!
-  const want = new Set(parts.map((p) => p.toLowerCase()))
-  return event.code === code && event.altKey === want.has("alt") && event.shiftKey === want.has("shift") &&
-    event.ctrlKey === want.has("ctrl") && event.metaKey === (want.has("meta") || want.has("cmd"))
+
+onDocument("keyup", (event) => { if (event.key === "Alt") setAltHeld(false) }, true)
+onWindow("blur", () => setAltHeld(false))
+
+// Cmd/Ctrl+Z undoes the latest save, Cmd/Ctrl+Shift+Z or Ctrl+Y redoes, unless something is being
+// typed in (the page's own fields and Tensaku's editor keep their own undo) or there is nothing to undo.
+const UNDO_KEYS = isApple ? "⌘Z and ⇧⌘Z" : "Ctrl+Z and Ctrl+Y"
+function undoKeys(event: KeyboardEvent): boolean {
+  if (!(isApple ? event.metaKey : event.ctrlKey) || event.altKey || isEditing() || typingInPage() || activeInShadow()?.matches("textarea, input, [contenteditable]")) return false
+  const key = event.key.toLowerCase()
+  const wantsRedo = (key === "z" && event.shiftKey) || (!isApple && key === "y")
+  const wantsUndo = key === "z" && !event.shiftKey
+  if (wantsUndo && canUndo()) { event.preventDefault(); undo(); return true }
+  if (wantsRedo && canRedo()) { event.preventDefault(); redo(); return true }
+  return false
 }
 
 onDocument("keydown", (event) => {
-  if (matchesShortcut(event)) {
+  if (event.key === "Alt") setAltHeld(altPreviews(event))
+  const shortcut = hasCommandModifier(event) ? toolForEvent(event) : null
+  if (shortcut) {
     event.preventDefault()
-    setMode(mode === "off" ? "inspect" : "off")
+    setToolbar(true)
+    shortcutButtons[shortcut].click()
     return
   }
+  if (undoKeys(event)) return
   if (menu && menuKeys) menuKeys(event)
   if (keyboardSelect(event)) return
   if (pickBar && !isEditing() && !activeInShadow()?.matches("textarea")) {
@@ -609,7 +750,7 @@ onDocument("keydown", (event) => {
   }
   if (event.key === "Escape") {
     if (popover) { closePopover(); return }
-    if (moving) { moving = null; toast("Move cancelled"); return }
+    if (settingsOpen()) { toggleSettings(false); return }
     if (menu) { closeMenu(); return }
     if (isEditing()) return
     if (mode !== "off") setMode("off")

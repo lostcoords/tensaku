@@ -5,13 +5,13 @@ class MarkdownTest < ApplicationSystemTestCase
     visit "/guide"
     wait_for_overlay
 
-    alt_click find(".guide h2")
+    alt_edit find(".guide h2")
     assert overlay.has_css?(".editor .chip", text: "##")
     type_in_editor "First steps"
     overlay.find(".editor .editable").send_keys(:enter)
     assert_selector ".guide h2", text: "First steps"
 
-    alt_click find(".guide p")
+    alt_edit find(".guide p")
     type_in_editor "Install the gem, then restart."
     overlay.find(".editor .editable").send_keys(:enter)
     assert_selector ".guide p", text: "Install the gem, then restart."
@@ -22,7 +22,7 @@ class MarkdownTest < ApplicationSystemTestCase
   test "a whole list is edited as its source from an item's menu" do
     visit "/guide"
     wait_for_overlay
-    overlay.find(".corner").click
+    open_toolbar
     overlay.find(".toolbar button[aria-label='Select']").click
 
     find(".guide li", text: "Rails 8.1").click
@@ -47,7 +47,7 @@ class MarkdownTest < ApplicationSystemTestCase
   test "a note on a Markdown block points at the block, not at the stamped element around it" do
     visit "/guide"
     wait_for_overlay
-    overlay.find(".corner").click
+    open_toolbar
     overlay.find(".toolbar button[aria-label='Select']").click
 
     find(".guide p").click

@@ -2,13 +2,18 @@ require "json"
 require "digest"
 
 module Tensaku
-  # The JSON endpoints the overlay talks to, plus the overlay script and the MCP endpoint. Everything
-  # except the script needs a loopback address, and everything the overlay calls needs the boot token.
+  # The JSON endpoints the overlay talks to, plus the overlay script. Everything needs a loopback
+  # address, and everything except the script needs the boot token. Agents don't come through here:
+  # `tensaku mcp` works on the database directly.
   class Endpoints
     ASSET = File.expand_path("../../app/assets/tensaku.js", __dir__)
 
     # Edit mode asks about every stamp on the page at once.
     EDITABLE_LIMIT = 5000
+
+    # An event stream waits on the doorbell, and checks anyway this often: for an agent that stopped
+    # checking in, and to write a comment so a closed tab is noticed.
+    STREAM_CHECK = 10
 
     def self.asset_digest
       Digest::SHA256.file(ASSET).hexdigest[0, 12]
@@ -21,11 +26,6 @@ module Tensaku
       path = request.path_info.delete_prefix(Tensaku.config.mount_path)
 
       return script(request) if path == "/tensaku.js" && request.get?
-
-      if path == "/mcp"
-        Guard.check_local_client!(request)
-        return Mcp.new.call(request)
-      end
 
       Guard.check_request!(request)
       route(request, path)
@@ -77,28 +77,75 @@ module Tensaku
         written(:markdown) { Source::Markdown.new(params["range"]).edit(original: params["original"], text: params["text"], tag: params["tag"]) }
       in [ "GET", "/notes" ]
         Notes.prune!
-        json(notes: Notes.list(url: params["url"].presence), open: Notes.list(status: Notes::ACTIVE).size, agent: Notes.agent)
+        Notes.base_url = request.base_url
+        json(notes: Notes.list(url: params["url"].presence), open: Notes.list(status: Notes::ACTIVE).size, agents: Notes.agents)
+      in [ "GET", "/events" ]
+        events(request)
       in [ "GET", "/notes.md" ]
-        notes = params["id"].present? ? [ Notes.find(params["id"]) ] : Notes.list(url: params["url"].presence, status: Notes::ACTIVE)
+        notes = Notes.list(url: params["url"].presence, status: Notes::ACTIVE)
         markdown = params["format"] == "short" ? Notes.to_short_markdown(notes) : Notes.to_markdown(notes)
         [ 200, { "content-type" => "text/markdown; charset=utf-8" }, [ markdown ] ]
       in [ "POST", "/notes" ]
         json(Notes.create(params), 201)
+      in [ "PUT", %r{\A/notes/([a-z0-9]+)/screenshot\z} ]
+        json(Notes.attach_screenshot(path.split("/")[-2], params["png"]))
+      in [ "GET", %r{\A/notes/([a-z0-9]+)/screenshot\z} ]
+        shot = Notes.screenshot(path.split("/")[-2]) or raise Notes::NotFound, "That note has no screenshot"
+        [ 200, { "content-type" => "image/png", "cache-control" => "no-store" }, [ shot["png"] ] ]
       in [ "PATCH", %r{\A/notes/([a-z0-9]+)\z} ]
         id = path.split("/").last
-        json(Notes.update(id, status: params["status"], reply: params["reply"], comment: params["comment"],
-          message: params["message"], from: "you", targets: params["targets"]))
+        # Whatever you change on an open note (an edit, an answer, a reopen) is for the agent: sent again.
+        json(Notes.update(id, status: params["status"], comment: params["comment"],
+          message: params["message"], from: "you", send: params["status"] == "open", to: params["to"]))
+      in [ "POST", "/notes/archive" ]
+        json(archived: Notes.archive!(params["ids"]))
       in [ "DELETE", %r{\A/notes/([a-z0-9]+)\z} ]
         Notes.delete(path.split("/").last)
         json({ deleted: true })
       in [ "GET", "/editor" ]
         json(url: editor_url(params["file"], params["line"]))
       in [ "POST", "/selection" ]
-        Notes.selection = params.to_h.slice("url", "targets", "text").merge("at" => Time.now.utc.iso8601)
+        Notes.select!(params.to_h.slice("url", "targets", "text"), tab: params["tab"])
         json({ ok: true })
       else
         json({ error: "Not found" }, 404)
       end
+    end
+
+    # Server-sent events: one "changed" event whenever the notes or the agents change (Notes.version),
+    # and one right away, so the page loads the notes when told instead of asking every few seconds.
+    # The stream sleeps on the doorbell until a write rings it.
+    # The connection is taken over from the web server (Rack hijack) and served from a thread of its
+    # own, so an open tab doesn't hold one of the server's threads. A server without hijack answers
+    # 501, and the page polls instead.
+    def events(request)
+      hijack = request.env["rack.hijack"]
+      return json({ error: "This web server can't stream events" }, 501) unless hijack
+
+      Notes.prune!
+      Notes.base_url = request.base_url
+      io = hijack.call
+      root = Tensaku.root
+      Thread.new { Tensaku.with_root(root) { stream(io) } }
+      [ -1, {}, [] ]
+    end
+
+    def stream(io)
+      Doorbell.listen(Tensaku.root) do |doorbell|
+        io.write("HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncache-control: no-store\r\nconnection: close\r\n\r\n")
+        last = nil
+        loop do
+          version = Notes.version
+          io.write(version == last ? ": ping\n\n" : "data: changed\n\n")
+          io.flush
+          last = version
+          doorbell.wait(STREAM_CHECK)
+        end
+      end
+    rescue IOError, SystemCallError
+      nil # the tab closed
+    ensure
+      io.close unless io.closed?
     end
 
     # A link that opens the file in the editor named by RAILS_EDITOR or EDITOR, through Rails' own

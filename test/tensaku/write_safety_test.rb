@@ -1,6 +1,6 @@
 require "test_helper"
 
-# Concurrent writers, hand-edited note files and the watch_notes timing.
+# Concurrent writers, in threads and in processes, and the watch_notes timing.
 class Tensaku::WriteSafetyTest < Tensaku::TestCase
   setup { Tensaku.root = tmp_root }
   teardown { Tensaku.root = nil }
@@ -11,7 +11,35 @@ class Tensaku::WriteSafetyTest < Tensaku::TestCase
     Array.new(8) { |index| Thread.new { Tensaku::Notes.update(note["id"], message: "Message #{index}", from: "agent") } }.each(&:join)
 
     assert_equal 8, Tensaku::Notes.find(note["id"])["thread"].size
-    assert_empty Tensaku::Notes.dir.glob(".*.tmp")
+  end
+
+  test "two processes claiming at once get each note once" do
+    notes = 20.times.map { Tensaku::Notes.create(url: "/", comment: "Note #{it}") }
+    since = Time.now.utc - 60
+    Tensaku::Store.reset!
+    # Both stay running until both have claimed: a note whose owner's process is gone is free again.
+    done_reader, done_writer = IO.pipe
+    children = 2.times.map do |i|
+      reader, writer = IO.pipe
+      pid = fork do
+        reader.close
+        done_writer.close
+        session = SecureRandom.hex(16)
+        Tensaku::Notes.agent_seen!(session, name: "Agent #{i}", listening: true, pid: Process.pid)
+        claimed = Tensaku::Notes.claim_sent(since, Time.now.utc, session:, agent: "Agent #{i}")
+        writer.puts(JSON.generate(claimed.map { it["id"] }))
+        writer.flush
+        done_reader.read
+        exit!(0)
+      end
+      writer.close
+      [ pid, reader ]
+    end
+    claimed = children.map { |_, reader| JSON.parse(reader.gets) }
+    done_writer.close
+    children.each { |pid, _| Process.wait(pid) }
+
+    assert_equal notes.map { it["id"] }.sort, claimed.flatten.sort
   end
 
   test "concurrent template saves don't overwrite each other" do
@@ -32,28 +60,21 @@ class Tensaku::WriteSafetyTest < Tensaku::TestCase
     assert_equal %(<ul>\n  <li>Uno</li>\n  <li>Dos</li>\n</ul>\n), view.read
   end
 
-  test "a malformed note file is skipped instead of breaking the list" do
-    Tensaku::Notes.create(url: "/", comment: "Good")
-    Tensaku::Notes.dir.join("bad1.json").write("[1, 2]")
-    Tensaku::Notes.dir.join("bad2.json").write(JSON.generate(id: "bad2", comment: "No dates"))
-
-    assert_equal [ "Good" ], Tensaku::Notes.list.map { it["comment"] }
-    assert_raises(Tensaku::Notes::NotFound) { Tensaku::Notes.find("bad2") }
-  end
-
-  test "watch sees a note saved in the same second as since" do
+  test "sent_between sees a note saved in the same second as since, and not one sent after upto" do
     since = Time.now.utc
     note = Tensaku::Notes.create(url: "/", comment: "Right away")
+    upto = Time.now.utc
+    Tensaku::Notes.create(url: "/", comment: "Later")
 
-    notes, checked_at = Tensaku::Notes.watch(since:, timeout: 1)
-
-    assert_equal [ note["id"] ], notes.map { it["id"] }
-    assert_operator checked_at, :>, since
+    assert_equal [ note["id"] ], Tensaku::Notes.sent_between(since, upto).map { it["id"] }
   end
 
-  test "the selection is shared through a file" do
-    Tensaku::Notes.selection = { "url" => "/about" }
+  test "each tab keeps its own selection, and the newest is the one an agent gets" do
+    Tensaku::Notes.select!({ "url" => "/about" }, tab: "one")
+    Tensaku::Notes.select!({ "url" => "/blog" }, tab: "two")
+    Tensaku::Notes.select!({ "url" => "/contact" }, tab: "one")
 
-    assert_equal "/about", Tensaku::Notes.selection["url"]
+    assert_equal "/contact", Tensaku::Notes.selection["url"]
+    assert_equal 2, Tensaku::Store.read { it.get_first_value("SELECT COUNT(*) FROM selections") }
   end
 end
