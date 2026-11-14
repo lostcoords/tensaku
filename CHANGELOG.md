@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 (2026-11-14)
+
+Upgrading from 0.1.0: rerun `bin/rails generate tensaku:install` to replace the `.mcp.json` entry with
+`bundle exec tensaku mcp`. Notes from 0.1.0 aren't carried over. `config.notes_path`, `config.shortcut`
+and `config.prune_after` are gone; `config.archive_after` replaces `prune_after`.
 
 ### Editing
 
