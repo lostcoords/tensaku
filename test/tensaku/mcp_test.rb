@@ -75,11 +75,44 @@ class Tensaku::McpTest < Tensaku::TestCase
     assert refused["isError"]
     assert_includes text(refused), "Call start_note before you change anything"
     tool("start_note", id: note["id"])
-    assert_equal "Resolved note #{note["id"]}.", text(tool("resolve_note", id: note["id"], reply: "Renamed in about.html.erb:1"))
+    assert_equal "Resolved note #{note["id"]}. No open notes left.", text(tool("resolve_note", id: note["id"], reply: "Renamed in about.html.erb:1"))
     saved = Tensaku::Notes.find(note["id"])
     assert_equal "resolved", saved["status"]
     assert_equal "Renamed in about.html.erb:1", saved["thread"].last["text"]
     assert_equal "No notes.", text(tool("list_notes"))
+  end
+
+  test "a note handed over by watch_notes is started for the session, so it resolves without start_note" do
+    note = Tensaku::Notes.create(url: "/about", comment: "Rename this section")
+    tool("watch_notes", since: (Time.now.utc - 5).iso8601, timeout_seconds: 1)
+
+    saved = Tensaku::Notes.find(note["id"])
+    assert_equal [ "working", @server.session.id ], saved.values_at("status", "session")
+    assert_equal "Resolved note #{note["id"]}. No open notes left. Call watch_notes to keep listening.", text(tool("resolve_note", id: note["id"], reply: "Renamed"))
+  end
+
+  test "closing a note says how many open notes are left, and a listener is told to keep listening" do
+    first = Tensaku::Notes.create(url: "/about", comment: "Rename this section")
+    second = Tensaku::Notes.create(url: "/about", comment: "Shorter intro")
+    tool("start_note", id: first["id"])
+    assert_equal "Resolved note #{first["id"]}. 1 open note is left: list_notes has it.", text(tool("resolve_note", id: first["id"], reply: "Renamed"))
+
+    tool("watch_notes", timeout_seconds: 1)
+    assert_equal "Asked on note #{second["id"]}. No open notes left. Call watch_notes to keep listening.", text(tool("ask_question", id: second["id"], question: "How short?"))
+  end
+
+  test "Claude Code loads the tools of the work loop up front" do
+    tools = rpc("tools/list").dig("result", "tools").to_h { [ it["name"], it.dig("_meta", "anthropic/alwaysLoad") ] }
+    assert_equal Tensaku::Session::Tools::ALWAYS_LOAD.sort, tools.select { |_, always| always }.keys.sort
+    assert_nil tools["get_screenshot"]
+  end
+
+  test "notes for agents give absolute file paths" do
+    note = Tensaku::Notes.create(url: "/notes", comment: "Hyphenate", targets: [ { "kind" => "markdown", "md" => "app/views/pages/notes.html.md:3:1-3:12", "text" => "Follow up" } ])
+    absolute = "`#{tmp_root.expand_path}/app/views/pages/notes.html.md:3:1-3:12`"
+    assert_includes text(tool("list_notes")), absolute
+    assert_includes text(tool("get_note", id: note["id"])), absolute
+    assert_includes Tensaku::Notes::Markdown.list([ note ]), "at `app/views/pages/notes.html.md:3:1-3:12`"
   end
 
   test "list_notes offers the archive as a status and lists it" do
@@ -235,7 +268,7 @@ class Tensaku::McpTest < Tensaku::TestCase
   test "decline_note closes a note with the reason in its thread" do
     note = Tensaku::Notes.create(url: "/about", comment: "Make it blink")
 
-    assert_equal "Declined note #{note["id"]}.", text(tool("decline_note", id: note["id"], reason: "Blinking text fails WCAG 2.3.1"))
+    assert_equal "Declined note #{note["id"]}. No open notes left.", text(tool("decline_note", id: note["id"], reason: "Blinking text fails WCAG 2.3.1"))
 
     saved = Tensaku::Notes.find(note["id"])
     assert_equal [ "declined", "Blinking text fails WCAG 2.3.1" ], [ saved["status"], saved["thread"].last["text"] ]
@@ -283,9 +316,9 @@ class Tensaku::McpTest < Tensaku::TestCase
     follow_up = Tensaku::Notes.create(url: "/", comment: "Second")
     resolved = tool("resolve_note", id: first["id"], reply: "Done")
 
-    assert_equal "Resolved note #{first["id"]}. Call watch_notes to keep listening.", resolved.dig("content", 0, "text")
-    assert_includes resolved.dig("content", 1, "text"), "Notes the person saved while you worked. They are yours now"
-    assert_includes resolved.dig("content", 1, "text"), "## Tensaku note #{follow_up["id"]} (open)"
+    assert_equal "Resolved note #{first["id"]}. No other open notes left.", resolved.dig("content", 0, "text")
+    assert_includes resolved.dig("content", 1, "text"), "Notes the person saved while you worked. They are yours and already started"
+    assert_includes resolved.dig("content", 1, "text"), "## Tensaku note #{follow_up["id"]} (working)"
     assert_equal @server.session.id, Tensaku::Notes.find(follow_up["id"])["session"]
 
     assert_equal 1, tool("reply_to_note", id: follow_up["id"], message: "On it")["content"].size
@@ -427,7 +460,7 @@ class Tensaku::McpTest < Tensaku::TestCase
     Tensaku::Agents.seen!(@server.session.id, name: "Claude Code", listening: true)
     reply = text(tool_on(other, other_output, "watch_notes", since:, timeout_seconds: 1))
     assert_includes reply, note["id"]
-    assert_includes reply, "*Yours.*"
+    assert_includes reply, "*Yours, and started: make the change, then resolve it.*"
 
     assert_raises(Tensaku::Error) { Tensaku::Notes.create(url: "/", comment: "Nobody", to: "gone-fox") }
   end

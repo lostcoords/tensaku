@@ -65,7 +65,7 @@ A note is unassigned until an agent takes it, or until you assign it. With agent
 
 An open note's card has the same menu with an **Assign** button, to give the note to another session or back to anyone. A note in progress has it too, as **Reassign**: when you stop an agent in the middle of a note and its session keeps running, this takes the note back. The note is open again, and that session's `resolve_note` on it is refused. When an agent's process ends while it works on a note, the card says **stopped. Anyone can take it**, and the next agent that lists notes is told that part of the change may already be in the file.
 
-A note belongs to one agent session: the one you assigned it to, the one `watch_notes` handed it to, or the one that started it. With two agents listening, the first to look takes the note, and the other never sees it. An agent that is working on a note leaves new ones to an agent that is listening with nothing to do. While its session's process runs, other sessions leave the note alone, and a request for changes on it goes back to the same session. When that session quits, or its process is gone, any agent can take the note. `list_notes` marks each active note as the session's own or as nobody's yet, and says how many notes other sessions hold. `resolve_note` refuses a note the agent didn't start, so an agent that skips `start_note` fails at the end instead of resolving quietly. Tensaku can't stop an agent from editing files before that.
+A note belongs to one agent session: the one you assigned it to, the one `watch_notes` handed it to, or the one that started it. With two agents listening, the first to look takes the note, and the other never sees it. An agent that is working on a note leaves new ones to an agent that is listening with nothing to do. While its session's process runs, other sessions leave the note alone, and a request for changes on it goes back to the same session. When that session quits, or its process is gone, any agent can take the note. `list_notes` marks each active note as the session's own or as nobody's yet, and says how many notes other sessions hold. A note handed to a session (by `watch_notes`, the channel, or with the answer of another tool) is started for it at once, so the pin shows the agent on it and the agent goes straight to the change. A note an agent found with `list_notes` needs `start_note` first: `resolve_note` refuses a note that isn't started for the agent, so an agent that skips `start_note` fails at the end instead of resolving quietly. Tensaku can't stop an agent from editing files before that.
 
 ## Select mode
 
@@ -103,7 +103,7 @@ Each note shows as a pin where you clicked to write it, and the pin keeps that s
 
 What you do on a card, such as marking it done, reopening it, answering or assigning it, shows on the card and the pin at once, before the server answers. If the server refuses, the card and pin go back and a toast says why. An open card follows the note as the agent works on it, unless you are typing in it.
 
-When an agent resolves a note, on this page or any other, the page fetches itself again and morphs the change in, the same way as after an edit (see [how the page updates](/editing/#how-the-page-updates)). Changed stylesheets are swapped in too. A page reached by a POST is left as it is.
+While an agent works on a note, the page fetches itself again each time the app's files change, so you see each edit as it lands. The dev server looks at the files under `app/` and `config/locales/` four times a second, only while a note is being worked on; a fetch that fails, such as a template the agent is halfway through, leaves the page as it is. When an agent resolves a note, on this page or any other, the page also fetches itself again and morphs the change in, the same way as after an edit (see [how the page updates](/editing/#how-the-page-updates)). Changed stylesheets are swapped in too. A page reached by a POST is left as it is.
 
 Each note keeps a thread: the agent's questions and messages, and your answers. Answering a question sets the note back to `open`. So does editing the note, and its thread stays.
 
@@ -216,7 +216,7 @@ Targets also carry the `tag`, the `text`, the element's own CSS `classes`, the `
 | `list_notes` | Lists notes, optionally for one `url`. `status` is `open`, `working`, `question`, `resolved`, `declined`, `active` (the default: open, working or question), `archived` or `all` (every note outside the archive). |
 | `get_note` | Returns one note |
 | `get_screenshot` | Returns the note's screenshot as a PNG image |
-| `start_note` | Marks a note as being worked on; the pin shows it, and the note becomes this session's. Fails when the note belongs to another running session. |
+| `start_note` | Marks a note from `list_notes` as being worked on; the pin shows it, and the note becomes this session's. Notes handed to the session are already started. Fails when the note belongs to another running session. |
 | `resolve_note` | Marks a note resolved, with a reply for the person |
 | `decline_note` | Closes a note without a change, with the reason |
 | `ask_question` | Asks the person something; the question shows on the page |
@@ -227,11 +227,13 @@ Targets also carry the `tag`, the `text`, the element's own CSS `classes`, the `
 
 `watch_notes` waits for open notes sent after `since`, woken as soon as one is saved, and the page shows the agent as listening meanwhile. Its answer ends with a `checked_at` line to pass as `since` on the next call, so no note is missed or passed on twice. `list_notes` lists notes whether they were sent or not. Both cut a long thread down to the agent's latest message and what came after it.
 
-Once an agent has called `watch_notes`, the answer of any other tool includes the notes sent since it last looked, already claimed for it, so it doesn't have to wait in `watch_notes` while it works: a follow-up you send reaches it at its next Tensaku call. An agent that never called `watch_notes` gets only the ids of those notes. After the agent has used `watch_notes`, `resolve_note` answers "Call watch_notes to keep listening."
+Once an agent has called `watch_notes`, the answer of any other tool includes the notes sent since it last looked, already claimed for it, so it doesn't have to wait in `watch_notes` while it works: a follow-up you send reaches it at its next Tensaku call. An agent that never called `watch_notes` gets only the ids of those notes.
 
 `tensaku mcp` writes one JSON line per tool call to `tmp/tensaku/mcp.log`: the session, the tool, how long it took in milliseconds, the size of the answer and the notes it handed over. Past 1 MB it moves to `mcp.log.1`.
 
-`start_note`, `resolve_note`, `decline_note`, `ask_question` and `reply_to_note` answer with one line. The tool answers are text only, with no `structuredContent`.
+`start_note`, `resolve_note`, `decline_note`, `ask_question` and `reply_to_note` answer with one line. `resolve_note`, `decline_note` and `ask_question` end with how many open notes are left, so the agent doesn't list again to find out, and with "Call watch_notes to keep listening." when none are left for an agent that has used `watch_notes`. The tool answers are text only, with no `structuredContent`.
+
+Notes from the tools and from `tensaku notes` give each file's absolute path, which the agent can open without searching for it. The tools of the work loop (`list_notes`, `start_note`, `resolve_note`, `decline_note`, `ask_question`, `watch_notes`, `channel_ready`) ask Claude Code to load them up front, so the agent doesn't spend a turn on its tool search before the first one.
 
 ### The MCP server
 

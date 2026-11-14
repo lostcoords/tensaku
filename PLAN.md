@@ -255,6 +255,7 @@ lib/tensaku/agents.rb           connected agent sessions, handles, note ownershi
 lib/tensaku/presence.rb         file locks that tell whether a session's process still runs
 lib/tensaku/store.rb            the SQLite database in the user data folder, schema
 lib/tensaku/doorbell.rb         Unix sockets that wake waiting readers after a write
+lib/tensaku/edits.rb            a stamp of the app's files, to notice an agent's edits
 lib/tensaku/repo.rb             the commit and origin of an app, read from .git
 lib/tensaku/session.rb          one agent session: check-ins, watching, claiming, the channel push
 lib/tensaku/session/tools.rb    the agent tools: each one's schema and the method that answers it
@@ -698,6 +699,38 @@ adds a second one.
   `Kiln::Content.source_positions`, and Tensaku no longer adds `Kiln::Content.root` to the writable
   paths: the app lists it. Tensaku edits a subset of the blocks Kiln marks (`p`, headings, `li`,
   `blockquote`, whole lists); `pre`, `table` and `hr` only get notes.
+- **Turns per note (added 2026-11-14):** with a fast model (Qwen 3.8 27B on Cerebras, about 1,300
+  tokens/s) a note still took 17 to 26 seconds, and Claude Haiku about 8.5: each model turn costs about a
+  second in waiting for the first token and in Claude Code itself, whatever the generation speed, so
+  the number of turns sets the time. Traces showed turns spent on Claude Code's tool search, on
+  finding a file the note already named (Read and Edit want absolute paths), on `get_note` after
+  `list_notes`, and on `list_notes` after `resolve_note` to see whether anything was left. The loop
+  tools now carry `_meta` `anthropic/alwaysLoad`, notes for agents give absolute paths (the page's copy
+  keeps relative ones, for an agent elsewhere), and closing a note says how many open notes are left,
+  besides those handed over in the same answer. Both models then take five turns (list, start, read,
+  edit, resolve): Haiku about 4.5 seconds, Qwen about 3.5. The tool search also kept a weaker model from
+  finding the tools at all, so it explored the repo first. Asking for `start_note` in the same turn as
+  the read hasn't been followed by either model.
+  - Handed notes start themselves (2026-11-14): a note handed to a session (`claim_sent`: watch_notes,
+    the channel, another tool's answer) is `working` for it in the same transaction, since the session
+    already owns it there. The page shows the agent on it as soon as it arrives, and the agent saves
+    the `start_note` turn: watch_notes, read, edit, resolve, and with the channel only the last three.
+    A note found with `list_notes` still needs `start_note`, and `resolve_note` still refuses a note that
+    isn't started: letting resolve start any note would let two sessions that listed the same note both
+    edit the file, the second finding out only after its edit. Several notes handed at once all show
+    `working` while the agent takes them in turn, and the session counts as busy from then on, so new
+    notes go to an idle listener.
+  - Edits show as they land (2026-11-14): a Qwen run on "remove the glow from the button" made the
+    edit at 5 seconds and resolved at 14, after regenerating demo data and checking its own work, and
+    the page showed nothing until the resolve. While a note is `working`, the event stream now stamps
+    the files under `app/` and `config/locales/` four times a second (one look shared by every tab)
+    and sends `edited` when the stamp changes; the page fetches itself and morphs, as after a resolve.
+    Watching only while a note is worked on keeps an idle dev server from walking the tree, and leaves
+    live reload of the person's own edits to tools made for it. Targeted updates were considered: a
+    partial can't be rendered alone without its request and locals, and Turbo's morph refresh is the
+    same fetch and morph Tensaku already does, so the whole page is fetched and idiomorph touches only
+    what changed. The instructions now say the page shows each edit, and that a small, clear change
+    can be resolved right after it; how far to check stays the agent's call.
 
 ## Open questions
 

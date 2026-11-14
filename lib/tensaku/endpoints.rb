@@ -15,6 +15,9 @@ module Tensaku
     # checking in, and to write a comment so a closed tab is noticed.
     STREAM_CHECK = 10
 
+    # While an agent works on a note, the stream also looks at the app's files this often (Edits).
+    EDIT_CHECK = 0.25
+
     # /notes/ID and /notes/ID/screenshot.
     NOTE_PATH = %r{\A/notes/([a-z0-9]+)(?:/screenshot)?\z}
 
@@ -122,9 +125,10 @@ module Tensaku
       end
     end
 
-    # Server-sent events: one "changed" event whenever the notes or the agents change (Project.version),
+    # Server-sent events: a "changed" event whenever the notes or the agents change (Project.version),
     # and one right away, so the page loads the notes when told instead of asking every few seconds.
-    # The stream sleeps on the doorbell until a write rings it.
+    # While an agent works on a note, an "edited" event whenever the app's files change (Edits), so the
+    # page shows each edit as it lands. The stream sleeps on the doorbell until a write rings it.
     # The connection is taken over from the web server (Rack hijack) and served from a thread of its
     # own, so an open tab doesn't hold one of the server's threads. A server without hijack answers
     # 501, and the page polls instead.
@@ -142,13 +146,24 @@ module Tensaku
     def stream(io)
       Doorbell.listen(Tensaku.root) do |doorbell|
         io.write("HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncache-control: no-store\r\nconnection: close\r\n\r\n")
-        last = nil
+        last = files = nil
+        quiet = 0.0
         loop do
           version = Project.version
-          io.write(version == last ? ": ping\n\n" : "data: changed\n\n")
-          io.flush
-          last = version
-          doorbell.wait(STREAM_CHECK)
+          stamp = Edits.stamp if Notes.working?
+          events = []
+          events << "data: changed\n\n" if version != last
+          events << "data: edited\n\n" if stamp && files && stamp != files
+          # A comment now and then, so a closed tab is noticed.
+          events << ": ping\n\n" if events.empty? && quiet >= STREAM_CHECK
+          if events.any?
+            io.write(events.join)
+            io.flush
+            quiet = 0.0
+          end
+          last, files = version, stamp
+          wait = stamp ? EDIT_CHECK : STREAM_CHECK
+          quiet += wait unless doorbell.wait(wait)
         end
       end
     rescue IOError, SystemCallError

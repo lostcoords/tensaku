@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+### Agents
+
+- An agent takes fewer turns per note. Claude Code loads the tools of the work loop (`list_notes`,
+  `start_note`, `resolve_note`, `decline_note`, `ask_question`, `watch_notes`, `channel_ready`) up front
+  instead of behind its tool search. Notes from the MCP tools and `tensaku notes` give absolute file
+  paths. `resolve_note`, `decline_note` and `ask_question` end with how many open notes are left. With
+  Claude Haiku, one note went from 7 or 8 tool calls to 5, and from about 8.5 to 4.5 seconds.
+- A note handed to an agent session, by `watch_notes`, the Claude Code channel or with another tool's
+  answer, is started for it at once: the pin shows the agent on it, and the agent doesn't call
+  `start_note`. A note an agent finds with `list_notes` still needs `start_note`, so two sessions can't
+  both work on it.
+- While an agent works on a note, the page reloads itself whenever the app's files change, so each edit
+  shows as it lands instead of when the agent resolves the note. The dev server looks at the files
+  under `app/` and `config/locales/` four times a second, only while a note is being worked on.
+
 ## 0.2.0 (2026-11-14)
 
 Upgrading from 0.1.0: rerun `bin/rails generate tensaku:install` to replace the `.mcp.json` entry with

@@ -6,13 +6,14 @@ module Tensaku
 
       # app names the app in each heading, for an agent that sees notes from several apps. With
       # latest: true each thread is cut down to what is new (see latest_thread). session, the agent
-      # session the list is for, adds whether each note is its own.
-      def list(notes, app: nil, latest: false, session: nil)
+      # session the list is for, adds whether each note is its own. absolute: true gives file paths from
+      # the filesystem root, which an agent can open without looking for the app first.
+      def list(notes, app: nil, latest: false, session: nil, absolute: false)
         notes = Array(notes)
         return "No notes." if notes.empty?
 
         base = Project.base_url
-        notes.map { note(it, base:, app:, latest:, session:) }.join("\n\n")
+        notes.map { note(it, base:, app:, latest:, session:, absolute:) }.join("\n\n")
       end
 
       # One line per note, for a chat where the detailed form is too long.
@@ -26,11 +27,12 @@ module Tensaku
         end.join("\n")
       end
 
-      def note(note, base: Project.base_url, app: nil, latest: false, session: nil)
+      def note(note, base: Project.base_url, app: nil, latest: false, session: nil, absolute: false)
         page = base && note["url"].to_s.start_with?("/") ? "#{base.chomp("/")}#{note["url"]}" : note["url"]
         lines = [ "## Tensaku note #{note["id"]} (#{note["status"]}) on #{page}#{" in #{app}" if app}", "" ]
         if session && ACTIVE.include?(note["status"])
-          lines << if note["session"] == session then "*Yours.*"
+          lines << if note["session"] == session && note["status"] == "working" then "*Yours, and started: make the change, then resolve it.*"
+          elsif note["session"] == session then "*Yours. Call start_note before you change anything.*"
           elsif note["stopped"] then "*Its session stopped while working on it, so it is nobody's now. Part of the change may already be made: check the file before you redo it. Call start_note to take it.*"
           else "*Nobody's yet: call start_note before you work on it, so no other session takes it.*"
           end
@@ -40,7 +42,7 @@ module Tensaku
         targets = Array(note["targets"])
         if targets.any?
           lines << ""
-          targets.each { lines << "- #{target(it)}" }
+          targets.each { lines << "- #{target(it, absolute:)}" }
         end
         if (rect = note["rect"])
           lines << "" << "Area: #{rect["width"]}x#{rect["height"]} at (#{rect["x"]}, #{rect["y"]}) in a #{note["viewport"] || "unknown"} viewport"
@@ -66,8 +68,9 @@ module Tensaku
         [ thread.size - kept.size, kept ]
       end
 
-      def target(target)
-        location = [ target["file"], target["range"] ].compact.join(":")
+      def target(target, absolute: false)
+        file = target["file"] && absolute ? Tensaku.root.expand_path.join(target["file"]).to_s : target["file"]
+        location = [ file, target["range"] ].compact.join(":")
         parts = [ target["kind"] ]
         parts << "`#{target["tag"]}`" if target["tag"]
         parts << "`#{target["key"]}` (#{target["locale"]})" if target["key"]

@@ -58,14 +58,19 @@ export async function refresh(kind: SourceKind) {
 }
 
 // After an agent changed the app's files: the same fetch and morph, plus the stylesheets, whose
-// digested URLs change with their content. Quiet: a page reached by a POST, or a failed fetch, is
-// left as it is.
+// digested URLs change with their content. Quiet: a page reached by a POST, or a failed fetch (a
+// template the agent is halfway through), is left as it is. Fetches can overlap while the agent keeps
+// editing; only the newest one's page is used.
+let agentFetch = 0
 export async function refreshAfterAgent() {
   if (meta().method !== "GET") return
+  const sequence = ++agentFetch
   try {
     const response = await fetch(location.href, { headers: { Accept: "text/html", "X-Tensaku-Refresh": "1" }, credentials: "same-origin" })
     if (!response.ok) return
-    const next = new DOMParser().parseFromString(await response.text(), "text/html")
+    const html = await response.text()
+    if (sequence !== agentFetch) return
+    const next = new DOMParser().parseFromString(html, "text/html")
     swapStylesheets(next)
     morph(next)
   } catch {

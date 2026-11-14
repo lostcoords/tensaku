@@ -605,7 +605,7 @@ class NotesTest < ApplicationSystemTestCase
     assert overlay.has_css?(".tool.agents .badge", text: "2")
   end
 
-  test "an unassigned note is taken by the agent that checks, shows who picked it up, and a long thread starts at the agent's latest message" do
+  test "an unassigned note is taken and started by the agent that checks, and a long thread starts at the agent's latest message" do
     session = SecureRandom.hex(16)
     Tensaku::Agents.seen!(session, name: "Codex", listening: true, cwd: Dir.pwd, started_at: Time.now.utc.iso8601)
 
@@ -629,7 +629,7 @@ class NotesTest < ApplicationSystemTestCase
     assert overlay.has_css?(".note-pop .status", text: "Unassigned")
     Tensaku::Notes.claim_sent(Time.now.utc - 60, Time.now.utc, session:, agent: label)
     # A shown note doesn't change under you, so open it again once the poll has the delivery.
-    assert_eventually { overlay.find(".pin").click; overlay.has_css?(".note-pop .status", text: "Picked up by #{label}", wait: 0.5) }
+    assert_eventually { overlay.find(".pin").click; overlay.has_css?(".note-pop .status", text: "#{label} is working", wait: 0.5) }
 
     %w[agent you agent you].each_with_index { |from, i| Tensaku::Notes.update(note["id"], from:, message: "#{from} #{i}", agent: ("Codex" if from == "agent")) }
     Tensaku::Notes.start(note["id"], agent: "Codex", session:)

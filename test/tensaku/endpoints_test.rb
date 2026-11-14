@@ -160,6 +160,25 @@ end
     reader&.close
   end
 
+  test "while an agent works on a note, events say when the app's files change" do
+    reader, writer = IO.pipe
+    request("GET", "/events", env: { "rack.hijack" => -> { writer } })
+    next_event = -> { Timeout.timeout(5) { reader.gets("\n\n") } }
+    Timeout.timeout(5) { reader.gets("\r\n\r\n") }
+    assert_equal "data: changed\n\n", next_event.call
+
+    note = Tensaku::Notes.create(url: "/about", comment: "Tighten this")
+    assert_equal "data: changed\n\n", next_event.call
+    Tensaku::Notes.start(note["id"], agent: "Codex", session: SecureRandom.hex(16))
+    assert_equal "data: changed\n\n", next_event.call
+
+    sleep 0.5
+    @view.write("<h1>Tighter</h1>\n")
+    assert_equal "data: edited\n\n", next_event.call
+  ensure
+    reader&.close
+  end
+
   test "the notes version changes with a note or an agent, but not with a heartbeat that has nothing new" do
     session = SecureRandom.hex(16)
     Tensaku::Agents.seen!(session, name: "Codex")

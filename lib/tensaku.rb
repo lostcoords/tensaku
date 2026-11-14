@@ -21,6 +21,7 @@ module Tensaku
   autoload :Build, "tensaku/build"
   autoload :Mcp, "tensaku/mcp"
   autoload :Caches, "tensaku/caches"
+  autoload :Edits, "tensaku/edits"
   autoload :I18nMarkers, "tensaku/i18n"
 
   module Source

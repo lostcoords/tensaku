@@ -170,7 +170,9 @@ export async function setScope(which: Scope | null) {
 }
 
 // Notes change from outside the page too (an agent starts or resolves one). The dev server streams an
-// event whenever the notes or the agents change, and the page loads them then. While the stream is
+// event whenever the notes or the agents change, and the page loads them then. While an agent works on
+// a note, it also streams an event whenever the app's files change, and the page fetches itself again to
+// show the edit. While the stream is
 // down, the page asks every four seconds while the tab is visible (every 16 in a hidden tab with
 // notifications on), and reconnects every five. A server that can't stream (501) is only polled.
 // Nothing is redrawn when the answer is the same.
@@ -178,6 +180,9 @@ let streaming = false
 export function poll() {
   let pending = 0
   const changed = () => { clearTimeout(pending); pending = window.setTimeout(() => load(), 30) }
+  // An agent often saves several files in a row, and a CSS watcher rebuilds right after: one fetch.
+  let editedPending = 0
+  const edited = () => { clearTimeout(editedPending); editedPending = window.setTimeout(refreshAfterAgent, 150) }
   const connect = async () => {
     let retry = 5000
     try {
@@ -194,7 +199,8 @@ export function poll() {
         buffer += value
         const events = buffer.split("\n\n")
         buffer = events.pop() ?? ""
-        if (events.some((event) => event.startsWith("data:"))) changed()
+        if (events.includes("data: changed")) changed()
+        if (events.includes("data: edited")) edited()
       }
     } catch {
       retry = 15000

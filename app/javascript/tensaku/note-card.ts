@@ -158,11 +158,9 @@ export function noteCard(note: Note, onChange: (note?: Note) => void = () => {})
   }
   const thread = threadView(note)
   const missing = !done && here && !anchorFor(note) ? div("missing", "Not found on this page any more.") : null
-  const delivered = note.status === "open" && note.delivered_at && note.sent_at && note.delivered_at >= note.sent_at
-  // An open note assigned to one session says so until that session picks it up. A note in progress
-  // whose session's process ended says so: anyone can take it.
+  // An open note assigned to one session says so until that session gets it, which starts it. A note in
+  // progress whose session's process ended says so: anyone can take it.
   const status = note.status === "working" ? (note.stopped ? `${note.agent ?? "Agent"} stopped. Anyone can take it` : `${note.agent ?? "Agent"} is working`)
-    : delivered ? `Picked up by ${note.delivered_to}`
     : note.status === "open" ? (note.agent ? `Assigned to ${note.agent}` : "Unassigned") : STATUS_LABELS[note.status]
   // An open note can be assigned to a session or left to anyone. A note in progress can be taken back
   // the same way, for an agent you stopped mid-work: the note is open again, and that session's

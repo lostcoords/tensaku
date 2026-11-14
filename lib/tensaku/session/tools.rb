@@ -10,6 +10,10 @@ module Tensaku
     module Tools
       BY_ID = { type: "object", properties: { id: { type: "string" } }, required: %w[id] }.freeze
 
+      # The tools of the work loop. Claude Code loads these up front instead of behind its tool search,
+      # which saves the agent a turn before its first Tensaku call.
+      ALWAYS_LOAD = %w[list_notes start_note resolve_note decline_note ask_question watch_notes channel_ready].freeze
+
       TOOLS = [
         {
           name: "list_notes",
@@ -34,12 +38,12 @@ module Tensaku
         },
         {
           name: "start_note",
-          description: "Mark a note as being worked on before you make the change. The pin on the page shows that an agent has picked it up, and the note becomes this session's. Fails when the note belongs to another running agent session: then leave it. Call resolve_note as soon as the change is made.",
+          description: "Mark a note you found with list_notes as being worked on before you make the change. The pin on the page shows that an agent has picked it up, and the note becomes this session's. Notes handed to you (by watch_notes, a channel event or another tool's answer) are already started, so skip this for them. Fails when the note belongs to another running agent session: then leave it. Call resolve_note as soon as the change is made.",
           inputSchema: BY_ID
         },
         {
           name: "resolve_note",
-          description: "Mark a note resolved as soon as its change is made, before starting the next note. Only a note you started with start_note can be resolved. The person is watching the page, so don't save these up for the end. The reply is shown next to a green pin: say in one line what changed and where (for example: changed the heading in app/views/pages/_hero.html.erb:4).",
+          description: "Mark a note resolved as soon as its change is made, before starting the next note. Only a note that is started for you (by start_note, or handed to you) can be resolved. The person is watching the page, so don't save these up for the end. The reply is shown next to a green pin: say in one line what changed and where (for example: changed the heading in app/views/pages/_hero.html.erb:4).",
           inputSchema: { type: "object", properties: { id: { type: "string" }, reply: { type: "string" } }, required: %w[id reply] }
         },
         {
@@ -78,9 +82,12 @@ module Tensaku
           description: "What the person last selected in the Tensaku overlay (elements with file and line), for questions like 'what is this?'.",
           inputSchema: { type: "object", properties: {} }
         }
-      ].freeze
+      ].map { ALWAYS_LOAD.include?(it[:name]) ? it.merge(_meta: { "anthropic/alwaysLoad": true }) : it }.freeze
 
       NAMES = TOOLS.map { it[:name] }.freeze
+
+      # Tools that close or pause a note. Their answer ends with how many open notes are left (Session#call).
+      CLOSING = %w[resolve_note decline_note ask_question].freeze
 
       private
 
@@ -100,7 +107,7 @@ module Tensaku
 
       def get_note(arguments)
         app, note = Notes.locate(apps, arguments["id"])
-        result(Tensaku.with_root(app) { Notes::Markdown.note(note, app: app_label(app)) })
+        result(Tensaku.with_root(app) { Notes::Markdown.note(note, app: app_label(app), absolute: true) })
       end
 
       def get_screenshot(arguments)
@@ -117,7 +124,7 @@ module Tensaku
 
       def resolve_note(arguments)
         note = change(arguments["id"], status: "resolved", message: arguments["reply"], started: true)
-        result("Resolved note #{note["id"]}.#{" Call watch_notes to keep listening." if @watched && !@channel}")
+        result("Resolved note #{note["id"]}.")
       end
 
       def decline_note(arguments)
@@ -152,7 +159,7 @@ module Tensaku
 
         start_channel
         waiting = per_app { Notes.list(status: Notes::ACTIVE, session: id).size }.sum(&:last)
-        result("Tensaku's channel works. Notes the person saves on the page arrive in this chat as #{label}, already yours. Tell the person in one line#{", and that #{waiting} earlier #{waiting == 1 ? "note is" : "notes are"} open (list_notes has them), without starting on them unless they ask" if waiting.positive?}.")
+        result("Tensaku's channel works. Notes the person saves on the page arrive in this chat as #{label}, already yours. Tell the person in one line#{", and that #{waiting} earlier #{waiting == 1 ? "note is" : "notes are"} open (list_notes has them), without starting on them unless they ask" if waiting.positive?}, then end your turn. Each note arrives here as a new message, so there is nothing to look for or prepare until then.")
       end
 
       def current_selection(_arguments)

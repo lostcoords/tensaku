@@ -61,6 +61,11 @@ module Tensaku
       end
     end
 
+    # Whether an agent is working on a note in this app, so its edits are worth watching for (Edits).
+    def working?
+      Project.read { |db, app| db.get_first_value("SELECT 1 FROM notes WHERE project = ? AND archived_at IS NULL AND status = 'working' LIMIT 1", [ app ]) }.present?
+    end
+
     def find(id)
       id = text(id)
       raise NotFound, "No note #{id.inspect}" unless id.match?(ID)
@@ -251,8 +256,10 @@ module Tensaku
     end
 
     # sent_between, and the notes found become session's in the same transaction: delivered_at and
-    # delivered_to say they arrived. Two sessions scanning at once can't both get a note. updated_at and
-    # sent_at stay: delivery isn't a change the person or the agent made.
+    # delivered_to say they arrived. Two sessions scanning at once can't both get a note. A note handed
+    # over is started (working) for that session, so the page shows the agent on it at once and the agent
+    # doesn't spend a turn on start_note. updated_at and sent_at stay: delivery isn't a change the person
+    # or the agent made.
     #
     # A session busy with a note leaves new ones to a listening session that has nothing to do, except
     # the notes the person sent to it.
@@ -267,7 +274,7 @@ module Tensaku
           # background, or with the answer of another call.
           next if note["session"] == session && note["delivered_at"].to_s >= note["sent_at"].to_s
 
-          save(db, app, note.merge("session" => session, "agent" => note["session"] == session ? note["agent"] || agent : agent, "delivered_at" => now, "delivered_to" => agent))
+          save(db, app, note.merge("status" => "working", "session" => session, "agent" => note["session"] == session ? note["agent"] || agent : agent, "delivered_at" => now, "delivered_to" => agent))
         end
       end
     end

@@ -95,6 +95,7 @@ module Tensaku
       seen!
       result = run(name, arguments)
       handed = result.delete(:handed) || (news(result) unless result[:isError] || %w[list_notes watch_notes].include?(name))
+      result[:content].first[:text] += " #{left(except: Array(handed))}" if Tools::CLOSING.include?(name.to_s) && !result[:isError]
       log(name, started, result, handed)
       result
     end
@@ -112,12 +113,22 @@ module Tensaku
       result("Tensaku hit an error: #{error.class}: #{error.message}", error: true)
     end
 
+    # How many open notes this session may take, besides those handed over in this answer, so an agent
+    # that closed a note knows whether to list again without a call to find out.
+    def left(except: [])
+      open = per_app { Notes.list(status: "open", session: id).map { it["id"] } }.flat_map(&:last) - except
+      other = "other " if except.any?
+      return "#{open.size} #{other}open #{open.size == 1 ? "note is" : "notes are"} left: list_notes has #{open.size == 1 ? "it" : "them"}." if open.any?
+
+      "No #{other}open notes left.#{" Call watch_notes to keep listening." if @watched && !@channel && except.empty?}"
+    end
+
     def news(result)
       if @watched
         found = claim_since(@checked_at)
         return [] if found.empty?
 
-        result[:content] << { type: "text", text: "Notes the person saved while you worked. They are yours now; work through them next:\n\n#{notes_markdown(found)}" }
+        result[:content] << { type: "text", text: "Notes the person saved while you worked. They are yours and already started; work through them next:\n\n#{notes_markdown(found)}" }
         ids(found)
       else
         now = Time.now.utc
@@ -192,7 +203,7 @@ module Tensaku
         loop do
           found = claim_since(@checked_at)
           if found.any?
-            @push.call("Notes the person saved on the page. They are yours: work through them one at a time with start_note and resolve_note.\n\n#{notes_markdown(found)}", kind: "notes", notes: ids(found).join(" "))
+            @push.call("Notes the person saved on the page. They are yours and already started: work through them one at a time, resolving each as soon as its change is made.\n\n#{notes_markdown(found)}", kind: "notes", notes: ids(found).join(" "))
             log("channel", Process.clock_gettime(Process::CLOCK_MONOTONIC), { content: [] }, ids(found))
           end
           doorbell.wait(RECHECK)
@@ -247,7 +258,7 @@ module Tensaku
     # Notes from several apps ([[app, notes], ...]) as one Markdown text, or "" when there are none.
     def notes_markdown(found)
       found.filter_map do |app, notes|
-        Tensaku.with_root(app) { Notes::Markdown.list(notes, app: app_label(app), latest: true, session: id) } if notes.any?
+        Tensaku.with_root(app) { Notes::Markdown.list(notes, app: app_label(app), latest: true, session: id, absolute: true) } if notes.any?
       end.join("\n\n")
     end
 
