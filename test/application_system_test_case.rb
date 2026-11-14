@@ -12,13 +12,16 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
     end
   end
 
-  # Rails reserves :playwright for its own driver, so ours goes by another name.
+  # Rails reserves :playwright for its own driver, so ours goes by another name. Reduced motion turns
+  # off the overlay's open animations: they start at opacity 0, and Capybara counts an element under
+  # opacity 0 as invisible, so a panel caught mid-animation looked partly empty.
   Capybara.register_driver :playwright_browser do |app|
     Capybara::Playwright::Driver.new(app,
       browser_type: system_test_browser.to_sym,
       headless: !ENV["SYSTEM_TEST_HEADED"],
       viewport: { width: 1400, height: 900 },
       locale: "en-US",
+      reducedMotion: "reduce",
       timeout: 15)
   end
 
@@ -47,6 +50,11 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
   end
 
   # Waits for a condition outside the page, such as a file the server writes.
+  # For a test about an animation: the browser stops asking for reduced motion.
+  def with_motion
+    page.driver.with_playwright_page { it.emulate_media(reducedMotion: "no-preference") }
+  end
+
   def assert_eventually(timeout: 5)
     deadline = Time.now + timeout
     sleep 0.1 until yield || Time.now > deadline
