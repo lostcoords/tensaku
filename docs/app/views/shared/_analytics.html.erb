@@ -1,0 +1,11 @@
+<%# Umami page views, only in the production build. data-domains keeps local previews of that build out of the counts. %>
+<% if Rails.env.production? %>
+  <script defer src="https://t.lostcoords.com/lc.js" data-website-id="25996b5a-c4aa-44f7-b7cb-246c85aae668" data-domains="tensaku.lostcoords.com"></script>
+  <%# Code blocks dispatch lc-copy:copied from their copy button. The block's id says which command was copied. %>
+  <script>
+    document.addEventListener("lc-copy:copied", (event) => {
+      const block = event.target.closest(".lc-code-block")
+      window.umami?.track("copy-code", { block: block?.id, page: location.pathname })
+    })
+  </script>
+<% end %>

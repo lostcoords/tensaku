@@ -18,6 +18,7 @@
     <%= javascript_importmap_tags %>
     <%= javascript_import_module_tag "demo" %>
     <link rel="preload" href="<%= asset_path("tensaku.js") %>" as="script">
+    <%= render "shared/analytics" %>
   </head>
   <body class="landing antialiased" data-turbo="false">
     <%= lc_skip_link %>
@@ -28,8 +29,8 @@
       <span><a href="https://lostcoords.com">LOSTCOORDS</a> 2026</span>
       <nav class="landing-footer__links" aria-label="Project links">
         <a href="<%= introduction_page_path %>"><%= lc_icon "book-open", options: { "aria-hidden": true } %>Docs</a>
-        <a href="https://github.com/lostcoords/tensaku"><%= render "shared/github_icon" %>GitHub</a>
-        <a href="https://rubygems.org/gems/tensaku"><%= lc_icon "cube", options: { "aria-hidden": true } %>RubyGems</a>
+        <a href="https://github.com/lostcoords/tensaku" data-umami-event="github" data-umami-event-place="footer"><%= render "shared/github_icon" %>GitHub</a>
+        <a href="https://rubygems.org/gems/tensaku" data-umami-event="rubygems"><%= lc_icon "cube", options: { "aria-hidden": true } %>RubyGems</a>
         <% if (release = Docs.release) %><a href="<%= changelog_page_path %>" aria-label="Version <%= release %>, changelog"><%= lc_icon "tag", options: { "aria-hidden": true } %>v<%= release %></a><% end %>
       </nav>
     </footer>

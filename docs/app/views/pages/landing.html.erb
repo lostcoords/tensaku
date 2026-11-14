@@ -5,7 +5,7 @@
   </h1>
   <div class="hero__actions">
     <a class="<%= lc_button_class(size: :lg, extra: "hero__start") %>" href="<%= installation_page_path %>"><span class="glint" aria-hidden="true"><i class="glint__across"></i><i class="glint__down"></i></span>Get started</a>
-    <a class="<%= lc_button_class(variant: :outline, size: :lg) %>" href="https://github.com/lostcoords/tensaku"><%= render "shared/github_icon" %>GitHub</a>
+    <a class="<%= lc_button_class(variant: :outline, size: :lg) %>" href="https://github.com/lostcoords/tensaku" data-umami-event="github" data-umami-event-place="hero"><%= render "shared/github_icon" %>GitHub</a>
   </div>
   <button type="button" class="hero__try" data-demo-try="true">or <span class="hero__try-link">try it on this page</span></button>
 </section>
