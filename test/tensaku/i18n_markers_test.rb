@@ -33,6 +33,14 @@ class Tensaku::I18nMarkersTest < Tensaku::TestCase
     end
   end
 
+  test "a translated asset name resolves without its marker" do
+    view = ApplicationController.new.view_context
+
+    Markers.with_markers do
+      assert_equal view.image_path("flag-en.svg"), view.image_path("flag-en.svg#{Markers.encode(:en, "pages.home.flag")}")
+    end
+  end
+
   test "non-HTML responses and scripts lose their markers" do
     marked = "Hi#{Markers.encode(:en, "hello")}"
     app = ->(_) { [ 200, { "content-type" => "application/json" }, [ %({"a":"#{marked}"}) ] ] }

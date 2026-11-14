@@ -37,6 +37,9 @@ module Tensaku
         ActiveSupport.on_load(:action_controller_base) do
           include Tensaku::I18nMarkers::Controller
         end
+        ActiveSupport.on_load(:action_view) do
+          prepend Tensaku::I18nMarkers::AssetPaths
+        end
       end
 
       config.after_initialize do

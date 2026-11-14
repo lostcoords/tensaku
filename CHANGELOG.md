@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Translations
+
+- A translation that names an asset, such as `image_tag t("hero.image")` with a screenshot per
+  locale, resolves again. Its marker made the asset lookup fail with `Propshaft::MissingAssetError`.
+
 ## 0.2.2 (2026-11-14)
 
 ### Overlay

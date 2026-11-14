@@ -77,6 +77,17 @@ module Tensaku
       end
     end
 
+    # A translated file name, such as a screenshot per locale, names an asset rather than text the
+    # overlay can edit, so it resolves without its marker. Otherwise the asset lookup misses.
+    # Both names, because Rails aliases one to the other and image_path calls the alias.
+    module AssetPaths
+      %i[asset_path path_to_asset].each do |name|
+        define_method(name) do |source, options = {}|
+          super(source.is_a?(String) ? I18nMarkers.strip(source) : source, options)
+        end
+      end
+    end
+
     # Wraps controller actions for HTML requests.
     module Controller
       extend ActiveSupport::Concern
