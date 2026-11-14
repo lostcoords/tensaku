@@ -10,6 +10,9 @@
   for `og:title`. The cut marker could not be stripped, the overlay wrote the same value back, and
   its observer saw that write as a new change, forever. Cut markers are now stripped, and an
   unchanged value is never written.
+- Markers no longer reach your data. A translated string assigned to a model attribute, such as a
+  default category name made in a callback, loses its marker, so it is validated and saved as plain
+  text. Before, a length validation could fail, or the marker was stored in the database.
 
 ## 0.2.2 (2026-11-14)
 

@@ -90,6 +90,17 @@ module Tensaku
       end
     end
 
+    # A marker belongs to the page, never to data: a translated string assigned to a model attribute,
+    # such as a default category name, loses its marker, so validations, saves and comparisons on the
+    # model see the text alone. Both string types, because String has its own cast_value.
+    module ModelStrings
+      private
+
+      def cast_value(value)
+        super(value.is_a?(String) ? I18nMarkers.strip(value) : value)
+      end
+    end
+
     # Wraps controller actions for HTML requests.
     module Controller
       extend ActiveSupport::Concern

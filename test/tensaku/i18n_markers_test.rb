@@ -40,6 +40,22 @@ class Tensaku::I18nMarkersTest < Tensaku::TestCase
     assert_equal "Hi there", Markers.strip("Hi#{marker} there")
   end
 
+  test "a translated string assigned to a model attribute loses its marker" do
+    model = Class.new do
+      include ActiveModel::Attributes
+      attribute :name, :string
+      attribute :code, :immutable_string
+    end.new
+
+    Markers.with_markers do
+      model.name = I18n.t("hello")
+      model.code = I18n.t("hello")
+    end
+
+    assert_equal "Hello world", model.name
+    assert_equal "Hello world", model.code
+  end
+
   test "a translated asset name resolves without its marker" do
     view = ApplicationController.new.view_context
 
