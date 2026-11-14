@@ -128,7 +128,9 @@ kbd { font: 10.5px/1 var(--mono); padding: 2px 4px; border-radius: 4px; backgrou
 .editor { --line: color-mix(in srgb, currentColor 18%, transparent); --muted: color-mix(in srgb, currentColor 62%, transparent); padding: 0; min-width: 0; max-width: none; border: 1.5px solid var(--akaji); border-radius: 8px; box-shadow: 0 0 0 4px var(--akaji-soft), 0 14px 32px -12px rgba(0, 0, 0, .45); animation: settle .16s var(--spring); }
 .editor .surface { padding: 8px 10px; white-space: pre-wrap; outline: none; min-height: 1.4em; max-height: 60vh; overflow: auto; caret-color: var(--akaji); }
 .editor .bar { position: absolute; left: -1.5px; top: calc(100% + 8px); display: flex; gap: 10px; align-items: center; background: var(--tray); color: var(--tray-muted); border: 1px solid var(--tray-line); border-radius: 999px; padding: 4px 4px 4px 12px; font: 11px/1.3 var(--mono); white-space: nowrap; box-shadow: 0 10px 26px -8px rgba(0, 0, 0, .45); }
-.editor .bar .actions { display: flex; gap: 4px; }
+/* editor.ts limits the bar to the screen; then the file name shortens, so Cancel and Save stay on it. */
+.editor .bar > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.editor .bar .actions { display: flex; gap: 4px; flex: none; }
 .editor .bar button { font: 600 12px/1.2 var(--sans); padding: 5px 12px; border-radius: 999px; border-color: transparent; color: var(--tray-ink); }
 .editor .bar button:hover { background: var(--tray-raised); border-color: transparent; }
 .editor .bar button.primary { background: var(--akaji); border-color: var(--akaji); color: #fff; }
@@ -160,7 +162,8 @@ kbd { font: 10.5px/1 var(--mono); padding: 2px 4px; border-radius: 4px; backgrou
 
 /* The tray. The corner button opens it; the selected tool rises and shows its ink. */
 .dock { position: fixed; display: flex; align-items: center; padding: 4px; border-radius: 999px; background: var(--tray); border: 1px solid var(--tray-line); box-shadow: 0 12px 30px -8px rgba(0, 0, 0, .45); user-select: none; }
-.corner { width: 40px; height: 40px; border-radius: 50%; border: none; background: none; color: var(--akaji); display: grid; place-items: center; cursor: pointer; position: relative; padding: 0; flex: none; }
+/* touch-action: dragging the button on a touch screen moves the dock instead of scrolling the page. */
+.corner { width: 40px; height: 40px; border-radius: 50%; border: none; background: none; color: var(--akaji); display: grid; place-items: center; cursor: pointer; position: relative; padding: 0; flex: none; touch-action: none; }
 .corner .logo { width: 25px; height: 25px; fill: none; stroke: currentColor; stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; transition: transform .5s cubic-bezier(.22, 1, .36, 1), rotate .16s var(--spring); }
 .corner:hover { background: var(--tray-raised); }
 .corner:hover .logo { rotate: -8deg; }
@@ -187,16 +190,22 @@ kbd { font: 10.5px/1 var(--mono); padding: 2px 4px; border-radius: 4px; backgrou
 .tool .tip { position: absolute; bottom: calc(100% + 12px); left: 50%; transform: translateX(-50%) translateY(4px); display: flex; gap: 6px; align-items: center; background: var(--tray); color: var(--tray-ink); border: 1px solid var(--tray-line); font: 600 12px/1 var(--sans); padding: 6px 8px; border-radius: 7px; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .12s, transform .12s; }
 .tool:hover .tip, .tool:focus-visible .tip { opacity: 1; transform: translateX(-50%); }
 .tool:focus-visible { outline: 2px solid var(--marker); outline-offset: 1px; }
-/* On a phone the tools are smaller, and on a screen narrower than the open toolbar its tools scroll
-   sideways. The dock sits 16px from the right edge and the corner button takes 50px of it. */
-@media (max-width: 420px) {
+/* On a phone the tools are smaller, and when the open toolbar is wider than the room left of the
+   dock its tools scroll sideways. --dock-right is the dock's distance from the right edge; the corner
+   button and the dock's padding take 60px more. */
+@media (max-width: 520px) {
   .tool { width: 32px; height: 32px; }
   .tool .icon { width: 20px; height: 20px; }
   .tool[aria-pressed="true"]::after { bottom: 2px; }
   .toolbar .sep { margin: 0 2px; }
   .toolbar { justify-content: safe flex-end; }
-  .dock.open .toolbar { width: min(var(--tools-width), calc(100vw - 76px)); }
+  .dock.open .toolbar { width: min(var(--tools-width), calc(100vw - var(--dock-right, 16px) - 60px)); }
   .dock.settled .toolbar { overflow-x: auto; scrollbar-width: none; }
+}
+/* A touch screen has no keyboard shortcuts to show, and a tap leaves :hover on the tapped tool, which
+   kept its tip up. */
+@media (hover: none) {
+  .tool .tip, .menu kbd, .note-form .hint { display: none; }
 }
 
 /* The notes panel: the tray's material, holding the page's Post-its. */

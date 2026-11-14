@@ -94,10 +94,16 @@ function setToolbar(open: boolean) {
   if (open) settling = window.setTimeout(() => dock.classList.add("settled"), 280)
 }
 
+// The CSS sizes the toolbar on a phone from --dock-right, the room right of the dock.
+function moveDock(right: number, bottom: number) {
+  dock.style.right = `${right}px`
+  dock.style.bottom = `${bottom}px`
+  dock.style.setProperty("--dock-right", `${right}px`)
+}
+
 export function placeDock() {
   const position = storage<{ right: number; bottom: number }>("dock", { right: 16, bottom: 16 })
-  dock.style.right = `${Math.min(Math.max(position.right, 4), innerWidth - 52)}px`
-  dock.style.bottom = `${Math.min(Math.max(position.bottom, 4), innerHeight - 52)}px`
+  moveDock(Math.min(Math.max(position.right, 4), innerWidth - 52), Math.min(Math.max(position.bottom, 4), innerHeight - 52))
 }
 
 let dragged = false
@@ -111,17 +117,19 @@ corner.addEventListener("pointerdown", (event) => {
     if (!dragged && Math.hypot(dx, dy) < 4) return
     dragged = true
     corner.style.cursor = "grabbing"
-    dock.style.right = `${start.right - dx}px`
-    dock.style.bottom = `${start.bottom - dy}px`
+    moveDock(start.right - dx, start.bottom - dy)
   }
+  // A cancelled pointer (the browser took over the touch) ends the drag like a release.
   const up = () => {
     corner.removeEventListener("pointermove", move)
     corner.removeEventListener("pointerup", up)
+    corner.removeEventListener("pointercancel", up)
     corner.style.cursor = ""
     if (dragged) store("dock", { right: parseFloat(dock.style.right), bottom: parseFloat(dock.style.bottom) })
   }
   corner.addEventListener("pointermove", move)
   corner.addEventListener("pointerup", up)
+  corner.addEventListener("pointercancel", up)
 })
 corner.addEventListener("click", () => {
   if (dragged) return

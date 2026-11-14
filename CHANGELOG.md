@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Overlay
+
+- Phones: the open toolbar fits on screens up to 520px wide (it used to stop at 420px, so on a 430px
+  phone the first tools were off the left edge), and also when the dock was dragged away from the
+  corner. The text editor's bar shortens the file name so Cancel and Save stay on screen. Dragging the
+  corner button moves the dock instead of scrolling the page. Touch screens no longer show keyboard
+  shortcuts in the element menu and note form, or leave a tool's tip up after a tap.
+
 ## 0.2.1 (2026-11-14)
 
 ### Agents

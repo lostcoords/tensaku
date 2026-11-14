@@ -212,4 +212,19 @@ class OverlayRobustnessTest < ApplicationSystemTestCase
 
     assert overlay.has_no_css?(".menu")
   end
+
+  test "on a phone-sized screen the open toolbar and the editor's Save button stay on screen" do
+    playwright { it.set_viewport_size(width: 430, height: 900) }
+    visit "/"
+    wait_for_overlay
+    edges = ->(element) { page.evaluate_script("(() => { const r = arguments[0].getBoundingClientRect(); return [r.left, r.right] })()", element) }
+
+    open_toolbar
+    left, = edges.(overlay.find(".toolbar"))
+    assert_operator left, :>=, 0
+
+    alt_edit find("p.intro")
+    _, right = edges.(overlay.find(".editor .bar button.primary", text: "Save"))
+    assert_operator right, :<=, 430
+  end
 end

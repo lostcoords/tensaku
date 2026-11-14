@@ -110,19 +110,24 @@ function frame(element: Element, surface: HTMLElement, info: string, save: () =>
       report(error)
     }
   }
+  const bar = div("bar", h("span", {}, status, warning ? h("strong", { className: "ink-warning" }, ` · ${warning}`) : null),
+    div("actions", h("button", { onclick: close, type: "button" }, "Cancel"), h("button", { className: "primary", onclick: saveAndClose, type: "button" }, "Save")))
   const container = div("panel editor",
     surface,
     ...extra,
-    div("bar", h("span", {}, status, warning ? h("strong", { className: "ink-warning" }, ` · ${warning}`) : null),
-      div("actions", h("button", { onclick: close, type: "button" }, "Cancel"), h("button", { className: "primary", onclick: saveAndClose, type: "button" }, "Save"))))
+    bar)
   container.setAttribute("role", "dialog")
   container.setAttribute("aria-label", "Tensaku editor")
   container.style.background = backgroundOf(element)
   container.style.color = computed.color
-  container.style.minWidth = `${Math.max(rect.width + INSET.x * 2, 240)}px`
-  container.style.maxWidth = `${Math.max(rect.width + INSET.x * 2, 480)}px`
+  // place() keeps 8px of margin on each side, so the editor never gets wider than the screen.
+  const room = innerWidth - 16
+  container.style.minWidth = `${Math.min(Math.max(rect.width + INSET.x * 2, 240), room)}px`
+  container.style.maxWidth = `${Math.min(Math.max(rect.width + INSET.x * 2, 480), room)}px`
   layer.append(container)
   place(container, new DOMRect(rect.left - INSET.x, rect.top - INSET.y, rect.width + INSET.x * 2, rect.height), true)
+  // The bar starts at the editor's left edge; on a narrow screen its file name shortens so Save stays on screen.
+  bar.style.maxWidth = `${innerWidth - 8 - container.getBoundingClientRect().left}px`
 
   const keys = (event: KeyboardEvent) => {
     if (!container.isConnected) return
