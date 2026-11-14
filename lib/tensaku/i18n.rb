@@ -7,9 +7,10 @@ module Tensaku
   # four zero-width characters, then U+2063 again. Nothing shows if the overlay never runs.
   #
   # Markers are only added while a controller handles an HTML request, never to `number.*`, `date.*`,
-  # `time.*` and similar keys, never to a value that came from a `default:` instead of the key, and
-  # never to pluralized lookups. A Ruby comparison against a translated string sees the marker, which
-  # is the known cost of this technique (development only).
+  # `time.*` and similar keys, never to a value that came from a `default:` instead of the key, never
+  # to pluralized lookups, and never to a blank value: it has no text to edit, and `t(...).present?`
+  # must stay false. A Ruby comparison against a translated string sees the marker, which is the
+  # known cost of this technique (development only).
   module I18nMarkers
     FENCE = "⁣"
     DIGITS = [ "​", "‌", "‍", "⁠" ].freeze
@@ -69,6 +70,7 @@ module Tensaku
       def translate(locale, key, options = ::I18n::EMPTY_HASH)
         result = super
         return result unless I18nMarkers.active? && result.is_a?(String) && !key.nil?
+        return result if result.blank?
 
         full = ::I18n.normalize_keys(nil, key, options[:scope], options[:separator]).join(".")
         return result if full.match?(SKIP)

@@ -33,6 +33,15 @@ class Tensaku::I18nMarkersTest < Tensaku::TestCase
     end
   end
 
+  test "a blank translation gets no marker, so it stays blank" do
+    I18n.backend.store_translations(:en, tensaku_test: { empty: "", spaces: "  " })
+
+    Markers.with_markers do
+      assert_predicate I18n.t("tensaku_test.empty"), :blank?
+      assert_predicate I18n.t("tensaku_test.spaces"), :blank?
+    end
+  end
+
   test "strip also removes a marker the app cut short" do
     marker = Markers.encode(:en, "meta.title")
 

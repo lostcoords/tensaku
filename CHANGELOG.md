@@ -13,6 +13,8 @@
 - Markers no longer reach your data. A translated string assigned to a model attribute, such as a
   default category name made in a callback, loses its marker, so it is validated and saved as plain
   text. Before, a length validation could fail, or the marker was stored in the database.
+- A blank translation gets no marker, so `t("step.subtitle").present?` stays false and the page
+  doesn't render an empty element that only exists in development.
 
 ## 0.2.2 (2026-11-14)
 
