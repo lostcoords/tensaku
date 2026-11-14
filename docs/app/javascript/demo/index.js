@@ -57,7 +57,7 @@ function start() {
   playHero()
 }
 
-// Opens the overlay's toolbar in edit mode, so every editable text is outlined and a click edits it.
+// Opens the overlay's toolbar in select mode, so hovering shows where each element comes from and a click opens its menu.
 // The overlay may still be loading on an early click.
 function openPanel(tries = 50) {
   const overlay = document.querySelector("tensaku-overlay")?.shadowRoot
@@ -67,8 +67,8 @@ function openPanel(tries = 50) {
     return
   }
   if (corner.getAttribute("aria-expanded") !== "true") corner.click()
-  const edit = overlay.querySelector(".toolbar button[aria-label='Edit']")
-  if (edit?.getAttribute("aria-pressed") !== "true") edit?.click()
+  const select = overlay.querySelector(".toolbar button[aria-label='Select']")
+  if (select?.getAttribute("aria-pressed") !== "true") select?.click()
 }
 
 // In development the server renders the excerpt as plain text, and again after each edit's morph.

@@ -10,8 +10,7 @@
 </p>
 
 <p align="center">
-  <strong>Fix your Rails app in the browser.</strong><br>
-  Edit text where you see it. Send everything else to your coding agent, without leaving the page.
+  Fix your Rails app without leaving the browser.
 </p>
 
 <p align="center">
