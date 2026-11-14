@@ -16,6 +16,11 @@ export const openAgents = () => showAgents()
 export function noteForm(anchor: DOMRect, targets: Target[], extra: Partial<Note> = {}, onDone?: () => void, heading?: string, at = anchor) {
   // Taken now, before anything moves, and only sent if the box is still ticked on save.
   const shot = capture(anchor)
+  // A note written at a point on one element keeps that point, so its pin goes where you clicked.
+  if (at !== anchor && !extra.rect && targets.length === 1 && anchor.width && anchor.height) {
+    const fraction = (value: number) => Math.round(Math.min(Math.max(value, 0), 1) * 1000) / 1000
+    targets = [{ ...targets[0], point: [fraction((at.x - anchor.x) / anchor.width), fraction((at.y - anchor.y) / anchor.height)] }]
+  }
   const textarea = h("textarea", { rows: 3, placeholder: "What should change?", "aria-label": "Note" })
   const where = targets.filter((t) => t.kind !== "translation" && t.kind !== "markdown").map((t) => t.stamp ?? t.tag).filter(Boolean)
   const close = () => { element.remove(); onDone?.() }

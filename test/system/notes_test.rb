@@ -90,6 +90,32 @@ class NotesTest < ApplicationSystemTestCase
     assert_includes copied, "Stimulus: hello"
   end
 
+  test "a note's pin sits where the note was written on its element, and stays there when the element moves" do
+    visit "/about"
+    wait_for_overlay
+
+    find("p.bio").click(:alt, :shift, x: 30, y: 6, offset: :top_left)
+    overlay.find(".note-form textarea").set("Here")
+    overlay.find(".note-form button", text: "Save note").click
+    assert overlay.has_css?(".pin.open", text: "1")
+
+    point = Tensaku::Notes.all.sole["targets"].first["point"]
+    assert_operator point[0], :<, 0.2, "the click was near the left edge, not at the top right"
+    pin_at = -> { page.evaluate_script(<<~JS) }
+      (() => {
+        const pin = document.querySelector("tensaku-overlay").shadowRoot.querySelector(".pin").getBoundingClientRect()
+        const bio = document.querySelector("p.bio").getBoundingClientRect()
+        return [pin.left + pin.width / 2 - bio.left, pin.top + pin.height / 2 - bio.top].map(Math.round)
+      })()
+    JS
+    near = ->(at) { at.zip([ 30, 6 ]).all? { |got, want| (got - want).abs <= 1 } }
+    assert near.call(pin_at.call), pin_at.call.inspect
+
+    page.execute_script(%(Object.assign(document.querySelector("p.bio").style, { position: "relative", left: "120px", top: "40px" })))
+    page.execute_script(%(dispatchEvent(new Event("resize"))))
+    assert_eventually { near.call(pin_at.call) }
+  end
+
   test "Alt+Shift-click opens the note form without entering select mode" do
     visit "/about"
     wait_for_overlay
@@ -267,6 +293,7 @@ class NotesTest < ApplicationSystemTestCase
   end
 
   test "the tools stay in place while the toolbar reveals them from the corner button" do
+    with_motion
     visit "/about"
     wait_for_overlay
     positions = page.evaluate_async_script(<<~JS)

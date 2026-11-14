@@ -126,6 +126,9 @@ and `config.prune_after` are gone; `config.archive_after` replaces `prune_after`
 - The notes panel lists resolved and declined notes in a **Done** section with an **Archive done** button. Its copy buttons are in a bar at the bottom right that stays in view while the notes scroll, and the bar is hidden when there is nothing open to copy.
 - Post-its have a folded corner that joins the paper.
 - Alt+Shift-click (Option+Shift-click) opens the note form on an element, in any mode.
+- A note's pin sits where you clicked to write it, kept as a `point` on the target, and follows the
+  element when the layout changes. Area notes, notes on several elements and notes written from the
+  keyboard keep the pin at the top right.
 - The corner button shows a pointer cursor, and a grabbing cursor only once a drag starts.
 - The corner button and the toolbar are one pill. The button stays where it is, the logo spins and the tools unroll to its left. Clicking the button closes the toolbar, the notes panel and the current mode, so there is no separate close button. Notes moved next to the page actions, and the selected tool's circle stays centered in the bar.
 - Alt-click (Option-click) opens the actions menu on any element, in any mode, instead of going straight to the editor. Edit text comes first in the menu, so Alt-click then E or Enter edits. A click outside the menu closes it and doesn't reach the page.

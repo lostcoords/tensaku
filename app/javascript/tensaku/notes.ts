@@ -19,6 +19,8 @@ export interface Target {
   md?: string
   context?: ReturnType<typeof contextOf>
   classes?: string[]
+  // Where the note was written on the element, as fractions of its box from the top left.
+  point?: [number, number]
   file?: string
   range?: string
 }

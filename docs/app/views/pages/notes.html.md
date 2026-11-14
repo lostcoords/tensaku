@@ -91,7 +91,7 @@ The menu has these items, with the key that picks each one:
 
 ## Follow up
 
-Each note shows as a pin on the element it points at, and has one of these statuses:
+Each note shows as a pin where you clicked to write it, and the pin keeps that spot on the element when the layout changes. A note on an area or on several elements, or one opened with <kbd>enter</kbd> in select mode, has its pin at the top right of what it points at. A note has one of these statuses:
 
 | Status | Means |
 |---|---|
@@ -207,7 +207,7 @@ Each target has a `kind`, a `file` and a `range`:
 | `translation` | An I18n key, with `key` and `locale`. `range` is the line of the key. |
 | `markdown` | A Markdown source block |
 
-Targets also carry the `tag`, the `text`, the element's own CSS `classes` and, in `context`, the `partials`, the Stimulus `controller` and the Turbo `frame`. An element rendered in a loop has one source position for every copy. Text from Ruby (`<%= @post.title %>`) points at the ERB expression, and the data itself lives elsewhere.
+Targets also carry the `tag`, the `text`, the element's own CSS `classes`, the `point` where the note was written as fractions of the element's box from its top left, and, in `context`, the `partials`, the Stimulus `controller` and the Turbo `frame`. An element rendered in a loop has one source position for every copy. Text from Ruby (`<%= @post.title %>`) points at the ERB expression, and the data itself lives elsewhere.
 
 ### MCP tools
 

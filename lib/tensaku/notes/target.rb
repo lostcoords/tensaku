@@ -42,6 +42,8 @@ module Tensaku
           target["file"], target["range"] = raw["md"].to_s.split(/:(?=\d+:\d+-)/, 2)
         end
 
+        point = raw["point"]
+        target["point"] = point.map { it.to_f.clamp(0.0, 1.0).round(3) } if point.is_a?(Array) && point.size == 2 && point.all?(Numeric)
         target["classes"] = Array(raw["classes"]).map(&:to_s).grep(/\A[^\s]{1,80}\z/).first(12)
         target["context"] = raw["context"].to_h.slice("partials", "controller", "frame").transform_values { Array(it).map(&:to_s).first(10) }.compact_blank
         target.compact_blank

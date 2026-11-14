@@ -1,7 +1,7 @@
 // Where a note points on the page, both ways: the targets a new note records for an element, and the
 // element, rectangle or phrase an existing note's targets point at now.
 
-import { contentRect, contextOf, MARKDOWN, nearestStamp, STAMP, tagLabel, translationOf, visibleText } from "./dom"
+import { contentRect, contextOf, documentRect, MARKDOWN, nearestStamp, STAMP, tagLabel, translationOf, visibleText } from "./dom"
 import { textKeys } from "./markers"
 import type { Note, Target } from "./notes"
 
@@ -91,6 +91,15 @@ export function anchorFor(note: Note): DOMRect | null {
     if (element) return contentRect(element)
   }
   return null
+}
+
+// The point a note was written at, on its element as it is laid out now.
+export function pointFor(note: Note): DOMRect | null {
+  const target = note.targets.find((t) => t.point)
+  const element = target && targetElement(target)
+  if (!target?.point || !element) return null
+  const rect = documentRect(element)
+  return new DOMRect(rect.x + target.point[0] * rect.width, rect.y + target.point[1] * rect.height, 0, 0)
 }
 
 // A stamp is shared by every copy of an element a loop renders; the note belongs to the copy whose

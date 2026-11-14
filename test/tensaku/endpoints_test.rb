@@ -101,6 +101,16 @@ end
     assert_empty Tensaku::Notes.all
   end
 
+  test "notes: a target keeps the point it was written at, clamped to its box, and drops one that isn't two numbers" do
+    target = ->(point) { json(request("POST", "/notes", body: { url: "/about", comment: "Here", targets: [ { kind: "element", stamp: "app/views/pages/hero.html.erb:2:3", point: } ] }))["targets"].sole }
+
+    assert_equal [ 0.25, 0.5 ], target.call([ 0.25, 0.5 ])["point"]
+    assert_equal [ 0.0, 1.0 ], target.call([ -3, 1.7 ])["point"]
+    assert_equal [ 0.333, 0.667 ], target.call([ 1 / 3.0, 2 / 3.0 ])["point"]
+    assert_nil target.call([ "a", 1 ])["point"]
+    assert_nil target.call([ 0.5 ])["point"]
+  end
+
   test "notes: your answers go in the thread and send the note again, and copy in short form" do
     note = Tensaku::Notes.create(url: "/about", comment: "Tighten this", targets: [ { kind: "element", stamp: "app/views/pages/hero.html.erb:2:3", classes: [ "title", "has space" ] } ])
     Tensaku::Notes.update(note["id"], status: "question", message: "Tighten what?", agent: "Claude Code")
