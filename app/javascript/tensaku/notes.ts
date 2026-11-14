@@ -131,6 +131,11 @@ export async function load({ force = false } = {}) {
     agentListeners.forEach((listener) => listener(agents))
     const signature = location.pathname + JSON.stringify([data.notes, data.open, listeners()])
     if (!force && signature === lastSignature) return
+    // Nothing is kept until the scope's notes are in too: a newer load cancels this one, and it must not
+    // find the signature already taken and skip the scope's notes.
+    const which = scope
+    const all = which && which !== "page" ? await scopeNotes(which) : null
+    if (sequence !== loadSequence) return
     lastSignature = signature
     const after = normalized(data.notes)
     if (primed && data.notes.length && notes.length) changeListeners.forEach((listener) => listener(notes, after))
@@ -138,11 +143,7 @@ export async function load({ force = false } = {}) {
     primed = true
     notes = after
     openCount = data.open
-    if (scope && scope !== "page") {
-      const all = await scopeNotes(scope)
-      if (sequence !== loadSequence) return
-      scoped = all
-    }
+    if (all && scope === which) scoped = all
   } catch (error) {
     if (sequence !== loadSequence) return
     if (error instanceof ApiError && error.status === 403 && !tokenWarned) {

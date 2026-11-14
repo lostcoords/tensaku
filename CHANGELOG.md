@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Overlay
+
+- The Archive and All pages tabs refresh after a change made from the panel. A note reopened from the
+  archive could stay listed there when the dev server's change event arrived before the page had
+  fetched the archive again.
+
 ## 0.2.3 (2026-11-14)
 
 ### Translations
