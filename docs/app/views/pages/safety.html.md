@@ -27,7 +27,7 @@ Tensaku loads only when `Rails.env.development?` is true, so nothing changes in 
 
 ### How it behaves in development
 
-- **Translation markers** are part of the string while Ruby handles it. A comparison like `t(".title") == "Welcome"` is false in development.
+- **Translation markers** are part of the string while a template renders. In a view, a comparison like `t(".title") == "Welcome"` is false in development. Controller actions, model attributes and asset paths get the text without its marker, so a flash message or a translated file name works as usual, but can't be traced back to its key from the page.
 - **Fragment caching** (`bin/rails dev:cache`) keeps showing the old text from cached fragments. Tensaku warns when it's on.
 - **Herb's dev server** (ReActionView's `slots` option) patches template changes itself, and Tensaku skips its own refetch after a template edit.
 - **The morph after a save** removes attributes that client-side code added to an element. Mark those elements `data-tensaku-permanent`.

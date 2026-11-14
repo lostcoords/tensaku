@@ -22,6 +22,13 @@ class Tensaku::I18nMarkersTest < Tensaku::TestCase
     assert_includes markers_in(get("/?locale=es").body), "es:pages.home.title"
   end
 
+  test "only text translated while a template renders is marked, not text from the action" do
+    body = get("/notice").body
+
+    assert_equal [ "en:hello" ], markers_in(body[%r{<p class="from-view".*?</p>}m])
+    assert_empty markers_in(body[%r{<p class="from-controller".*?</p>}m])
+  end
+
   test "markers only appear while marking is on, and skip defaults and number keys" do
     assert_equal "Hello world", I18n.t("hello")
 

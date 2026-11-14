@@ -6,5 +6,6 @@ Rails.application.routes.draw do
   get "frames/lazy", to: "pages#lazy_frame", as: :lazy_frame
   get "guide", to: "pages#guide"
   get "signup", to: "pages#signup"
+  get "notice", to: "pages#notice"
   post "signup", to: "pages#create_signup"
 end

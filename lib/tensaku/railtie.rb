@@ -39,6 +39,7 @@ module Tensaku
         end
         ActiveSupport.on_load(:action_view) do
           prepend Tensaku::I18nMarkers::AssetPaths
+          ActionView::Template.prepend(Tensaku::I18nMarkers::Templates)
         end
       end
 

@@ -20,6 +20,11 @@ class PagesController < ApplicationController
 
   def signup; end
 
+  # Like a flash message: translated in the action, before any template renders.
+  def notice
+    @notice = t("hello")
+  end
+
   def create_signup
     @error = "Name can't be blank" if params[:name].blank?
     render :signup, status: :unprocessable_entity

@@ -20,7 +20,7 @@ After reading this page, you will know:
 
 ## Translation markers
 
-In development, while a controller handles an HTML request, the I18n backend wraps each translated string in an invisible marker: U+2063, the locale and key encoded with zero-width characters, then U+2063.
+In development, while a template of an HTML page renders, the I18n backend wraps each translated string in an invisible marker: U+2063, the locale and key encoded with zero-width characters, then U+2063. Text translated in the controller action, such as a flash message, gets no marker, and neither do blank translations.
 
 The overlay strips the markers when the page loads. The middleware strips them from `<script>`, `<style>` and non-HTML responses.
 

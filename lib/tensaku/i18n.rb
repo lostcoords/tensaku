@@ -6,7 +6,7 @@ module Tensaku
   # A marker is U+2063 (invisible separator), then "locale:key" as UTF-8 bytes written in base 4 with
   # four zero-width characters, then U+2063 again. Nothing shows if the overlay never runs.
   #
-  # Markers are only added while a controller handles an HTML request, never to `number.*`, `date.*`,
+  # Markers are only added while a template of an HTML page renders, never to `number.*`, `date.*`,
   # `time.*` and similar keys, never to a value that came from a `default:` instead of the key, never
   # to pluralized lookups, and never to a blank value: it has no text to edit, and `t(...).present?`
   # must stay false. A Ruby comparison against a translated string sees the marker, which is the
@@ -103,20 +103,43 @@ module Tensaku
       end
     end
 
-    # Wraps controller actions for HTML requests.
+    def page?
+      Thread.current[:tensaku_i18n_page] == true
+    end
+
+    def on_page
+      previous = Thread.current[:tensaku_i18n_page]
+      Thread.current[:tensaku_i18n_page] = true
+      yield
+    ensure
+      Thread.current[:tensaku_i18n_page] = previous
+    end
+
+    # Wraps controller actions for HTML requests. The action itself translates without markers, so
+    # a flash message, a model default or anything else it measures, compares or stores stays plain
+    # text; Templates turns them on while the page renders.
     module Controller
       extend ActiveSupport::Concern
 
       included do
-        prepend_around_action :tensaku_i18n_markers
+        prepend_around_action :tensaku_i18n_page
       end
 
       private
 
-      def tensaku_i18n_markers(&)
+      def tensaku_i18n_page(&)
         return yield unless request.format&.html?
 
-        I18nMarkers.with_markers(&)
+        I18nMarkers.on_page(&)
+      end
+    end
+
+    # Prepended to ActionView::Template: markers while a template of an HTML page renders.
+    module Templates
+      def render(view, locals, buffer = nil, **options, &block)
+        return super unless I18nMarkers.page? && !I18nMarkers.active?
+
+        I18nMarkers.with_markers { super(view, locals, buffer, **options, &block) }
       end
     end
   end

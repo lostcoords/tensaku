@@ -4,6 +4,10 @@
 
 ### Translations
 
+- Translation markers are only added while a template renders. Text translated in a controller
+  action, such as a flash message, is plain text again: it can't be traced back to its key from the
+  page, but code that measures, compares or stores it no longer sees a marker.
+
 - A translation that names an asset, such as `image_tag t("hero.image")` with a screenshot per
   locale, resolves again. Its marker made the asset lookup fail with `Propshaft::MissingAssetError`.
 - A page no longer freezes when the app cuts a translated string short, such as a title truncated
