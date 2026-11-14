@@ -33,6 +33,13 @@ class Tensaku::I18nMarkersTest < Tensaku::TestCase
     end
   end
 
+  test "strip also removes a marker the app cut short" do
+    marker = Markers.encode(:en, "meta.title")
+
+    assert_equal "wariwari", Markers.strip("wariwari#{marker[0, 9]}")
+    assert_equal "Hi there", Markers.strip("Hi#{marker} there")
+  end
+
   test "a translated asset name resolves without its marker" do
     view = ApplicationController.new.view_context
 

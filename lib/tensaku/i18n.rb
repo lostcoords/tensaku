@@ -14,6 +14,8 @@ module Tensaku
     FENCE = "⁣"
     DIGITS = [ "​", "‌", "‍", "⁠" ].freeze
     PATTERN = /#{FENCE}[#{DIGITS.join}]+#{FENCE}/o
+    # What is left of a marker that the app cut short, such as a title truncated for a meta tag.
+    CUT = /#{FENCE}[#{DIGITS.join}]*/o
     SKIP = /\A(?:number|date|time|datetime|support|i18n|helpers\.submit|errors\.format)(?:\.|\z)/
 
     module_function
@@ -41,7 +43,7 @@ module Tensaku
     end
 
     def strip(text)
-      text.include?(FENCE) ? text.gsub(PATTERN, "") : text
+      text.include?(FENCE) ? text.gsub(PATTERN, "").gsub(CUT, "") : text
     end
 
     # The raw value stored for the key, to tell a translation apart from a `default:` or a pluralized

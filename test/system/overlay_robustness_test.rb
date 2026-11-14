@@ -170,6 +170,16 @@ class OverlayRobustnessTest < ApplicationSystemTestCase
     assert_equal "Ada", find("#name").value
   end
 
+  test "an attribute with a marker cut short is stripped once, and the page keeps running" do
+    visit "/about"
+    wait_for_overlay
+    cut = Tensaku::I18nMarkers.encode(:en, "pages.about.title")[0, 9]
+
+    page.execute_script("document.body.setAttribute('data-title', arguments[0])", "About#{cut}")
+
+    assert_equal "About", page.evaluate_script("document.body.getAttribute('data-title')")
+  end
+
   test "a translated heading stays editable after Back restores the page from Turbo's cache" do
     visit "/"
     wait_for_overlay

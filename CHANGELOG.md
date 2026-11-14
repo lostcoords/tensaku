@@ -6,6 +6,10 @@
 
 - A translation that names an asset, such as `image_tag t("hero.image")` with a screenshot per
   locale, resolves again. Its marker made the asset lookup fail with `Propshaft::MissingAssetError`.
+- A page no longer freezes when the app cuts a translated string short, such as a title truncated
+  for `og:title`. The cut marker could not be stripped, the overlay wrote the same value back, and
+  its observer saw that write as a new change, forever. Cut markers are now stripped, and an
+  unchanged value is never written.
 
 ## 0.2.2 (2026-11-14)
 

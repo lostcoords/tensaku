@@ -13,6 +13,8 @@ export interface TranslationKey {
 const FENCE = "⁣"
 const DIGITS = ["​", "‌", "‍", "⁠"]
 const PATTERN = /⁣[​‌‍⁠]+⁣/g
+// What is left of a marker that the app cut short, such as a title truncated for a meta tag.
+const CUT = /⁣[​‌‍⁠]*/g
 
 const nodeKeys = new WeakMap<Text, TranslationKey[]>()
 const attributeKeys = new WeakMap<Element, Map<string, TranslationKey>>()
@@ -93,13 +95,14 @@ function extract(text: string): { text: string; keys: TranslationKey[] } {
     if (key) keys.push(key)
     return ""
   })
-  return { text: stripped, keys }
+  return { text: stripped.replace(CUT, ""), keys }
 }
 
 function stripText(node: Text) {
   if (!node.data.includes(FENCE)) return
   const { text, keys } = extract(node.data)
-  node.data = text
+  // Only a change: writing the same value is a mutation too, and the observer would strip it again forever.
+  if (text !== node.data) node.data = text
   if (keys.length) {
     const known = nodeKeys.get(node) ?? []
     nodeKeys.set(node, [...known, ...keys.filter((key) => !known.some((k) => k.key === key.key && k.locale === key.locale))])
@@ -111,7 +114,7 @@ function stripAttributes(element: Element) {
   for (const attribute of Array.from(element.attributes)) {
     if (!attribute.value.includes(FENCE)) continue
     const { text, keys } = extract(attribute.value)
-    element.setAttribute(attribute.name, text)
+    if (text !== attribute.value) element.setAttribute(attribute.name, text)
     if (keys.length) {
       const map = attributeKeys.get(element) ?? new Map()
       map.set(attribute.name, keys[keys.length - 1])
