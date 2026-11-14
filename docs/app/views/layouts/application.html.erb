@@ -6,7 +6,9 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="description" content="Edit the text on your running Rails pages and the source updates. Leave notes for your coding agent on anything you see, with the file and line that rendered it.">
     <%= render "shared/social_meta", title: @page ? "#{@page.title} · Tensaku" : "Tensaku" %>
+    <link rel="icon" href="/favicon.ico" sizes="32x32">
     <%= favicon_link_tag "hanamaru-small.svg", type: "image/svg+xml" %>
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <%= stylesheet_link_tag "tailwind", "application_header", "docs_shell", "highlight", data: { turbo_track: "reload" } %>
     <meta name="turbo-prefetch" content="true">
     <%= javascript_importmap_tags %>
