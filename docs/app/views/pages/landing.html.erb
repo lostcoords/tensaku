@@ -28,10 +28,8 @@
     <h2 class="<%= lc_heading_class(size: :title) %>">Collaborate with your <span class="pen-mark">agents</span>!</h2>
     <p class="<%= lc_text_class(size: :small, tone: :muted) %>">Each note carries your comment and the exact file and line you pointed at, and stays on your machine. Your agent picks notes up through MCP, works through them, and answers on the page: done, a question, or why not. In Claude Code, saving a note can start the agent right away. Prefer to paste? Copy your notes as Markdown. <a class="<%= lc_link_class(extra: "text-primary") %>" href="<%= notes_page_path(anchor: "how-agents-read-notes") %>">How agents read notes</a></p>
   </div>
-  <section class="video-placeholder" aria-label="Tensaku video demo">
-    <%= lc_icon "film", options: { "aria-hidden": true } %>
-    <p>Video demo coming soon</p>
-  </section>
+  <%= video_tag "tensaku-demo.mp4", poster: "/tensaku-demo-poster.jpg", class: "demo-video", muted: true, loop: true, playsinline: true, controls: true, preload: "metadata", width: 1920, height: 1080,
+        aria: { label: "A note asks for a red button with a glint; Claude Code makes the change and the page updates" }, data: { controller: "demo-video" } %>
 </section>
 
 <section class="cta">
