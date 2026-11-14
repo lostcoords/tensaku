@@ -1,0 +1,14 @@
+<%# locals: (title:) %>
+<%# What a shared link shows: the title, the description and public/social.png (script/social_image.js
+    renders it from the hero). Previews need absolute URLs, so they start from Kiln's site URL. %>
+<% description = "Fix your Rails app in the browser." %>
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Tensaku">
+<meta property="og:title" content="<%= title %>">
+<meta property="og:description" content="<%= description %>">
+<meta property="og:url" content="<%= Kiln.config.url + request.path %>">
+<meta property="og:image" content="<%= Kiln.config.url %>/social.png">
+<meta property="og:image:width" content="2400">
+<meta property="og:image:height" content="1260">
+<meta property="og:image:alt" content="Tensaku: fix your Rails app in the browser.">
+<meta name="twitter:card" content="summary_large_image">

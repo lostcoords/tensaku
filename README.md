@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  Fix your Rails app without leaving the browser.
+  Fix your Rails app in the browser.
 </p>
 
 <p align="center">
