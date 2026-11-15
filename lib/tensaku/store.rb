@@ -95,7 +95,10 @@ module Tensaku
 
     # Each change to the schema after BASE, in order, applied once: MIGRATIONS[0] takes a database from
     # BASE to BASE + 1. Add to the end; never change a step that may have run.
-    MIGRATIONS = [].freeze
+    MIGRATIONS = [
+      # held_at: the page found the note's element only at its old position, and the source there changed.
+      "ALTER TABLE notes ADD COLUMN held_at TEXT;"
+    ].freeze
     VERSION = BASE + MIGRATIONS.size
 
     LOCK = Monitor.new

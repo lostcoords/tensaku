@@ -174,17 +174,46 @@ class NotesTest < ApplicationSystemTestCase
     assert_operator pin_offset_from("p.bio").abs, :<, 60
   end
 
-  test "a pin stays on its element when only the text changed, and leaves when the element is gone" do
+  test "a pin stays on its element when only the text changed, unsure, and leaves when the element is gone" do
     note_on_bio
     File.write(Rails.root.join("app/views/pages/about.html.erb"), %(<h1>About me</h1>\n<p class="bio">A new bio.</p>\n))
     visit "/about"
     wait_for_overlay
-    assert overlay.has_css?(".pin", visible: :all)
+    assert overlay.has_css?(".pin.unsure", visible: :all)
 
     File.write(Rails.root.join("app/views/pages/about.html.erb"), %(<h1>About me</h1>\n<h2>Something else</h2>\n))
     visit "/about"
     wait_for_overlay
     assert overlay.has_no_css?(".pin", visible: :all)
+  end
+
+  test "a note whose element changed in the source waits for you to keep it or pick it again before agents get it" do
+    note = note_on_bio
+    File.write(Rails.root.join("app/views/pages/about.html.erb"), %(<h1>About me</h1>\n<p class="bio">A new bio.</p>\n))
+    visit "/about"
+    wait_for_overlay
+
+    assert_eventually { Tensaku::Notes.find(note["id"])["held_at"] }
+    assert_empty Tensaku::Notes.sent_between(Time.now - 60, Time.now)
+    overlay.find(".pin.unsure").click
+    assert overlay.has_css?(".note-pop .missing", text: "agents wait until you choose its element")
+
+    overlay.find(".note-pop .missing button", text: "Keep here").click
+    assert overlay.has_no_css?(".pin.unsure")
+    assert_eventually { Tensaku::Notes.find(note["id"]).then { !it["held_at"] && it["targets"].first["text"] == "A new bio." } }
+    assert_equal [ note["id"] ], Tensaku::Notes.sent_between(Time.now - 60, Time.now).map { it["id"] }
+
+    # The heading takes the paragraph's place: Pick again, then a click chooses the element.
+    File.write(Rails.root.join("app/views/pages/about.html.erb"), %(<h1>About me</h1>\n<p class="bio">Other words.</p>\n))
+    visit "/about"
+    wait_for_overlay
+    overlay.find(".pin.unsure").click
+    overlay.find(".note-pop .missing button", text: "Pick again").click
+    assert overlay.has_css?(".toast", text: "Click the element this note is about")
+    find("h1").click
+    assert_eventually { Tensaku::Notes.find(note["id"]).then { !it["held_at"] && it["targets"].first["tag"] == "h1" } }
+    assert overlay.has_no_css?(".pin.unsure")
+    assert overlay.has_no_css?(".toast", text: "Click the element this note is about")
   end
 
   test "a note on an element is saved with its file range, pinned, and turns green when resolved" do

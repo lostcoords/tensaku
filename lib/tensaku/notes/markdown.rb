@@ -23,14 +23,16 @@ module Tensaku
 
         notes.map do |note|
           where = Array(note["targets"]).filter_map { [ it["file"], it["range"]&.split("-")&.first ].compact.join(":").presence }.uniq.first(3)
-          "- `#{note["id"]}` (#{note["status"]}) #{note["comment"].squish.truncate(160)}#{" at #{where.map { "`#{it}`" }.join(", ")}" if where.any?}"
+          "- `#{note["id"]}` (#{note["status"]}#{", held" if note["held_at"]}) #{note["comment"].squish.truncate(160)}#{" at #{where.map { "`#{it}`" }.join(", ")}" if where.any?}"
         end.join("\n")
       end
 
       def note(note, base: Project.base_url, app: nil, latest: false, session: nil, absolute: false)
         page = base && note["url"].to_s.start_with?("/") ? "#{base.chomp("/")}#{note["url"]}" : note["url"]
         lines = [ "## Tensaku note #{note["id"]} (#{note["status"]}) on #{page}#{" in #{app}" if app}", "" ]
-        if session && ACTIVE.include?(note["status"])
+        if note["held_at"]
+          lines << "*Held: the source where it pointed changed, and the person picks its element again on the page. Leave it until then.*" << ""
+        elsif session && ACTIVE.include?(note["status"])
           lines << if note["session"] == session && note["status"] == "working" then "*Yours, and started: make the change, then resolve it.*"
           elsif note["session"] == session then "*Yours. Call start_note before you change anything.*"
           elsif note["stopped"] then "*Its session stopped while working on it, so it is nobody's now. Part of the change may already be made: check the file before you redo it. Call start_note to take it.*"

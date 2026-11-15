@@ -39,6 +39,8 @@ export interface Note {
   delivered_to?: string
   // In progress, but its session's process ended.
   stopped?: boolean
+  // Held from agents: the page found its element only by its old position, and the source there changed.
+  held_at?: string
   // Set when the page took a screenshot of what the note points at (GET /notes/ID/screenshot).
   screenshot?: { width: number; height: number }
   thread?: { from: "you" | "agent"; text: string; agent?: string; at: string }[]
@@ -231,18 +233,20 @@ function replace(note: Note, removed = false) {
 }
 
 // What a change made from the page will look like once saved, to show it before the server answers.
-export type NoteChange = { status?: Note["status"]; comment?: string; message?: string; to?: string }
+// targets: you picked the note's element again, which ends a hold and sends an open note again.
+export type NoteChange = { status?: Note["status"]; comment?: string; message?: string; to?: string; targets?: Target[] }
 function predicted(note: Note, change: NoteChange): Note {
   const next: Note = { ...note, thread: [...(note.thread ?? [])] }
   if (change.comment) next.comment = change.comment
   if (change.message) next.thread!.push({ from: "you", text: change.message, at: new Date().toISOString() })
   if (change.status) next.status = change.status
+  if (change.targets) Object.assign(next, { targets: change.targets, held_at: undefined })
   if (change.to !== undefined) {
     const chosen = agents.find((agent) => agent.handle === change.to)
     Object.assign(next, { status: "open", agent: chosen ? agentLabel(chosen) : undefined, delivered_at: undefined, delivered_to: undefined, stopped: undefined })
   }
   // Only an edit, a message or an assignment sends the note to an agent again.
-  if (next.status === "open" && (change.comment || change.message || change.to !== undefined)) next.sent_at = new Date().toISOString()
+  if (next.status === "open" && (change.comment || change.message || change.targets || change.to !== undefined)) next.sent_at = new Date().toISOString()
   return next
 }
 

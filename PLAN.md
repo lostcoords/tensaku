@@ -699,6 +699,17 @@ adds a second one.
   `Kiln::Content.source_positions`, and Tensaku no longer adds `Kiln::Content.root` to the writable
   paths: the app lists it. Tensaku edits a subset of the blocks Kiln marks (`p`, headings, `li`,
   `blockquote`, whole lists); `pre`, `table` and `hr` only get notes.
+- **Unsure pins hold a note (added 2026-11-15):** a pin that finds its element only by the old
+  position (same stamp and tag, other text) was a silent guess, and the agent still got the old line
+  and text. Now the pin is drawn unsure, and the card asks: **Keep here** or **Pick again** (the next
+  click, in any mode), which replace the note's targets and send an open note again. While the guess
+  shows, an open note is held from `watch_notes` and `start_note`. The guess happens only in the
+  browser, so the page asks the server to hold, and the server holds only when the element's source at
+  that stamp differs from a digest taken when the note was written: an element whose text changes on
+  its own (Ruby data, a clock) has the same source and would otherwise be held on every visit. Not
+  covered: a note is held only once its page is open, and a note already started is not held (its
+  card still asks). Holding on "not found" was left out, since an element can be missing because of
+  page state (a closed dialog, a tab) rather than a code change.
 - **Turns per note (added 2026-11-14):** with a fast model (Qwen 3.8 27B on Cerebras, about 1,300
   tokens/s) a note still took 17 to 26 seconds, and Claude Haiku about 8.5: each model turn costs about a
   second in waiting for the first token and in Claude Code itself, whatever the generation speed, so

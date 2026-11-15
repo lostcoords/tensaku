@@ -70,7 +70,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "1:1-11:11",
-        "tag": "section.hero"
+        "tag": "section.hero",
+        "digest": "89b2c482e4490169"
       }
     },
     "app/views/pages/landing.html.erb:2:3": {
@@ -124,7 +125,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "2:3-5:8",
-        "tag": "h1"
+        "tag": "h1",
+        "digest": "934068ad511d4d00"
       }
     },
     "app/views/pages/landing.html.erb:3:23": {
@@ -138,7 +140,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "3:23-3:27",
-        "tag": "br"
+        "tag": "br",
+        "digest": "65aef1adba8672a5"
       }
     },
     "app/views/pages/landing.html.erb:4:5": {
@@ -162,7 +165,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "4:5-4:50",
-        "tag": "span.pen-mark"
+        "tag": "span.pen-mark",
+        "digest": "331a2c19985f2a52"
       }
     },
     "app/views/pages/landing.html.erb:6:3": {
@@ -216,7 +220,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "6:3-9:9",
-        "tag": "div.hero__actions"
+        "tag": "div.hero__actions",
+        "digest": "121ccdff33d516ba"
       }
     },
     "app/views/pages/landing.html.erb:7:5": {
@@ -246,7 +251,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "7:5-7:226",
-        "tag": "a"
+        "tag": "a",
+        "digest": "5d19eb895cc94b0e"
       }
     },
     "app/views/pages/landing.html.erb:7:109": {
@@ -273,7 +279,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "7:109-7:211",
-        "tag": "span.glint"
+        "tag": "span.glint",
+        "digest": "a633d4a0d42f4dc2"
       }
     },
     "app/views/pages/landing.html.erb:7:148": {
@@ -287,7 +294,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "7:148-7:177",
-        "tag": "i.glint__across"
+        "tag": "i.glint__across",
+        "digest": "59e9e278600c8c42"
       }
     },
     "app/views/pages/landing.html.erb:7:177": {
@@ -301,7 +309,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "7:177-7:204",
-        "tag": "i.glint__down"
+        "tag": "i.glint__down",
+        "digest": "a535baf01f57025f"
       }
     },
     "app/views/pages/landing.html.erb:8:5": {
@@ -329,7 +338,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "8:5-8:214",
-        "tag": "a"
+        "tag": "a",
+        "digest": "39e2a762792b28e4"
       }
     },
     "app/views/pages/landing.html.erb:10:3": {
@@ -359,7 +369,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "10:3-10:131",
-        "tag": "button.hero__try"
+        "tag": "button.hero__try",
+        "digest": "e386dfd791463f1d"
       }
     },
     "app/views/pages/landing.html.erb:10:67": {
@@ -383,7 +394,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "10:67-10:122",
-        "tag": "span.hero__try-link"
+        "tag": "span.hero__try-link",
+        "digest": "c24469baf5d2de85"
       }
     },
     "app/views/pages/landing.html.erb:13:1": {
@@ -435,7 +447,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "13:1-22:11",
-        "tag": "section.try"
+        "tag": "section.try",
+        "digest": "4877a7a070cca243"
       }
     },
     "app/views/pages/landing.html.erb:14:3": {
@@ -489,7 +502,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "14:3-20:9",
-        "tag": "div.try__guide"
+        "tag": "div.try__guide",
+        "digest": "0d5ce94694bfa002"
       }
     },
     "app/views/pages/landing.html.erb:15:5": {
@@ -543,7 +557,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "15:5-18:10",
-        "tag": "ol.try__steps"
+        "tag": "ol.try__steps",
+        "digest": "62f3a826140cacf7"
       }
     },
     "app/views/pages/landing.html.erb:16:7": {
@@ -571,7 +586,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "16:7-16:164",
-        "tag": "li"
+        "tag": "li",
+        "digest": "d6d37d452a9bee90"
       }
     },
     "app/views/pages/landing.html.erb:17:7": {
@@ -599,7 +615,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "17:7-17:158",
-        "tag": "li"
+        "tag": "li",
+        "digest": "30c574a310797da6"
       }
     },
     "app/views/pages/landing.html.erb:19:5": {
@@ -623,7 +640,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "19:5-19:149",
-        "tag": "p"
+        "tag": "p",
+        "digest": "b943b090c1cb1ee9"
       }
     },
     "app/views/pages/landing.html.erb:26:1": {
@@ -675,7 +693,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "26:1-33:11",
-        "tag": "section.agents"
+        "tag": "section.agents",
+        "digest": "dca999eb6e41bedf"
       }
     },
     "app/views/pages/landing.html.erb:27:3": {
@@ -729,7 +748,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "27:3-30:9",
-        "tag": "div.agents__intro"
+        "tag": "div.agents__intro",
+        "digest": "8d1f0675d338130a"
       }
     },
     "app/views/pages/landing.html.erb:28:5": {
@@ -768,7 +788,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "28:5-28:119",
-        "tag": "h2"
+        "tag": "h2",
+        "digest": "ffd425ba74696343"
       }
     },
     "app/views/pages/landing.html.erb:28:77": {
@@ -792,7 +813,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "28:77-28:113",
-        "tag": "span.pen-mark"
+        "tag": "span.pen-mark",
+        "digest": "7b85f1257ac09ca4"
       }
     },
     "app/views/pages/landing.html.erb:29:5": {
@@ -822,7 +844,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "29:5-29:536",
-        "tag": "p"
+        "tag": "p",
+        "digest": "8cc1a6a595c10b0c"
       }
     },
     "app/views/pages/landing.html.erb:29:389": {
@@ -846,7 +869,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "29:389-29:532",
-        "tag": "a"
+        "tag": "a",
+        "digest": "f66bf706c4c1e9c1"
       }
     },
     "app/views/pages/landing.html.erb:35:1": {
@@ -900,7 +924,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "35:1-48:11",
-        "tag": "section.cta"
+        "tag": "section.cta",
+        "digest": "725060d4f7197e93"
       }
     },
     "app/views/pages/landing.html.erb:36:3": {
@@ -984,7 +1009,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "36:3-46:9",
-        "tag": "div.cta__content"
+        "tag": "div.cta__content",
+        "digest": "926f9d45a59fa542"
       }
     },
     "app/views/pages/landing.html.erb:37:5": {
@@ -1008,7 +1034,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "37:5-37:105",
-        "tag": "h2"
+        "tag": "h2",
+        "digest": "551cb249a5a6780c"
       }
     },
     "app/views/pages/landing.html.erb:38:5": {
@@ -1032,7 +1059,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "38:5-38:126",
-        "tag": "p.cta__text"
+        "tag": "p.cta__text",
+        "digest": "4ac4683fa47953e9"
       }
     },
     "app/views/pages/landing.html.erb:39:5": {
@@ -1069,7 +1097,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "39:5-41:11",
-        "tag": "div.cta__command"
+        "tag": "div.cta__command",
+        "digest": "c48519eb280f1f2a"
       }
     },
     "app/views/pages/landing.html.erb:42:5": {
@@ -1123,7 +1152,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "42:5-45:11",
-        "tag": "div.cta__actions"
+        "tag": "div.cta__actions",
+        "digest": "7d8349eb424366ff"
       }
     },
     "app/views/pages/landing.html.erb:43:7": {
@@ -1147,7 +1177,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "43:7-43:130",
-        "tag": "a"
+        "tag": "a",
+        "digest": "b24fab061692e831"
       }
     },
     "app/views/pages/landing.html.erb:44:7": {
@@ -1171,7 +1202,8 @@ export default {
       "attributes": [],
       "element": {
         "range": "44:7-44:164",
-        "tag": "a"
+        "tag": "a",
+        "digest": "dbca589a8134ee2c"
       }
     }
   }

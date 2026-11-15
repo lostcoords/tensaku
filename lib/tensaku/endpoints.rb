@@ -104,6 +104,10 @@ module Tensaku
       in [ "GET", %r{\A/notes/[a-z0-9]+/screenshot\z} ]
         shot = Notes.screenshot(note_id) or raise Notes::NotFound, "That note has no screenshot"
         [ 200, { "content-type" => "image/png", "cache-control" => "no-store" }, [ shot["png"] ] ]
+      in [ "PATCH", %r{\A/notes/[a-z0-9]+\z} ] if params.key?("targets")
+        json(Notes.retarget(note_id, params["targets"]))
+      in [ "PATCH", %r{\A/notes/[a-z0-9]+\z} ] if params.key?("held")
+        json(Notes.hold(note_id, params["held"] == true))
       in [ "PATCH", %r{\A/notes/[a-z0-9]+\z} ]
         # An edit or a message is for the agent: the note is sent again. A status change alone (done,
         # reopened, or undoing either) isn't.

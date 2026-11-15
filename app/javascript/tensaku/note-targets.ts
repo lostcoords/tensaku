@@ -102,16 +102,32 @@ export function pointFor(note: Note): DOMRect | null {
   return new DOMRect(rect.x + target.point[0] * rect.width, rect.y + target.point[1] * rect.height, 0, 0)
 }
 
+// The element of a note whose target was found only by its old position, with other text: a guess,
+// which the note's card asks you to confirm or pick again.
+export function guessedElement(note: Note): Element | null {
+  for (const target of note.targets) {
+    const match = targetMatch(target)
+    if (match?.guessed) return match.element
+  }
+  return null
+}
+
+function targetElement(target: Target): Element | null {
+  return targetMatch(target)?.element ?? null
+}
+
 // A stamp is shared by every copy of an element a loop renders; the note belongs to the copy whose
 // text it was written about. A stamp is also a line and a column, which go stale when the file changes:
 // the element is then looked for by its tag and text elsewhere in the same file. With no match the note
-// stays on an element of the same tag at its old position, whose text may have been edited, or nowhere.
-function targetElement(target: Target): Element | null {
+// stays on an element of the same tag at its old position, whose text may have been edited, as a
+// guess, or nowhere.
+function targetMatch(target: Target): { element: Element; guessed: boolean } | null {
   const attribute = target.stamp ? STAMP : target.md ? MARKDOWN : null
   const value = target.stamp ?? target.md
   if (!attribute || !value) return null
   const elements = Array.from(document.querySelectorAll(`[${attribute}="${CSS.escape(value)}"]`))
-  if (!target.text) return elements[0] ?? null
+  const sure = (element: Element | null | undefined) => (element ? { element, guessed: false } : null)
+  if (!target.text) return sure(elements[0])
 
   const text = target.text.replace(/…$/, "")
   const written = (candidates: Element[]) =>
@@ -119,11 +135,12 @@ function targetElement(target: Target): Element | null {
     ?? candidates.find((element) => visibleText(element, 300).startsWith(text))
     ?? candidates.find((element) => target.kind === "text" && element.textContent?.includes(text))
   const here = written(elements)
-  if (here) return here
+  if (here) return sure(here)
 
   const tag = target.tag?.split(/[.#]/)[0]
   const sameTag = (element: Element) => !tag || element.tagName.toLowerCase() === tag
   const file = value.match(/^(.+?):\d+/)?.[1]
   const inFile = file ? Array.from(document.querySelectorAll(`[${attribute}^="${CSS.escape(file)}:"]`)).filter(sameTag) : []
-  return written(inFile) ?? elements.find(sameTag) ?? null
+  const guess = elements.find(sameTag)
+  return sure(written(inFile)) ?? (guess ? { element: guess, guessed: true } : null)
 }

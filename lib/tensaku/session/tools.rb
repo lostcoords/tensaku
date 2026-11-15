@@ -38,7 +38,7 @@ module Tensaku
         },
         {
           name: "start_note",
-          description: "Mark a note you found with list_notes as being worked on before you make the change. The pin on the page shows that an agent has picked it up, and the note becomes this session's. Notes handed to you (by watch_notes, a channel event or another tool's answer) are already started, so skip this for them. Fails when the note belongs to another running agent session: then leave it. Call resolve_note as soon as the change is made.",
+          description: "Mark a note you found with list_notes as being worked on before you make the change. The pin on the page shows that an agent has picked it up, and the note becomes this session's. Notes handed to you (by watch_notes, a channel event or another tool's answer) are already started, so skip this for them. Fails when the note belongs to another running agent session, or is held while the person picks its element again: then leave it. Call resolve_note as soon as the change is made.",
           inputSchema: BY_ID
         },
         {

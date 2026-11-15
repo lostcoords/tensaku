@@ -1,3 +1,4 @@
+require "digest"
 require "herb"
 require "tensaku/source/html_text"
 
@@ -77,10 +78,12 @@ module Tensaku
         }
       end
 
-      # The file range of the element, for notes: "line:col-line:col".
+      # The file range of the element, for notes: "line:col-line:col", and a digest of its source, which
+      # tells later whether the element at that position changed in the file.
       def element_range(line, column)
         element = element_at!(line, column)
-        { range: range_label(element.location), tag: tag_label(element) }
+        start, finish = byte_range(element.location)
+        { range: range_label(element.location), tag: tag_label(element), digest: Digest::SHA256.hexdigest(source.byteslice(start...finish))[0, 16] }
       end
 
       # edits: [{ start:, end:, original:, text: }], byte ranges of text pieces with the source they had

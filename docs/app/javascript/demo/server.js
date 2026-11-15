@@ -154,9 +154,24 @@ export class DemoServer {
   }
 
   // What Notes.update does: a message joins the thread, and a change from the page sends the note again.
-  updateNote(id, { status, comment, message, from = "you", agent }) {
+  updateNote(id, { status, comment, message, from = "you", agent, targets, held }) {
     const note = this.notes.find((n) => n.id === id)
     if (!note) return [404, { error: "No such note" }]
+    // The page asks to hold an open note whose pin is a guess; the demo's text only changes through
+    // its own edits, which change the source, so it always holds.
+    if (held !== undefined) {
+      if (held && note.status === "open") note.held_at = new Date().toISOString()
+      else if (!held && note.held_at) { delete note.held_at; note.sent_at = new Date().toISOString() }
+      this.changed("notes")
+      return [200, clone(note)]
+    }
+    // Keep here or Pick again: the note points at the chosen element.
+    if (targets) {
+      if (!targets.length) return [422, { error: "A note needs a target to point at" }]
+      note.targets = targets
+      delete note.held_at
+      if (note.status === "open") note.sent_at = new Date().toISOString()
+    }
     if (comment) note.comment = comment
     if (status) note.status = status
     if (message) {

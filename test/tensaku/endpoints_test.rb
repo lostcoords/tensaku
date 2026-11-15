@@ -127,6 +127,36 @@ end
     assert_equal "- `#{note["id"]}` (open) Tighten this at `app/views/pages/hero.html.erb:2:3`", request("GET", "/notes.md?url=/about&format=short").body
   end
 
+  test "notes: a hold keeps an open note from agents only when the source at its element changed, until you pick the element again" do
+    stamp = "app/views/pages/hero.html.erb:2:3"
+    note = travel_to(Time.now - 10) { Tensaku::Notes.create(url: "/about", comment: "Tighten this", targets: [ { kind: "element", stamp:, text: "About me" } ]) }
+    assert_match(/\A\h{16}\z/, note["targets"].sole["digest"])
+
+    # Same source, other text (Ruby data, a clock): not held.
+    assert_nil json(request("PATCH", "/notes/#{note["id"]}", body: { held: true }))["held_at"]
+
+    @view.write(%(<section>\n  <h1 class="title">About us</h1>\n</section>\n))
+    held = json(request("PATCH", "/notes/#{note["id"]}", body: { held: true }))
+    assert held["held_at"]
+    assert_empty Tensaku::Notes.sent_between(Time.now - 60, Time.now)
+    error = assert_raises(Tensaku::Error) { Tensaku::Notes.start(note["id"], agent: "Codex", session: SecureRandom.hex(16)) }
+    assert_match(/waits for the person to pick its element again/, error.message)
+    assert_includes request("GET", "/notes.md?url=/about").body, "*Held: the source where it pointed changed"
+    assert_includes request("GET", "/notes.md?url=/about&format=short").body, "(open, held)"
+
+    picked = json(request("PATCH", "/notes/#{note["id"]}", body: { targets: [ { kind: "element", stamp:, text: "About us" } ] }))
+    assert_nil picked["held_at"]
+    assert_equal "About us", picked["targets"].sole["text"]
+    assert_operator picked["sent_at"], :>, note["sent_at"]
+    assert_equal [ note["id"] ], Tensaku::Notes.sent_between(Time.now - 60, Time.now).map { it["id"] }
+    assert_equal 422, request("PATCH", "/notes/#{note["id"]}", body: { targets: [] }).status
+
+    # Held again, then the page finds it for sure (an undo): held: false sends it again.
+    @view.write(%(<section>\n  <h1 class="title">About them</h1>\n</section>\n))
+    assert json(request("PATCH", "/notes/#{note["id"]}", body: { held: true }))["held_at"]
+    assert_nil json(request("PATCH", "/notes/#{note["id"]}", body: { held: false }))["held_at"]
+  end
+
   test "notes: a saved note is sent, an agent's change doesn't send it again, and GET says who listens and records the page's address" do
     note = json(request("POST", "/notes", body: { url: "/about", comment: "Right away" }))
     assert note["sent_at"]

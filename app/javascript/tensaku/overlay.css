@@ -157,6 +157,9 @@ kbd { font: 10.5px/1 var(--mono); padding: 2px 4px; border-radius: 4px; backgrou
 .pin.question { background: var(--question); }
 .pin.resolved { background: var(--resolved); }
 .pin.declined { background: var(--muted); }
+/* Found only by its old position: the note's card asks you to confirm or pick the element again. */
+.pin.unsure { border-style: dashed; border-color: var(--akaji); background: var(--paper); color: var(--akaji); }
+.pin.unsure:hover { border-color: var(--akaji); }
 .pin .icon { width: 16px; height: 16px; stroke-width: 2.6; }
 .pin.fresh .stroke { stroke-dasharray: 24; stroke-dashoffset: 24; animation: draw .42s .12s ease-out forwards; }
 

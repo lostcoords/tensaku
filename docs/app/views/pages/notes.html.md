@@ -142,7 +142,9 @@ Each app's notes are kept apart by the app's folder. A worktree or jj workspace 
 
 ### When the code changes
 
-A note remembers the file and line from when you wrote it, and the element's text. When lines move, its pin finds the element again by its tag and text in the same file. If the element's text changed too, the pin stays on an element of the same tag at the old position, or the note's card says it's gone. Delete it and write a new one on the right element.
+A note remembers the file and line from when you wrote it, the element's text, and a digest of the element's source. When lines move, its pin finds the element again by its tag and text in the same file. If the element's text changed too, the pin stays on an element of the same tag at the old position as a guess, drawn with a dashed red ring. The note's card asks whether that is still the right element: **Keep here** points the note at it, and **Pick again** lets you click the element it is about, in any mode (<kbd>escape</kbd> cancels). The note then points at that element as if you had written it there, and an open note is sent to agents again. A note whose element is gone says so on its card, which also offers **Pick again**.
+
+While the page shows an open note's pin as a guess, the note is held: `watch_notes` doesn't hand it to an agent, `start_note` refuses it, and `list_notes` marks it held. A note is held only when the element's source at the old position changed since you wrote it. An element whose text changes on its own, such as Ruby data or a time, keeps its source, so its note isn't held. The check runs when the page shows the pin, so a note isn't held until you open its page, and a note an agent has already started isn't held: its card still asks. Notes written before this check have no digest, and are held whenever their pin is a guess.
 
 The recorded line isn't updated, so an agent should look for the text if the line doesn't match.
 
@@ -216,7 +218,7 @@ Targets also carry the `tag`, the `text`, the element's own CSS `classes`, the `
 | `list_notes` | Lists notes, optionally for one `url`. `status` is `open`, `working`, `question`, `resolved`, `declined`, `active` (the default: open, working or question), `archived` or `all` (every note outside the archive). |
 | `get_note` | Returns one note |
 | `get_screenshot` | Returns the note's screenshot as a PNG image |
-| `start_note` | Marks a note from `list_notes` as being worked on; the pin shows it, and the note becomes this session's. Notes handed to the session are already started. Fails when the note belongs to another running session. |
+| `start_note` | Marks a note from `list_notes` as being worked on; the pin shows it, and the note becomes this session's. Notes handed to the session are already started. Fails when the note belongs to another running session, or is held until you pick its element again. |
 | `resolve_note` | Marks a note resolved, with a reply for the person |
 | `decline_note` | Closes a note without a change, with the reason |
 | `ask_question` | Asks the person something; the question shows on the page |

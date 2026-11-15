@@ -16,6 +16,7 @@ import { mode, onMode, setMode } from "./mode"
 import { closeNote, noteForm } from "./note-card"
 import { elementsInArea, targetsFor } from "./note-targets"
 import { load as loadNotes, poll as pollNotes } from "./notes"
+import { cancelPick, isPicking, onPick, pick } from "./pick"
 import { drawOutlines } from "./outlines"
 import { drawPins } from "./pins"
 import { closeOutside, closePopover, popoverOpen } from "./popover"
@@ -49,8 +50,11 @@ onMode((next) => {
 })
 
 function syncCursor() {
-  document.documentElement.style.cursor = altHeld || mode() === "inspect" ? cursor("highlighter", INK.highlighter) : mode() === "edit" ? cursor("pen", INK.pen) : ""
+  document.documentElement.style.cursor = altHeld || isPicking() || mode() === "inspect" ? cursor("highlighter", INK.highlighter) : mode() === "edit" ? cursor("pen", INK.pen) : ""
 }
+
+// Picking a note's element again highlights what a click would pick, in any mode.
+onPick(() => { clearHover(); syncCursor() })
 
 // Holding Alt/Option previews what Alt-click would pick: the select cursor and highlight, in any mode,
 // until the key is released. Not while typing, where Option types characters and moves by word.
@@ -85,10 +89,10 @@ onDocument("mousemove", (event) => {
   if (drag) return updateDrag(event)
   pointer = { x: event.clientX, y: event.clientY }
   setAltHeld(altPreviews(event))
-  if ((mode() === "off" && !altHeld) || menuOpen() || isEditing()) return
+  if ((mode() === "off" && !altHeld && !isPicking()) || menuOpen() || isEditing()) return
   const element = pageTarget(event)
   if (!element) return clearHover()
-  const editing = mode() === "edit" && !altHeld
+  const editing = mode() === "edit" && !altHeld && !isPicking()
   if (editing && !editKind(element)) return clearHover()
   highlight(element, editing ? "hover-edit" : "")
 }, true)
@@ -98,7 +102,7 @@ onDocument("mousedown", (event) => {
   // Alt keeps any selected text for the menu and note form, and Alt-drag draws an area, in any mode.
   const altDrag = event.altKey
   if (altDrag) event.preventDefault()
-  if ((mode() !== "inspect" && !altDrag) || menuOpen() || isEditing()) return
+  if ((mode() !== "inspect" && !altDrag) || menuOpen() || isEditing() || isPicking()) return
   // Shift would extend the text selection; it picks elements in select mode and writes a note with Alt.
   if (event.shiftKey) { event.preventDefault(); return }
   drag = { x: event.pageX, y: event.pageY, area: null }
@@ -137,6 +141,13 @@ onDocument("click", (event) => {
   if (isUi(event.target as Element)) return
   const element = pageTarget(event)
   const at = new DOMRect(event.pageX, event.pageY, 0, 0)
+  // A click while picking a note's element again chooses it, in any mode.
+  if (isPicking()) {
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    if (element) pick(element, at)
+    return
+  }
   const selectedIn = (within: Element) => {
     const selection = getSelection()?.toString().trim()
     return selection && within.contains(getSelection()!.anchorNode) ? selection : undefined
@@ -205,6 +216,7 @@ onDocument("keydown", (event) => {
 // away. The editor closes itself, and a field of the page keeps its own Escape.
 function escape() {
   if (isEditing() || typingInPage()) return
+  if (cancelPick()) return
   const field = activeInShadow()
   if (field?.matches("textarea, input, [contenteditable]")) { (field as HTMLElement).blur(); return }
   if (popoverOpen()) closePopover()

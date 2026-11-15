@@ -2,7 +2,9 @@
 
 import { api, isApple, meta } from "./api"
 import { icon, type IconName } from "./icons"
-import { anchorFor } from "./note-targets"
+import { documentRect } from "./dom"
+import { anchorFor, guessedElement, targetsFor } from "./note-targets"
+import { startPick } from "./pick"
 import { agentLabel, closed, currentAgents, currentNotes, deleteLater, load, type Note, onRender, type Target, updateNote, type NoteChange } from "./notes"
 import { capture } from "./screenshot"
 import { activeInShadow, div, h, panel, storage, store, toast } from "./ui"
@@ -18,8 +20,7 @@ export function noteForm(anchor: DOMRect, targets: Target[], extra: Partial<Note
   const shot = capture(anchor)
   // A note written at a point on one element keeps that point, so its pin goes where you clicked.
   if (at !== anchor && !extra.rect && targets.length === 1 && anchor.width && anchor.height) {
-    const fraction = (value: number) => Math.round(Math.min(Math.max(value, 0), 1) * 1000) / 1000
-    targets = [{ ...targets[0], point: [fraction((at.x - anchor.x) / anchor.width), fraction((at.y - anchor.y) / anchor.height)] }]
+    targets = [{ ...targets[0], point: pointIn(anchor, at) }]
   }
   const textarea = h("textarea", { rows: 3, placeholder: "What should change?", "aria-label": "Note" })
   const where = targets.filter((t) => t.kind !== "translation" && t.kind !== "markdown").map((t) => t.stamp ?? t.tag).filter(Boolean)
@@ -61,6 +62,12 @@ export function noteForm(anchor: DOMRect, targets: Target[], extra: Partial<Note
     div("foot", h("span", { className: "hint" }, `${isApple ? "⌘↵" : "Ctrl+Enter"} saves`), h("button", { type: "button", className: "quiet", onclick: close }, "Cancel"), button))
   textarea.focus()
   return element
+}
+
+// Where `at` is in `rect`, as fractions of its box from the top left.
+function pointIn(rect: DOMRect, at: DOMRect): [number, number] {
+  const fraction = (value: number) => Math.round(Math.min(Math.max(value, 0), 1) * 1000) / 1000
+  return [fraction((at.x - rect.x) / rect.width), fraction((at.y - rect.y) / rect.height)]
 }
 
 // The Assign row with no agent connected: it says so, and opens the Agents popover, which lists the
@@ -157,7 +164,24 @@ export function noteCard(note: Note, onChange: (note?: Note) => void = () => {})
     answer = div("answer", field, div("row end", h("button", { type: "button", className: "primary", onclick: send }, label)))
   }
   const thread = threadView(note)
-  const missing = !done && here && !anchorFor(note) ? div("missing", "Not found on this page any more.") : null
+  // A note whose element was found only by its old position asks whether that is still it. The note
+  // then points at the element you keep or pick, as if written on it, and an open one is sent again.
+  const pointAt = (element: Element, at?: DOMRect) => {
+    const rect = documentRect(element)
+    const point = at && rect.width && rect.height ? pointIn(rect, at) : note.targets.find((t) => t.point)?.point
+    const [first, ...rest] = targetsFor(element)
+    update({ targets: [{ ...first, point }, ...rest] }).then((saved) => saved && toast("The note points at this element now"))
+  }
+  const pickAgain = h("button", { type: "button", className: "link", onclick: () => { closeNote(); startPick(pointAt) } }, "Pick again")
+  const guessed = !done && here ? guessedElement(note) : null
+  const missing = done ? null
+    : guessed || note.held_at ? div("missing",
+      note.held_at ? "The source here changed since you wrote this note, so agents wait until you choose its element. " : "The text here changed since you wrote this note. ",
+      here ? "Is this still the right element? " : "Open its page to choose. ",
+      guessed ? h("button", { type: "button", className: "link", onclick: () => pointAt(guessed) }, "Keep here") : null,
+      guessed ? " · " : null,
+      here ? pickAgain : null)
+    : here && !anchorFor(note) ? div("missing", "Not found on this page any more. ", pickAgain) : null
   // An open note assigned to one session says so until that session gets it, which starts it. A note in
   // progress whose session's process ended says so: anyone can take it.
   const status = note.status === "working" ? (note.stopped ? `${note.agent ?? "Agent"} stopped. Anyone can take it` : `${note.agent ?? "Agent"} is working`)

@@ -14,6 +14,9 @@ module Tensaku
   #
   # `sent_at` says when the note was last sent to an agent: when you saved it, or last edited, answered
   # or reopened it.
+  #
+  # `held_at` says the page found an open note's element only by its old position, and the source there
+  # changed since the note was written: agents leave the note until you pick its element again.
   module Notes
     autoload :Markdown, "tensaku/notes/markdown"
     autoload :Target, "tensaku/notes/target"
@@ -175,6 +178,8 @@ module Tensaku
       Project.write do |db, app|
         note = find(id)
         check_owner!(note, session)
+        raise Error, "Note #{note["id"]} waits for the person to pick its element again: the source where it pointed changed. Leave it, and take the next one." if note["held_at"]
+
         note["session"] = session if session
         apply(db, app, note, status: "working", agent:)
       end
@@ -186,6 +191,48 @@ module Tensaku
     def available_to?(note, session)
       owner = note["session"]
       owner.nil? || session.nil? || owner == session || !Agents.connected?(owner)
+    end
+
+    # The page found the note's element only at its old position, with other text. held: true holds an
+    # open note back from agents when the source at a target changed since the note was written, since
+    # another element may sit there now. An element whose text changes on its own (Ruby data, a clock)
+    # has the same source, and is not held. held: false sends a held note again.
+    def hold(id, held)
+      Project.write do |db, app|
+        note = find(id)
+        if held && note["status"] == "open" && !note["held_at"] && source_changed?(note)
+          save(db, app, note.merge("held_at" => Project.timestamp))
+        elsif !held && note["held_at"]
+          apply(db, app, note.except("held_at"), send: note["status"] == "open")
+        else
+          note
+        end
+      end
+    end
+
+    # You picked the note's element again on the page: its targets are replaced, a hold ends, and an
+    # open note is sent again.
+    def retarget(id, targets)
+      targets = Array(targets).map { Target.from(it) }
+      raise Error, "A note needs a target to point at" if targets.empty?
+
+      Project.write do |db, app|
+        note = find(id)
+        apply(db, app, note.except("held_at").merge("targets" => targets), send: note["status"] == "open")
+      end
+    end
+
+    # Whether the source at one of the note's stamped targets differs from when the note was written.
+    # A target without a digest (an older note) or whose file can't be read counts as changed.
+    def source_changed?(note)
+      Array(note["targets"]).any? do |target|
+        next false unless target["stamp"]
+
+        path, line, column = Source::Template.parse_stamp(target["stamp"])
+        target["digest"].nil? || Source::Template.new(path).element_range(line, column)[:digest] != target["digest"]
+      rescue Error
+        true
+      end
     end
 
     def check_owner!(note, session)
@@ -251,7 +298,7 @@ module Tensaku
     # passes it as the next since sees every note exactly once.
     def sent_between(since, upto, session: nil)
       Project.write do
-        list(status: "open", session:).select { it["sent_at"] && it["sent_at"] > Project.timestamp(since) && it["sent_at"] <= Project.timestamp(upto) }
+        list(status: "open", session:).select { !it["held_at"] && it["sent_at"] && it["sent_at"] > Project.timestamp(since) && it["sent_at"] <= Project.timestamp(upto) }
       end
     end
 
@@ -297,7 +344,7 @@ module Tensaku
       end
     end
 
-    COLUMNS = %w[id url comment status targets rect viewport commit session agent sent_at delivered_at delivered_to archived_at created_at updated_at].freeze
+    COLUMNS = %w[id url comment status targets rect viewport commit session agent sent_at delivered_at delivered_to held_at archived_at created_at updated_at].freeze
 
     # Writes the whole note, thread included, and logs the change. Returns the note.
     def save(db, app, note)

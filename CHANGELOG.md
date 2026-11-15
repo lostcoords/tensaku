@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Notes
+
+- A pin that finds its element only by the old position, because the element's text changed, is
+  drawn as a guess. The note's card asks whether it is still the right element: **Keep here** or
+  **Pick again**, which takes the next click on the page. The note then points at that element and an
+  open note is sent again. A card whose element is gone also offers **Pick again**.
+- While its pin is a guess and the element's source changed since the note was written, an open note
+  is held: agents don't get it from `watch_notes`, `start_note` refuses it, and `list_notes` marks it
+  held. Notes now record a digest of their element's source for this check. The database gets a
+  `held_at` column.
+
 ### Overlay
 
 - The Archive and All pages tabs refresh after a change made from the panel. A note reopened from the
