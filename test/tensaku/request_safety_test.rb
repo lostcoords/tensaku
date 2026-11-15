@@ -79,7 +79,7 @@ class Tensaku::RequestSafetyTest < Tensaku::TestCase
     hosts = Rails.application.config.hosts
     Rails.application.config.hosts = [ "phone.test" ]
     ENV["PARCELA_PROXY_SECRET"] = "s3cret"
-    phone = { "HTTP_HOST" => "phone.test", "HTTP_X_FORWARDED_FOR" => "192.168.1.30", "HTTP_PARCELA_DEVICE" => "iphone" }
+    phone = { "HTTP_HOST" => "phone.test", "HTTP_X_FORWARDED_FOR" => "192.168.1.30" }
     vouched = phone.merge("HTTP_PARCELA_DEVICE_SECRET" => "s3cret")
 
     assert_includes page(DOCUMENT, env: vouched)[2].join, "data-tensaku-token"
