@@ -26,7 +26,7 @@ To note something that moves, pause the page first with the pause button in the 
 
 ## Notes and your agent
 
-A saved note waits in the database until an agent checks for notes, and it is new for agents again when you edit it, answer its question or reopen it. Your agent gets Tensaku's tools from `tensaku mcp`, which it starts itself (see [connect a coding agent](/installation/#connect-a-coding-agent)). Then ask it in your own words:
+A saved note waits in the database until an agent checks for notes, and it is new for agents again when you edit it, answer its question or reopen it. Your agent gets Tensaku's tools from `tensaku mcp`, which it starts itself (see [connect a coding agent](/installation#connect-a-coding-agent)). Then ask it in your own words:
 
 | Ask your agent | It does |
 |---|---|
@@ -82,7 +82,7 @@ The menu has these items, with the key that picks each one:
 
 | Item | Key | Does |
 |---|---|---|
-| **Edit text** or **Edit attributes** | <kbd>E</kbd> | Opens the [editor](/editing/) |
+| **Edit text** or **Edit attributes** | <kbd>E</kbd> | Opens the [editor](/editing) |
 | **Edit the whole list** | <kbd>L</kbd> | Edits a Markdown list's source |
 | **Add note** | <kbd>N</kbd> | Asks what should change. Select some text first to note just that text. |
 | **Copy reference** | <kbd>C</kbd> | Copies the route, the file and line, the text, the partial chain, the Stimulus controller, the Turbo Frame and the translation key |
@@ -103,7 +103,7 @@ Each note shows as a pin where you clicked to write it, and the pin keeps that s
 
 What you do on a card, such as marking it done, reopening it, answering or assigning it, shows on the card and the pin at once, before the server answers. If the server refuses, the card and pin go back and a toast says why. An open card follows the note as the agent works on it, unless you are typing in it.
 
-While an agent works on a note, the page fetches itself again each time the app's files change, so you see each edit as it lands. The dev server looks at the files under `app/` and `config/locales/` four times a second, only while a note is being worked on; a fetch that fails, such as a template the agent is halfway through, leaves the page as it is. When an agent resolves a note, on this page or any other, the page also fetches itself again and morphs the change in, the same way as after an edit (see [how the page updates](/editing/#how-the-page-updates)). Changed stylesheets are swapped in too. A page reached by a POST is left as it is.
+While an agent works on a note, the page fetches itself again each time the app's files change, so you see each edit as it lands. The dev server looks at the files under `app/` and `config/locales/` four times a second, only while a note is being worked on; a fetch that fails, such as a template the agent is halfway through, leaves the page as it is. When an agent resolves a note, on this page or any other, the page also fetches itself again and morphs the change in, the same way as after an edit (see [how the page updates](/editing#how-the-page-updates)). Changed stylesheets are swapped in too. A page reached by a POST is left as it is.
 
 Each note keeps a thread: the agent's questions and messages, and your answers. Answering a question sets the note back to `open`. So does editing the note, and its thread stays.
 
@@ -176,7 +176,7 @@ An agent reads the same notes you see. Each one records the file and line of eve
 There are four ways to get them:
 
 - **Command line**: `bundle exec tensaku notes` does what the MCP tools do, for an agent without MCP. `tensaku notes` lists the open notes, and `tensaku notes start ID`, `resolve ID REPLY`, `decline ID REASON`, `ask ID QUESTION`, `reply ID MESSAGE` and `watch` change them, and `screenshot ID` saves a note's screenshot as a PNG file. `tensaku help` lists them all.
-- **MCP**: `bundle exec tensaku mcp`, a server the agent starts over stdin and stdout. The optional [generator](/installation/#connect-a-coding-agent) adds it to `.mcp.json` and other agents' config.
+- **MCP**: `bundle exec tensaku mcp`, a server the agent starts over stdin and stdout. The optional [generator](/installation#connect-a-coding-agent) adds it to `.mcp.json` and other agents' config.
 - **Clipboard**: **Copy page** or **Copy all** in the notes panel copies the open notes as Markdown, for any chat.
 - **Skill**: `SKILL.md` in `.claude/skills/tensaku/` and `.agents/skills/tensaku/` explains how to find, act on and resolve notes.
 

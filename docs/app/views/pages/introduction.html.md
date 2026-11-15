@@ -14,7 +14,7 @@ To try it on real files, clone the repository and run `bin/rails server` in `doc
 
 ## Where to start
 
-- [Install Tensaku](/installation/) with one command.
-- Read [what can be edited](/editing/) and how a save works.
-- Leave [notes](/notes/), and see [how agents read them](/notes/#how-agents-read-notes).
-- Read [safety and limits](/safety/) before you use it on a real app.
+- [Install Tensaku](/installation) with one command.
+- Read [what can be edited](/editing) and how a save works.
+- Leave [notes](/notes), and see [how agents read them](/notes#how-agents-read-notes).
+- Read [safety and limits](/safety) before you use it on a real app.

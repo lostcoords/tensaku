@@ -40,8 +40,8 @@ Other gems can call `Tensaku.register_writable_path("their/dir")`.
 
 - **Open in editor** uses the editor named by `RAILS_EDITOR` or `EDITOR`.
 - **ReActionView** can be adjusted in `config/initializers/reactionview.rb`, which runs after Tensaku sets it up.
-- **Overlay preferences** are kept in the browser. See [settings](/notes/#settings).
+- **Overlay preferences** are kept in the browser. See [settings](/notes#settings).
 
 ## Where notes are kept
 
-Notes are in `tensaku.sqlite3` in your user data folder (see [where notes live](/notes/#where-notes-live)). Set the `TENSAKU_HOME` environment variable to keep them in another folder, for the dev server and for `tensaku mcp` alike.
+Notes are in `tensaku.sqlite3` in your user data folder (see [where notes live](/notes#where-notes-live)). Set the `TENSAKU_HOME` environment variable to keep them in another folder, for the dev server and for `tensaku mcp` alike.

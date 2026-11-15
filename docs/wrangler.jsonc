@@ -1,0 +1,14 @@
+// Serves the built site, dist/, at tensaku.lostcoords.com. Static files only: no Worker code runs.
+// "auto-trailing-slash" serves pages.html at /pages and redirects /pages/ and /pages.html there.
+{
+  "name": "tensaku-docs",
+  "account_id": "1745c65c70c5efcde26eed7a4d79d42d",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": false,
+  "assets": {
+    "directory": "dist",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  },
+  "routes": [{ "pattern": "tensaku.lostcoords.com", "custom_domain": true }]
+}

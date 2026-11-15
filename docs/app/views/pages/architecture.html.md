@@ -49,7 +49,7 @@ After reading this page, you will know:
 | The database | `tensaku.sqlite3` in your user data folder | Every app's notes, the agents connected to them, each tab's selection, and a log of changes. |
 | The doorbell | Unix sockets in `/tmp/tensaku-UID/` | Wakes the processes waiting for a change, so none of them polls. |
 
-Nothing of this loads in test or production. See [Safety and limits](/safety/).
+Nothing of this loads in test or production. See [Safety and limits](/safety).
 
 ## Editing text
 
@@ -67,7 +67,7 @@ Nothing of this loads in test or production. See [Safety and limits](/safety/).
     │  updates matching text, then refetches the page and morphs it          │
 ```
 
-A save replaces only the bytes of the text you changed. If the file changed since the page rendered, the save is refused. Translations and Markdown work the same way, through `/translation` and `/markdown`. Source edits take `tmp/tensaku/write.lock` in the app, a file lock separate from the database. See [Editing text](/editing/).
+A save replaces only the bytes of the text you changed. If the file changed since the page rendered, the save is refused. Translations and Markdown work the same way, through `/translation` and `/markdown`. Source edits take `tmp/tensaku/write.lock` in the app, a file lock separate from the database. See [Editing text](/editing).
 
 ## Notes and agents
 
@@ -99,7 +99,7 @@ A save replaces only the bytes of the text you changed. If the file changed sinc
 - **Starting before resolving.** `resolve_note` refuses a note that isn't `working`, so an agent has to call `start_note`, which claims the note, before it can resolve it.
 - **Change events.** Every write adds a row to `changes`. The dev server keeps one connection open per tab on `/__tensaku/events`, and sends `changed` when a write rings its socket, and the page then loads the notes. A waiting process also checks every ten seconds, for an agent that stopped checking in. The page polls every four seconds only while its connection is down.
 
-No part of this wakes an agent. MCP lets an agent call Tensaku, not the other way round, so a note reaches an agent that is waiting in `watch_notes` or calling Tensaku's tools. See [Notes](/notes/).
+No part of this wakes an agent. MCP lets an agent call Tensaku, not the other way round, so a note reaches an agent that is waiting in `watch_notes` or calling Tensaku's tools. See [Notes](/notes).
 
 ## Where the data lives
 

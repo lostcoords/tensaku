@@ -33,7 +33,7 @@ From version 0.1.3, [Kiln](https://github.com/davafons/kiln)'s content layer can
 Kiln::Content.source_positions = Rails.env.development?
 ```
 
-Kiln's content directory isn't writable by default. Add `content/` to [`writable_paths`](/configuration/), and the directory of any file rendered with `Kiln::Content.file`.
+Kiln's content directory isn't writable by default. Add `content/` to [`writable_paths`](/configuration), and the directory of any file rendered with `Kiln::Content.file`.
 
 Tensaku edits the text of paragraphs, headings, list items and quotes, and whole lists as source. Code blocks, tables and rules only get notes.
 

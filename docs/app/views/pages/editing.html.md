@@ -49,9 +49,9 @@ The keys work while nothing is being typed in, so a field on your page and Tensa
 | `t()` translations, in text and attributes | The locale YAML, only the value's bytes |
 | Markdown blocks: paragraphs, headings, list items, quotes and whole lists | The Markdown file, inside the block's range |
 
-The file has to be in the [writable paths](/configuration/). By default those are `app/views`, `app/components` and `config/locales`.
+The file has to be in the [writable paths](/configuration). By default those are `app/views`, `app/components` and `config/locales`.
 
-Text from Ruby data (`@post.title`), the output of `link_to`, `form_with` or custom helpers, and DOM built by JavaScript can't be edited. They can still get [notes](/notes/). [Limits](/safety/#limits) has the full list.
+Text from Ruby data (`@post.title`), the output of `link_to`, `form_with` or custom helpers, and DOM built by JavaScript can't be edited. They can still get [notes](/notes). [Limits](/safety#limits) has the full list.
 
 ## What the editor shows
 
