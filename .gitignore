@@ -15,3 +15,4 @@
 /docs/app/assets/builds/*
 !/docs/app/assets/builds/.keep
 /docs/.bundle/
+.DS_Store
