@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.3 (2026-11-15)
 
 - With [meta-tags](https://github.com/kpumuk/meta-tags), pages keep their own title in development.
   meta-tags counted translation markers toward its 70-character title limit, so a marked site name
