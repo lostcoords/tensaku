@@ -12,7 +12,7 @@ gem "stimulus-rails"
 gem "tailwindcss-rails", "~> 4.4"
 gem "puma"
 
-gem "lostcoords-ui", "~> 0.8.2"
+gem "lostcoords-ui", "~> 0.12.0"
 
 gem "kiln", "~> 0.2.0"
 gem "commonmarker", "~> 2.9"
