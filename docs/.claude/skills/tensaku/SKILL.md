@@ -58,11 +58,15 @@ A note looks like this:
 
 1. List the open notes (`list_notes`, or `tensaku notes`). Each is marked *Yours* or *Nobody's yet*;
    notes other sessions hold aren't listed.
-2. Call `start_note` on the note you take, before you change anything, so the person sees it's being
-   worked on and no other session takes it. If it fails, leave that note. `resolve_note` refuses a
-   note you didn't start, and a note the person took back from you. A note marked as stopped was
+2. Call `start_note` on a note you took from `list_notes`, before you change anything, so the person
+   sees it's being worked on and no other session takes it. If it fails, leave that note. Notes handed
+   to you by `watch_notes`, a channel event or another tool's answer are already started: skip
+   `start_note` for them. `resolve_note` refuses a note that isn't started for you, and a note the
+   person took back from you. A note marked as stopped was
    started by a session that ended: part of its change may already be in the file. Then open the
-   target file at the range, read the comment, and make the change. Look at
+   target file at the range, read the comment, and make the change. Notes from the MCP tools and
+   `tensaku notes` give the file's absolute path, so open it directly instead of searching for it, and
+   read it in the same turn as `start_note` when you need one. Look at
    `context.partials` when the fix belongs in a parent template, and at the translation target when the
    text comes from a locale file (change every locale that needs it).
 3. Read the note's `thread`: the person's answers to earlier questions are there. Use `reply_to_note`
@@ -81,7 +85,9 @@ amber-fox): the page shows it next to your name.
 Take the notes one at a time, and resolve each before you start the next. The person is watching the page,
 so don't make every change first and update the notes at the end. These calls are small: `start_note` and
 `resolve_note` answer with one line. `list_notes` already has each note's text, so don't call
-`get_note` after it, unless a thread says earlier messages were left out and you need them.
+`get_note` after it, unless a thread says earlier messages were left out and you need them. The answer
+of `resolve_note`, `decline_note` and `ask_question` says how many open notes are left, so don't list
+again to find out.
 
 In Claude Code, Tensaku may arrive as a channel: a `<channel source="tensaku">` message asks you to
 call `channel_ready` with a code, and later ones hold notes the person saved, already yours. Work

@@ -1,6 +1,6 @@
 # Contribute to Tensaku
 
-[AGENTS.md](AGENTS.md) lists the project rules. Use jj for version control.
+[AGENTS.md](AGENTS.md) lists the project rules. Use jj for version control. Explain a design decision, and what it leaves out, in its commit message. [Safety and limits](docs/app/views/pages/safety.html.md) lists what Tensaku doesn't support.
 
 ## Build and check code
 
