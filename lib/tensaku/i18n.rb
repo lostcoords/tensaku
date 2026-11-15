@@ -103,6 +103,16 @@ module Tensaku
       end
     end
 
+    # meta-tags measures titles, descriptions and keywords against character limits, and counts a
+    # marker (four characters per byte of "locale:key") as text. A marked site name alone can use up
+    # the 70-character title limit, so the page title was cut away. The overlay never edits the head,
+    # so meta-tags gets the text alone and truncates as it does in production.
+    module MetaTagsText
+      def cleanup_string(string, strip: true)
+        super(string.respond_to?(:to_str) ? I18nMarkers.strip(string.to_str) : string, strip:)
+      end
+    end
+
     def page?
       Thread.current[:tensaku_i18n_page] == true
     end

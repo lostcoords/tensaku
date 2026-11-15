@@ -49,6 +49,7 @@ module Tensaku
         if defined?(ActiveModel::Type::String)
           [ ActiveModel::Type::ImmutableString, ActiveModel::Type::String ].each { it.prepend(Tensaku::I18nMarkers::ModelStrings) }
         end
+        MetaTags::TextNormalizer.prepend(Tensaku::I18nMarkers::MetaTagsText) if defined?(MetaTags::TextNormalizer)
 
         if (warning = Tensaku::Caches.fragment_cache_warning)
           Rails.logger.warn("[Tensaku] #{warning}")

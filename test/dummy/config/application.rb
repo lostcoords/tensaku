@@ -13,6 +13,7 @@ Bundler.require(*Rails.groups)
 # an app lists it in the wrong Gemfile group.
 require "tensaku"
 require "view_component"
+require "meta_tags"
 
 module Dummy
   class Application < Rails::Application

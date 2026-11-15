@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- With [meta-tags](https://github.com/kpumuk/meta-tags), pages keep their own title in development.
+  meta-tags counted translation markers toward its 70-character title limit, so a marked site name
+  used up the limit and every page showed only the site name. Titles, descriptions and keywords now
+  reach meta-tags without markers and are truncated as in production.
+
 ## 0.3.2 (2026-11-15)
 
 - A note on translated text is saved again. It failed with `NoMethodError: undefined method '[]'`

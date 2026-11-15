@@ -9,6 +9,7 @@ gem "turbo-rails"
 gem "stimulus-rails"
 gem "puma"
 gem "view_component"
+gem "meta-tags", require: false
 
 gem "rubocop-rails-omakase", require: false
 

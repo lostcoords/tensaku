@@ -80,6 +80,19 @@ class Tensaku::I18nMarkersTest < Tensaku::TestCase
     end
   end
 
+  test "meta-tags measures a marked title by its text, so the page title survives the limit" do
+    view = ApplicationController.new.view_context
+
+    html = Markers.with_markers do
+      view.set_meta_tags(site: I18n.t("pages.home.search_placeholder"), title: I18n.t("hello"), reverse: true, description: I18n.t("pages.home.intro"))
+      view.display_meta_tags
+    end
+
+    assert_includes html, "<title>Hello world | Search the site</title>"
+    assert_includes html, %(content="A folded paragraph over two lines.")
+    assert_not_includes html, Markers::FENCE
+  end
+
   test "non-HTML responses and scripts lose their markers" do
     marked = "Hi#{Markers.encode(:en, "hello")}"
     app = ->(_) { [ 200, { "content-type" => "application/json" }, [ %({"a":"#{marked}"}) ] ] }
