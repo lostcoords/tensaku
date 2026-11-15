@@ -27,7 +27,7 @@ Gem::Specification.new do |spec|
   spec.executables = [ "tensaku" ]
 
   # Herb and ReActionView are before 1.0 and Tensaku loads one of Herb's internal files, so each new
-  # minor version needs a check before it's allowed. Rails 8.2 needs a look too (see PLAN.md).
+  # minor version needs a check before it's allowed. Rails 8.2 needs a look too.
   spec.add_dependency "railties", ">= 8.1", "< 8.2"
   spec.add_dependency "actionpack", ">= 8.1", "< 8.2"
   spec.add_dependency "herb", "~> 0.11.2"

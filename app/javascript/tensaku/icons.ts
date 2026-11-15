@@ -1,4 +1,4 @@
-// The pencil case: small stationery drawings for the toolbar and the note card (ART_STYLE.md). Each
+// The pencil case: small stationery drawings for the toolbar and the note card. Each
 // is a 24×24 SVG. Outlines use currentColor; the ink parts use --ink-color, so a tool shows the
 // colour it writes in.
 

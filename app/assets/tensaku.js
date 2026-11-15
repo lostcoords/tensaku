@@ -6,7 +6,7 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 
-/* The pencil case (ART_STYLE.md). Tensaku keeps one look on every host page: a dark tray for the
+/* The pencil case. Tensaku keeps one look on every host page: a dark tray for the
    tools, Post-it paper for notes, and a few inks. */
 :host {
   --tray: #1d1b19; --tray-raised: #2b2825; --tray-line: #3b3732; --tray-ink: #efe9dd; --tray-muted: #a69e90;

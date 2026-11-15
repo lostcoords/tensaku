@@ -5,8 +5,6 @@ notes for coding agents. Use jj for version control; never use mutating Git comm
 
 [CONTRIBUTING.md](CONTRIBUTING.md) has the build, test and docs commands. The rules:
 
-- Read PLAN.md before design changes. Its decisions log is the reference for what Tensaku does and
-  leaves out. ART_STYLE.md is the direction for the visual design pass.
 - Nothing may change outside development: no loading Herb, ReActionView or Tensaku code in test or
   production (`test/tensaku/production_test.rb` checks it). New code goes behind the railtie's
   development check or Tensaku's autoloads.
@@ -20,5 +18,5 @@ notes for coding agents. Use jj for version control; never use mutating Git comm
 - Never run `gem push`, push, or tag without the user's approval.
 - No AI attribution in commits, pull requests or files.
 
-Writing (README, CHANGELOG, comments): plain, factual sentences. Say what a thing does. No em dashes
-outside the planning documents. Describe verified behavior only, and name what is unsupported.
+Writing (README, CHANGELOG, comments): plain, factual sentences. Say what a thing does. No em dashes.
+Describe verified behavior only, and name what is unsupported.

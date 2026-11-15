@@ -1,6 +1,6 @@
 # Contribute to Tensaku
 
-Read [PLAN.md](PLAN.md) before a design change. Its decisions log records what Tensaku does and what it leaves out. [AGENTS.md](AGENTS.md) lists the project rules. Use jj for version control.
+[AGENTS.md](AGENTS.md) lists the project rules. Use jj for version control.
 
 ## Build and check code
 

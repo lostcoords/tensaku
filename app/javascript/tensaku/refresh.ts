@@ -1,4 +1,4 @@
-// Updating the page after a save (PLAN decision 5), in layers:
+// Updating the page after a save, in layers:
 //   1. right away, every node from the same source whose text equals the old text;
 //   2. then fetch the URL again and morph the page with idiomorph (GET pages only);
 //   3. pages reached by a POST can't be fetched again: keep step 1 and say "reload to check";

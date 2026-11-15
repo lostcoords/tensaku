@@ -42,9 +42,6 @@ end
 # The em dash, and the en dash standing in for one. A bare en dash between numbers is a range.
 DASHES = { /—|(?<= )–(?= )/ => "dash. Use a colon, a full stop, or commas" } # house-rules:allow
 
-# The planning and style documents keep their author's punctuation.
-DASH_EXEMPT = %w[PLAN.md RESEARCH.md REFERENCES.md ART_STYLE.md].freeze
-
 # An agent's tool-call markup written into a file.
 SCAFFOLD = { %r{^\s*</?(invoke|function_calls|parameter|antml:[\w-]+)\b[^>]*>\s*$} => "tool-call markup, not content. Delete the line" }
 
@@ -107,7 +104,7 @@ violations = files.flat_map do |path|
   text = File.read(path, encoding: "UTF-8")
   next [] unless text.valid_encoding?
 
-  found = line_violations(path, text, (DASH_EXEMPT.include?(path) ? {} : DASHES).merge(SCAFFOLD, ATTRIBUTION))
+  found = line_violations(path, text, DASHES.merge(SCAFFOLD, ATTRIBUTION))
   if path.match?(PROSE)
     # Links in the docs site's pages are routes, checked by the Kiln build.
     found += line_violations(path, text, SLOP)
