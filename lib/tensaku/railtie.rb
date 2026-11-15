@@ -45,7 +45,10 @@ module Tensaku
 
       config.after_initialize do
         I18n.backend.extend(Tensaku::I18nMarkers::Backend) unless I18n.backend.is_a?(Tensaku::I18nMarkers::Backend)
-        [ ActiveModel::Type::ImmutableString, ActiveModel::Type::String ].each { it.prepend(Tensaku::I18nMarkers::ModelStrings) }
+        # An app without Active Model, such as one that loads only Action Controller, has no model strings.
+        if defined?(ActiveModel::Type::String)
+          [ ActiveModel::Type::ImmutableString, ActiveModel::Type::String ].each { it.prepend(Tensaku::I18nMarkers::ModelStrings) }
+        end
 
         if (warning = Tensaku::Caches.fragment_cache_warning)
           Rails.logger.warn("[Tensaku] #{warning}")
