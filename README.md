@@ -54,6 +54,10 @@ Ask your agent to do your Tensaku notes, and it works through the open ones. Ask
 
 The agent marks a note `working`, asks a question back, declines it, or resolves it with a reply. Each change shows on the note's pin. A green pin means the change is ready for you to check.
 
+## Use it from a phone
+
+Tensaku answers only requests from your computer, with one exception: a device paired with [Parcela](https://parcela.run) and reached through Parcela's proxy. Parcela gives the server a secret in `PARCELA_PROXY_SECRET`, removes any `Parcela-Device-Secret` header a client sends, and sets it to that secret only on a paired device's request. Tensaku trusts a request from loopback that carries the matching secret. The page's Host must still be a local name or one in `config.hosts`, and anything that reads source or writes still needs the boot token Tensaku puts in the page. No other proxy is trusted.
+
 ## Documentation
 
 The documentation site is [tensaku.lostcoords.com](https://tensaku.lostcoords.com). Its pages are Markdown files in `docs/app/views/pages/`.

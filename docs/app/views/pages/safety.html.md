@@ -22,7 +22,7 @@ Tensaku loads only when `Rails.env.development?` is true, so nothing changes in 
 
 ### Where it doesn't load
 
-- **Tunnels, proxies and containers.** The server has to see the browser's connection as coming from this machine. Behind a tunnel such as ngrok or cloudflared, behind a reverse proxy that forwards other clients, and in Docker or a devcontainer, the overlay doesn't load and the endpoints answer 403.
+- **Tunnels, proxies and containers.** The server has to see the browser's connection as coming from this machine. Behind a tunnel such as ngrok or cloudflared, behind a reverse proxy that forwards other clients, and in Docker or a devcontainer, the overlay doesn't load and the endpoints answer 403. The one exception is a device paired with [Parcela](https://parcela.run), reached through Parcela's proxy: Tensaku trusts a request from loopback whose `Parcela-Device-Secret` header matches the `PARCELA_PROXY_SECRET` Parcela gives the server.
 - **Some responses.** Tensaku buffers HTML responses to add the overlay. Streamed responses (`ActionController::Live`), files sent from disk, and compressed or non-UTF-8 bodies pass through unchanged and get no overlay.
 
 ### How it behaves in development

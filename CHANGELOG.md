@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Tensaku works on a phone or another device paired with [Parcela](https://parcela.run) and reached
+  through Parcela's proxy. Parcela's proxy is the one proxy Tensaku trusts to forward another client:
+  a request from loopback whose `Parcela-Device-Secret` header equals the `PARCELA_PROXY_SECRET`
+  Parcela gives the server gets the overlay and the endpoints. The Host and Origin checks and the boot
+  token still apply. Any other request forwarded from another machine is still refused.
+- An app that doesn't load Active Model boots in development again. Since 0.2.3 it failed with
+  `uninitialized constant ActiveModel`.
+
 ## 0.3.0 (2026-11-15)
 
 ### Notes

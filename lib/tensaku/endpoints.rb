@@ -202,7 +202,7 @@ module Tensaku
     end
 
     def script(request)
-      raise Forbidden, "Tensaku only answers requests from this machine" unless Guard.loopback?(request)
+      raise Forbidden, "Tensaku only answers requests from this machine or a device paired with Parcela" unless Guard.local_client?(request)
 
       [ 200, { "content-type" => "text/javascript; charset=utf-8", "cache-control" => "no-cache" }, [ File.read(ASSET) ] ]
     end

@@ -7,14 +7,23 @@ module Tensaku
   # "From this machine" means a loopback peer address, no proxy header naming another client, a Host
   # that is a local name (or one the app lists in config.hosts), and no Origin from another site. The
   # Host check stops DNS rebinding: a page on another domain that resolves to 127.0.0.1.
+  #
+  # One proxy is trusted to forward other clients: Parcela, for devices paired with it. Its proxy
+  # connects from loopback, strips client-sent Parcela-Device headers, and on a paired device's request
+  # sends Parcela-Device-Secret equal to the PARCELA_PROXY_SECRET it gave this process.
   module Guard
     LOOPBACK = [ IPAddr.new("127.0.0.0/8"), IPAddr.new("::1/128") ].freeze
     FORWARDED = %w[HTTP_X_FORWARDED_FOR HTTP_X_REAL_IP HTTP_FORWARDED HTTP_CLIENT_IP HTTP_TRUE_CLIENT_IP HTTP_CF_CONNECTING_IP].freeze
 
     module_function
 
-    def loopback?(request)
-      loopback_address?(request.get_header("REMOTE_ADDR")) && !forwarded_from_elsewhere?(request)
+    def local_client?(request)
+      loopback_address?(request.get_header("REMOTE_ADDR")) && (!forwarded_from_elsewhere?(request) || parcela_device?(request))
+    end
+
+    def parcela_device?(request)
+      secret = ENV["PARCELA_PROXY_SECRET"].to_s
+      !secret.empty? && secure_compare(request.get_header("HTTP_PARCELA_DEVICE_SECRET").to_s, secret)
     end
 
     # Whether the request came from this machine and from a page of this app, not another site.
@@ -34,7 +43,7 @@ module Tensaku
 
     # Every endpoint but the script adds the token on top of this.
     def check_local_client!(request)
-      raise Forbidden, "Tensaku only answers requests from this machine" unless loopback?(request)
+      raise Forbidden, "Tensaku only answers requests from this machine or a device paired with Parcela" unless local_client?(request)
 
       origin = request.get_header("HTTP_ORIGIN")
       raise Forbidden, "Cross-origin requests are refused" if origin && !local_url?(origin)

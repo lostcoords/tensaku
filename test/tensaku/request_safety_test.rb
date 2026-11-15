@@ -75,6 +75,38 @@ class Tensaku::RequestSafetyTest < Tensaku::TestCase
     assert_equal 200, endpoint("GET", "/notes", env: { "HTTP_X_FORWARDED_FOR" => "127.0.0.1" }).status
   end
 
+  test "a device Parcela vouches for through its proxy is trusted, with an allowed Host and Origin" do
+    hosts = Rails.application.config.hosts
+    Rails.application.config.hosts = [ "phone.test" ]
+    ENV["PARCELA_PROXY_SECRET"] = "s3cret"
+    phone = { "HTTP_HOST" => "phone.test", "HTTP_X_FORWARDED_FOR" => "192.168.1.30", "HTTP_PARCELA_DEVICE" => "iphone" }
+    vouched = phone.merge("HTTP_PARCELA_DEVICE_SECRET" => "s3cret")
+
+    assert_includes page(DOCUMENT, env: vouched)[2].join, "data-tensaku-token"
+    assert_equal 200, endpoint("GET", "/notes", env: vouched).status
+    assert_equal 200, endpoint("GET", "/notes", env: vouched.merge("HTTP_ORIGIN" => "https://phone.test")).status
+    assert_equal 200, endpoint("GET", "/tensaku.js", token: nil, env: vouched).status
+    assert_equal 403, endpoint("GET", "/notes", token: nil, env: vouched).status
+
+    assert_not_includes page(DOCUMENT, env: phone)[2].join, "data-tensaku-token"
+    assert_equal 403, endpoint("GET", "/notes", env: phone).status
+    assert_equal 403, endpoint("GET", "/notes", env: phone.merge("HTTP_PARCELA_DEVICE_SECRET" => "wrong")).status
+    assert_equal 403, endpoint("GET", "/tensaku.js", token: nil, env: phone.merge("HTTP_PARCELA_DEVICE_SECRET" => "wrong")).status
+    assert_equal 403, endpoint("GET", "/notes", env: vouched.merge("REMOTE_ADDR" => "192.168.1.30")).status
+    assert_equal 403, endpoint("GET", "/notes", env: vouched.merge("HTTP_HOST" => "evil.example")).status
+    assert_equal 403, endpoint("GET", "/notes", env: vouched.merge("HTTP_ORIGIN" => "https://evil.example")).status
+    assert_not_includes page(DOCUMENT, env: vouched.merge("HTTP_HOST" => "evil.example"))[2].join, "data-tensaku-token"
+
+    ENV["PARCELA_PROXY_SECRET"] = ""
+    assert_equal 403, endpoint("GET", "/notes", env: phone.merge("HTTP_PARCELA_DEVICE_SECRET" => "")).status
+    ENV.delete("PARCELA_PROXY_SECRET")
+    assert_equal 403, endpoint("GET", "/notes", env: vouched).status
+    assert_not_includes page(DOCUMENT, env: vouched)[2].join, "data-tensaku-token"
+  ensure
+    ENV.delete("PARCELA_PROXY_SECRET")
+    Rails.application.config.hosts = hosts
+  end
+
   test "bad request bodies are answered with an error, not a crash" do
     assert_equal 422, endpoint("POST", "/notes", body: "[1, 2]").status
     assert_equal 422, endpoint("POST", "/notes", body: JSON.generate(comment: "Hi", targets: [ "nope" ])).status
