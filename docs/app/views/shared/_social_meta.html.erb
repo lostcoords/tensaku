@@ -3,6 +3,7 @@
     renders it). The picture carries the tagline, so the title and description don't repeat it.
     Previews need absolute URLs, so they start from Kiln's site URL. %>
 <% description = "Edit the text on your running Rails pages and the source updates. Leave notes for your coding agent on anything you see, with the file and line that rendered it." %>
+<% unless response.not_found? %><link rel="canonical" href="<%= Kiln.config.url + request.path %>"><% end %>
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Tensaku">
 <meta property="og:title" content="<%= title %>">

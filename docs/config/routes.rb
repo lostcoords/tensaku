@@ -6,5 +6,6 @@ Rails.application.routes.draw do
   end
 
   get "search", to: "search#show", format: :json
+  get "robots", to: "search#robots", format: :text
   get "404", to: "pages#not_found"
 end
