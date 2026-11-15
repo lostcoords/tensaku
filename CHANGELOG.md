@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.2 (2026-11-15)
 
 - A note on translated text is saved again. It failed with `NoMethodError: undefined method '[]'`
   for `Tensaku::Source::Locale::Entry`.
