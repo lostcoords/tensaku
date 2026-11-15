@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.1 (2026-11-15)
 
 - Tensaku works on a phone or another device paired with [Parcela](https://parcela.run) and reached
   through Parcela's proxy. Parcela's proxy is the one proxy Tensaku trusts to forward another client:
