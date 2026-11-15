@@ -32,8 +32,8 @@ module Tensaku
           target["key"] = raw["key"].to_s
           target["locale"] = raw["locale"].to_s
           if (entry = Source::Locale.find(target["locale"], target["key"]))
-            target["file"] = entry[:file]
-            target["range"] = entry[:line].to_s
+            target["file"] = entry.file
+            target["range"] = entry.line.to_s
           end
         end
 

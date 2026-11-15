@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- A note on translated text is saved again. It failed with `NoMethodError: undefined method '[]'`
+  for `Tensaku::Source::Locale::Entry`.
+
 ## 0.3.1 (2026-11-15)
 
 - Tensaku works on a phone or another device paired with [Parcela](https://parcela.run) and reached

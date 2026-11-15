@@ -50,6 +50,13 @@ class Tensaku::LocaleTest < Tensaku::TestCase
     assert_equal "Welcome home", entry.value
   end
 
+  test "a note on a translation points at the key's file and line" do
+    target = Tensaku::Notes::Target.from("kind" => "translation", "locale" => "en", "key" => "pages.home.title")
+
+    assert_equal "config/locales/en.yml", target["file"]
+    assert_equal "7", target["range"]
+  end
+
   test "a plain value stays plain and keeps its trailing comment" do
     edit "pages.home.title", "Welcome back"
 
