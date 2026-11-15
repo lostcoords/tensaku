@@ -22,7 +22,8 @@ import { drawPins } from "./pins"
 import { closeOutside, closePopover, popoverOpen } from "./popover"
 import { onRefresh } from "./refresh"
 import { hasCommandModifier, toolForEvent } from "./shortcuts"
-import { activeInShadow, box, div, layer, mount } from "./ui"
+import { onScopeChange, watchTopLayer } from "./top-layer"
+import { activeInShadow, box, div, layer } from "./ui"
 
 declare global {
   interface Window { __tensaku?: boolean }
@@ -207,23 +208,26 @@ onDocument("keydown", (event) => {
   menuKey(event)
   if (selectKey(event)) return
   if (pickKey(event)) return
-  if (event.key === "Escape") escape()
+  if (event.key === "Escape" && escape()) event.preventDefault()
 }, true)
 
 // Each Escape closes one thing, the innermost first: it leaves a field in Tensaku's panels (the note
 // form and the comment editor also close on it), then closes the popover, the element menu, the note
 // opened from a pin and the side panel, turns select or edit mode off, and last folds the toolbar
-// away. The editor closes itself, and a field of the page keeps its own Escape.
-function escape() {
-  if (isEditing() || typingInPage()) return
-  if (cancelPick()) return
+// away. The editor closes itself, and a field of the page keeps its own Escape. Returns whether it
+// closed one of Tensaku's fields, popovers, menus, notes or panels: that Escape is used up, so an open
+// dialog of the app stays open. Turning a mode off or folding the toolbar lets the dialog close too.
+function escape(): boolean {
+  if (isEditing() || typingInPage()) return false
+  if (cancelPick()) return true
   const field = activeInShadow()
-  if (field?.matches("textarea, input, [contenteditable]")) { (field as HTMLElement).blur(); return }
+  if (field?.matches("textarea, input, [contenteditable]")) { (field as HTMLElement).blur(); return true }
   if (popoverOpen()) closePopover()
   else if (menuOpen()) closeMenu()
-  else if (closeNote() || closeSidePanel()) return
-  else if (mode() !== "off") setMode("off")
-  else closeToolbar()
+  else if (closeNote() || closeSidePanel()) return true
+  else if (mode() !== "off") { setMode("off"); return false }
+  else { closeToolbar(); return false }
+  return true
 }
 onDocument("keyup", (event) => { if (event.key === "Alt") setAltHeld(false) }, true)
 onWindow("blur", () => setAltHeld(false))
@@ -236,6 +240,9 @@ function scheduleRedraw() {
   redraw = requestAnimationFrame(() => { drawPins(); drawOutlines(); if (hasPicked()) drawPicked() })
 }
 onWindow("resize", () => { placeDock(); scheduleRedraw() })
+// A modal dialog opening or closing changes what can be pointed at: pins, outlines and the highlight
+// follow it.
+onScopeChange(() => { clearHover(); scheduleRedraw() })
 
 let path = location.pathname
 function pageChanged() {
@@ -267,13 +274,13 @@ function boot() {
   window.__tensaku = true
   pending.forEach((add) => add())
   watchMarkers()
-  mount()
+  // Mounts the overlay, and moves it into the top layer while a dialog or popover is open. Turbo
+  // replaces <body>, not <html>, and the overlay is put back if something removed it.
+  watchTopLayer()
   placeDock()
   loadNotes()
   pollNotes()
   syncPins()
-  // Turbo replaces <body>, not <html>; put the overlay back if something removed it.
-  new MutationObserver(() => mount()).observe(document.documentElement, { childList: true })
 }
 
 boot()

@@ -7,5 +7,6 @@ Rails.application.routes.draw do
   get "guide", to: "pages#guide"
   get "signup", to: "pages#signup"
   get "notice", to: "pages#notice"
+  get "modals", to: "pages#modals"
   post "signup", to: "pages#create_signup"
 end

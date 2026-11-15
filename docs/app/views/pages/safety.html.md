@@ -32,6 +32,8 @@ Tensaku loads only when `Rails.env.development?` is true, so nothing changes in 
 - **Herb's dev server** (ReActionView's `slots` option) patches template changes itself, and Tensaku skips its own refetch after a template edit.
 - **The morph after a save** removes attributes that client-side code added to an element. Mark those elements `data-tensaku-permanent`.
 - **Undo** covers the saves made in the browser tab, and one person edits at a time. Version control is the longer history.
+- **Dialogs and popovers.** While a `<dialog>` opened with `showModal()` or a popover is open, the overlay moves inside the topmost one and shows itself as a popover, so it draws above it and takes clicks and keys. It goes back to `<html>` when they close. A click on the overlay counts as inside the app's popover, which stays open. Selection, the arrow keys, edit mode's outlines and the pins stay inside an open modal dialog. An area note leaves out what a dialog or an app's own CSS modal covers, but the arrow keys and outlines can still reach behind a CSS modal. Escape that closes something of Tensaku's leaves the app's dialog open. Not supported: dialogs inside an app's own shadow roots, fullscreen elements, and browsers without the Popover API, where the overlay stays under the dialog.
+- **The overlay's clicks and keys** don't reach the app's event handlers, so a click on a Tensaku menu doesn't close the app's dialog or dropdown, and typing in a note doesn't trigger the app's keyboard shortcuts. Handlers the app adds while capturing still see them.
 
 ### Tag helpers
 

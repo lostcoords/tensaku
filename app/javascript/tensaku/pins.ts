@@ -5,9 +5,10 @@
 import { api } from "./api"
 import { icon } from "./icons"
 import { showNote } from "./note-card"
-import { anchorFor, guessedElement, phraseRects, pointFor } from "./note-targets"
+import { anchorFor, guessedElement, noteElement, phraseRects, pointFor } from "./note-targets"
 import { closed, currentNotes, load, type Note, onRender } from "./notes"
 import { onRefresh } from "./refresh"
+import { modalScope } from "./top-layer"
 import { div, h, layer } from "./ui"
 
 const pinLayer = div("pins")
@@ -38,7 +39,10 @@ function syncHold(note: Note, guessed: boolean) {
 
 export function drawPins() {
   pinLayer.replaceChildren()
+  const scope = modalScope()
   currentNotes().forEach((note, index) => {
+    // With a modal dialog open, only the notes on what is inside it show.
+    if (scope && !scope.contains(noteElement(note))) return
     // A done note's text was usually changed by the agent: its pin stays green.
     const guessed = !closed(note) && Boolean(guessedElement(note))
     syncHold(note, guessed)

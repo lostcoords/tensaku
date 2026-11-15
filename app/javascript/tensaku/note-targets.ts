@@ -1,7 +1,7 @@
 // Where a note points on the page, both ways: the targets a new note records for an element, and the
 // element, rectangle or phrase an existing note's targets point at now.
 
-import { contentRect, contextOf, documentRect, MARKDOWN, nearestStamp, STAMP, tagLabel, translationOf, visibleText } from "./dom"
+import { contentRect, contextOf, documentRect, isUi, MARKDOWN, nearestStamp, STAMP, tagLabel, translationOf, visibleText } from "./dom"
 import { textKeys } from "./markers"
 import type { Note, Target } from "./notes"
 
@@ -39,21 +39,38 @@ export function targetsFor(element: Element, selectedText?: string): Target[] {
   return targets
 }
 
-// The elements an area covers: stamped elements mostly inside the rectangle, outermost first, or the
-// innermost element under its center when nothing fits.
+// The elements an area covers: stamped elements mostly inside the rectangle that are on top where it
+// covers them, outermost first, or the innermost element under its center when nothing fits. Content
+// under a modal dialog, its backdrop or an app's own overlay is left out.
 export function elementsInArea(rect: DOMRect): Element[] {
   const candidates = Array.from(document.querySelectorAll(`[${STAMP}], [${MARKDOWN}]`)).filter((element) => {
     if (element === document.body || element.closest("[data-tensaku-ui]")) return false
     const box = contentRect(element)
     if (!box.width || !box.height) return false
-    const overlap = Math.max(0, Math.min(box.right, rect.right) - Math.max(box.left, rect.left)) * Math.max(0, Math.min(box.bottom, rect.bottom) - Math.max(box.top, rect.top))
-    return overlap / (box.width * box.height) >= 0.5
+    const left = Math.max(box.left, rect.left), right = Math.min(box.right, rect.right)
+    const top = Math.max(box.top, rect.top), bottom = Math.min(box.bottom, rect.bottom)
+    const overlap = Math.max(0, right - left) * Math.max(0, bottom - top)
+    return overlap / (box.width * box.height) >= 0.5 && onTop(element, new DOMRect(left, top, right - left, bottom - top))
   })
   const outermost = candidates.filter((element) => !candidates.some((other) => other !== element && other.contains(element)))
   if (outermost.length) return outermost.slice(0, 20)
-  const center = document.elementFromPoint(rect.left + rect.width / 2 - scrollX, rect.top + rect.height / 2 - scrollY)
+  const center = document.elementsFromPoint(rect.left + rect.width / 2 - scrollX, rect.top + rect.height / 2 - scrollY).find((found) => !isUi(found))
   const fallback = center?.closest(`[${STAMP}], [${MARKDOWN}]`)
   return fallback ? [fallback] : []
+}
+
+// Whether the element shows at one of a few points of `part` (page coordinates): what the page hit-tests
+// there, past Tensaku's own marks, is the element or inside it, or contains it, for content that
+// doesn't take the pointer. A point outside the window can't be tested, and counts.
+function onTop(element: Element, part: DOMRect): boolean {
+  const points = [[0.5, 0.5], [0.2, 0.2], [0.8, 0.2], [0.2, 0.8], [0.8, 0.8]]
+  return points.some(([x, y]) => {
+    const px = part.left + part.width * x - scrollX
+    const py = part.top + part.height * y - scrollY
+    if (px < 0 || py < 0 || px >= innerWidth || py >= innerHeight) return true
+    const hit = document.elementsFromPoint(px, py).find((found) => !isUi(found))
+    return Boolean(hit && (element.contains(hit) || hit.contains(element)))
+  })
 }
 
 // The selected text a "text" note is about, found again in its element.
@@ -108,6 +125,15 @@ export function guessedElement(note: Note): Element | null {
   for (const target of note.targets) {
     const match = targetMatch(target)
     if (match?.guessed) return match.element
+  }
+  return null
+}
+
+// The first element the note's targets point at, if any is on the page.
+export function noteElement(note: Note): Element | null {
+  for (const target of note.targets) {
+    const element = targetElement(target)
+    if (element) return element
   }
   return null
 }

@@ -10,6 +10,7 @@ import { mode } from "./mode"
 import { noteForm } from "./note-card"
 import { targetsFor } from "./note-targets"
 import type { Target } from "./notes"
+import { modalScope, outsideScope } from "./top-layer"
 import { activeInShadow, box, copy, h, panel, toast } from "./ui"
 
 // This tab's id, so each tab keeps its own selection for an agent's current_selection.
@@ -55,16 +56,17 @@ export function highlight(element: Element, className = "") {
 }
 
 // Arrow keys walk the stamped elements from the highlighted one, like a DOM inspector: up to the
-// parent, down to the first child, left and right to siblings.
-const stamped = (element: Element | null) => Boolean(element && !isUi(element) && element !== document.body && (element.hasAttribute(STAMP) || element.hasAttribute(MARKDOWN)))
+// parent, down to the first child, left and right to siblings. With a modal dialog open they stay in it.
+const stamped = (element: Element | null) => Boolean(element && !isUi(element) && element !== document.body && !outsideScope(element) && (element.hasAttribute(STAMP) || element.hasAttribute(MARKDOWN)))
 function step(element: Element, key: string): Element | null {
   if (key === "ArrowUp") {
-    for (let node = element.parentElement; node && node !== document.body; node = node.parentElement) if (stamped(node)) return node
+    for (let node = element.parentElement; node && node !== document.body && !outsideScope(node); node = node.parentElement) if (stamped(node)) return node
     return null
   }
   if (key === "ArrowDown") return Array.from(element.querySelectorAll(`[${STAMP}], [${MARKDOWN}]`)).find((child) => stamped(child) && (child as HTMLElement).offsetParent !== null) ?? null
-  const parent = step(element, "ArrowUp") ?? document.body
-  const siblings = Array.from(parent.querySelectorAll(`[${STAMP}], [${MARKDOWN}]`)).filter((node) => stamped(node) && step(node, "ArrowUp") === (parent === document.body ? null : parent))
+  const base = modalScope() ?? document.body
+  const parent = step(element, "ArrowUp") ?? base
+  const siblings = Array.from(parent.querySelectorAll(`[${STAMP}], [${MARKDOWN}]`)).filter((node) => stamped(node) && step(node, "ArrowUp") === (parent === base ? null : parent))
   const index = siblings.indexOf(element)
   return siblings[index + (key === "ArrowRight" ? 1 : -1)] ?? null
 }
@@ -146,7 +148,7 @@ export function drawPicked() {
 export function pickKey(event: KeyboardEvent): boolean {
   if (!pickBar || isEditing() || activeInShadow()?.matches("textarea")) return false
   if (event.key.toLowerCase() === "n" && !event.metaKey && !event.ctrlKey && !event.altKey) { event.preventDefault(); notePicked(); return true }
-  if (event.key === "Escape") { clearPicked(); return true }
+  if (event.key === "Escape") { event.preventDefault(); clearPicked(); return true }
   return false
 }
 

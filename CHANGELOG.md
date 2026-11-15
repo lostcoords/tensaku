@@ -15,6 +15,14 @@
 
 ### Overlay
 
+- Tensaku works over native dialogs and popovers. The overlay drew under a `<dialog>` opened with
+  `showModal()`, and the dialog made it inert, so its menu and note form could not be clicked or typed
+  in. While a modal dialog or a popover is open, the overlay now moves inside the topmost one and shows
+  itself as a popover. Area notes leave out what a dialog or an app's CSS modal covers, and select
+  mode's arrow keys, edit mode's outlines and the pins stay inside an open modal dialog.
+- Escape that closes Tensaku's menu, note, popover or panel no longer also closes the app's dialog.
+- Clicks and keys on the overlay no longer reach the app's event handlers, so they don't close the
+  app's dialogs or dropdowns or trigger its keyboard shortcuts.
 - The Archive and All pages tabs refresh after a change made from the panel. A note reopened from the
   archive could stay listed there when the dev server's change event arrived before the page had
   fetched the archive again.

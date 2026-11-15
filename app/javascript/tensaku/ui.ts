@@ -1,13 +1,21 @@
 // The overlay's own UI lives in a shadow root on an element attached to <html>, outside <body>, so
-// Turbo body swaps and morphs never touch it and the app's CSS can't reach it.
+// Turbo body swaps and morphs never touch it and the app's CSS can't reach it. While a modal dialog or
+// a popover is open it moves into the top layer (top-layer.ts).
 
 import CSS from "./overlay.css" with { type: "text" }
 
-const host = document.createElement("tensaku-overlay")
+export const host = document.createElement("tensaku-overlay")
 host.id = "tensaku-overlay"
 host.setAttribute("data-tensaku-ui", "")
 host.setAttribute("data-turbo-permanent", "")
 const shadow = host.attachShadow({ mode: "open" })
+
+// Tensaku's own clicks and keys end at the host. Tensaku's handlers listen on the document while
+// capturing, before this, and the app's handlers on the way up, such as a dialog that closes on a click
+// outside its box or a keyboard shortcut, never see them.
+for (const type of ["pointerdown", "pointerup", "mousedown", "mouseup", "click", "dblclick", "contextmenu", "keydown", "keyup", "keypress"]) {
+  host.addEventListener(type, (event) => event.stopPropagation())
+}
 
 // A constructed stylesheet, so a page with a strict Content-Security-Policy (no 'unsafe-inline' for
 // styles) still styles the overlay. Browsers without constructable stylesheets get a <style> element.
@@ -25,10 +33,6 @@ export const fixed = div("fixed")
 const toasts = div("toasts")
 shadow.append(layer, fixed)
 fixed.append(toasts)
-
-export function mount() {
-  if (!host.isConnected) document.documentElement.append(host)
-}
 
 type Child = Node | string | null | undefined | false
 export function h<K extends keyof HTMLElementTagNameMap>(

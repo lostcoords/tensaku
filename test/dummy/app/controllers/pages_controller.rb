@@ -20,6 +20,8 @@ class PagesController < ApplicationController
 
   def signup; end
 
+  def modals; end
+
   # Like a flash message: translated in the action, before any template renders.
   def notice
     @notice = t("hello")

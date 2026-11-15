@@ -5,6 +5,7 @@
 import { api } from "./api"
 import { documentRect, editKind, hasOwnText, isUi, MARKDOWN, STAMP, templateText } from "./dom"
 import { mode } from "./mode"
+import { outsideScope } from "./top-layer"
 import { box } from "./ui"
 
 const EDITABLE_BATCH = 5000
@@ -14,7 +15,7 @@ let asking = false
 function editableElements(): Element[] {
   const elements = new Set<Element>()
   document.body.querySelectorAll(`[${STAMP}], [${MARKDOWN}], *`).forEach((element) => {
-    if (isUi(element) || !(element as HTMLElement).offsetParent && getComputedStyle(element).position !== "fixed") return
+    if (isUi(element) || outsideScope(element) || !(element as HTMLElement).offsetParent && getComputedStyle(element).position !== "fixed") return
     if (editKind(element)) elements.add(element)
   })
   return Array.from(elements)

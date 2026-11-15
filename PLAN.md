@@ -276,6 +276,8 @@ app/javascript/tensaku/         overlay source (TypeScript):
   pins.ts, announce.ts          pins on the page, toasts when an agent answers
   agents-popover.ts             connected agents; client-icons.ts gives each its client's mark
   ui.ts, overlay.css            shadow root, element helpers, the stylesheet
+  top-layer.ts                  the overlay over open dialogs and popovers
+  pick.ts                       picking a note's element again
 app/assets/tensaku.js           compiled overlay, committed
 test/dummy/                     Rails 8.1 app used by the test suite
 docs/                           documentation site, a separate Rails app built with Kiln
@@ -699,6 +701,19 @@ adds a second one.
   `Kiln::Content.source_positions`, and Tensaku no longer adds `Kiln::Content.root` to the writable
   paths: the app lists it. Tensaku edits a subset of the blocks Kiln marks (`p`, headings, `li`,
   `blockquote`, whole lists); `pre`, `table` and `hr` only get notes.
+- **Dialogs and popovers (added 2026-11-15):** the overlay drew under a `showModal()` dialog, which
+  also made it inert (no clicks, no focus). z-index can't reach the top layer, and a popover shown
+  above a modal dialog from outside it is still inert, in Chromium and WebKit alike. So while a modal
+  dialog or a popover is open, the overlay's host moves inside the topmost modal dialog or auto popover
+  and is shown as a manual popover after it (top-layer.ts). In the top layer, `position: absolute`
+  resolves against the document's origin, so page coordinates stay the same, and a dialog's transform
+  or overflow doesn't affect it. Inside an auto popover, a click on the overlay doesn't light-dismiss
+  it. The host stops its own pointer and key events from bubbling into the app: inside a dialog they
+  would reach a click-outside handler. Area notes hit-test each element, which covers CSS modals too;
+  arrow keys, outlines and pins are scoped to the modal dialog only, since a CSS modal's extent isn't
+  known (trusting `aria-modal` was left out). Escape is used up only when it closes something
+  transient of Tensaku's. Not covered: dialogs in an app's shadow roots, fullscreen elements, browsers
+  without the Popover API.
 - **Unsure pins hold a note (added 2026-11-15):** a pin that finds its element only by the old
   position (same stamp and tag, other text) was a silent guess, and the agent still got the old line
   and text. Now the pin is drawn unsure, and the card asks: **Keep here** or **Pick again** (the next
