@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.5 (2026-11-23)
 
 - A translation that ends in markup, such as `"Settled up in <em>three steps</em>"`, is found as
   its element's translation and opens the translation editor. Its marker sits in an empty text node
