@@ -5,4 +5,5 @@ es:
       title: Bienvenido
       greeting: "Hola %{name}, bienvenido de nuevo"
       tagline_html: "Notas <em>para agentes</em> y personas"
+      motto_html: "Divídelo <em>a partes iguales</em>"
       search_placeholder: "Buscar en el sitio"

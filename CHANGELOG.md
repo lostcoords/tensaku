@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- A translation that ends in markup, such as `"Settled up in <em>three steps</em>"`, is found as
+  its element's translation and opens the translation editor. Its marker sits in an empty text node
+  after the closing tag, so the element was treated as Ruby output and refused with "This element
+  has no static text to edit".
+
 ## 0.3.4 (2026-11-23)
 
 - A translation with markup (an `_html` key, or one a view marks `html_safe`) opens its editor. It

@@ -232,6 +232,19 @@ end
     assert_includes view("config/locales/en.yml"), %(tagline_html: "Notes <em>for everyone</em> &amp; their agents")
   end
 
+  test "a translation that ends in markup is still found as the element's translation" do
+    visit "/"
+    wait_for_overlay
+
+    alt_edit find("h2.motto")
+    assert overlay.has_text?("en.pages.home.motto_html")
+    type_in_editor "Split it <em>evenly</em>"
+    save_editor
+
+    assert_selector "h2.motto em", text: "evenly"
+    assert_includes view("config/locales/en.yml"), %(motto_html: "Split it <em>evenly</em>")
+  end
+
   test "a translation with markup changed since the page rendered is still refused" do
     visit "/"
     wait_for_overlay

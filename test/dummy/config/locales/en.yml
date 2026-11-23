@@ -6,6 +6,7 @@ en:
       title: Welcome home   # trailing comment
       greeting: "Hi %{name}, welcome back"
       tagline_html: "Notes <em>for agents</em> &amp; people"
+      motto_html: "Split it <em>fairly</em>"
       search_placeholder: 'Search the site'
       intro: >-
         A folded paragraph

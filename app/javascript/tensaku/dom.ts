@@ -109,9 +109,20 @@ export function translationOf(element: Element): TranslationKey | null {
   const keys = textKeys(element)
   if (!keys.length) return null
   // The element's text has to be mostly that translation, or editing it would surprise.
-  const own = keys[0].node.data.trim()
+  const own = translatedText(keys[0].node)
   const all = (element.textContent ?? "").replace(/\s+/g, " ").trim()
   return own && all.length <= own.length * 2 + 20 ? keys[0].key : null
+}
+
+// The text a translation put on the page. Its marker sits at the end of its last text node, so a
+// translation that ends in markup ("Settled up in <em>three steps</em>") leaves the marker in an
+// empty node after the tag: then its text is what comes before the marker in the same parent.
+function translatedText(node: Text) {
+  const own = node.data.trim()
+  if (own) return own
+  let text = ""
+  for (let sibling = node.previousSibling; sibling; sibling = sibling.previousSibling) text = (sibling.textContent ?? "") + text
+  return text.replace(/\s+/g, " ").trim()
 }
 
 export function editableAttributes(element: Element): string[] {
