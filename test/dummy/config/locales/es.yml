@@ -4,4 +4,5 @@ es:
     home:
       title: Bienvenido
       greeting: "Hola %{name}, bienvenido de nuevo"
+      tagline_html: "Notas <em>para agentes</em> y personas"
       search_placeholder: "Buscar en el sitio"

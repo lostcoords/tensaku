@@ -325,7 +325,7 @@ async function editTranslation(element: Element, key: TranslationKey) {
   if (!entry?.editable || entry.value === null) {
     throw new Error(`${key.locale}.${key.key} isn't in a writable locale file (it may come from a gem).`)
   }
-  assertRendered(element, staticParts(entry.value))
+  assertRendered(element, staticParts(entry.value).map(renderedText))
   const main = interpolationSurface(entry.value)
   const others = Object.entries(locales).filter(([locale]) => locale !== key.locale)
   const otherRows = div("")
@@ -411,6 +411,14 @@ async function saveMarkdown(element: Element, range: string, original: string, p
 function indexPieces(pieces: Piece[]) {
   let index = 0
   for (const piece of pieces) if (piece.kind === "text") piece.index = index++
+}
+
+// A translation can hold markup (an `_html` key, or one a view marks html_safe), and the page shows
+// only its text: tags gone, entities decoded. Its static parts are compared as the page shows them.
+function renderedText(html: string) {
+  const template = document.createElement("template")
+  template.innerHTML = html
+  return template.content.textContent ?? ""
 }
 
 const staticParts = (value: string) => value.split(INTERPOLATION).filter((part) => part && !INTERPOLATION.test(part))

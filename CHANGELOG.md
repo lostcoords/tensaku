@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- A translation with markup (an `_html` key, or one a view marks `html_safe`) opens its editor. It
+  was refused with "The file changed since the page was rendered" on every try, because the stale
+  check looked for the tags and entities in the page's text. It now compares the text the page
+  shows, so a real change to the locale file is still refused.
+
 ## 0.3.3 (2026-11-15)
 
 - With [meta-tags](https://github.com/kpumuk/meta-tags), pages keep their own title in development.

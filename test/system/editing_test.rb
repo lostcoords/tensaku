@@ -218,6 +218,32 @@ end
     assert_includes view("config/locales/en.yml"), %(greeting: "Hi %{name}, welcome back")
   end
 
+  test "a translation with markup opens its editor and keeps the markup" do
+    visit "/"
+    wait_for_overlay
+
+    alt_edit find("p.tagline")
+    assert overlay.has_css?(".editor .editable")
+    assert overlay.has_no_css?(".toast.error")
+    type_in_editor "Notes <em>for everyone</em> &amp; their agents"
+    save_editor
+
+    assert_selector "p.tagline em", text: "for everyone"
+    assert_includes view("config/locales/en.yml"), %(tagline_html: "Notes <em>for everyone</em> &amp; their agents")
+  end
+
+  test "a translation with markup changed since the page rendered is still refused" do
+    visit "/"
+    wait_for_overlay
+    path = Rails.root.join("config/locales/en.yml")
+    path.write(path.read.sub("<em>for agents</em>", "<em>for robots</em>"))
+
+    alt_edit find("p.tagline")
+
+    assert overlay.has_css?(".toast.error", text: "changed since the page was rendered")
+    assert overlay.has_no_css?(".editor")
+  end
+
   test "attributes from the template and from translations are edited in a form" do
     visit "/"
     wait_for_overlay
