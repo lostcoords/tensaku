@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.4 (2026-11-23)
 
 - A translation with markup (an `_html` key, or one a view marks `html_safe`) opens its editor. It
   was refused with "The file changed since the page was rendered" on every try, because the stale
